@@ -62,11 +62,42 @@
             </label>
             <label>
               <span>目录路径</span>
-              <input v-model="libraryForm.root_path" type="text" placeholder="D:\\Assets\\Characters" />
+              <div class="form__folder-row">
+                <input v-model="libraryForm.root_path" type="text" placeholder="D:\\Assets\\Characters" />
+                <button class="button button--ghost button--icon" type="button" @click="toggleBrowser" title="浏览文件夹">
+                  📂
+                </button>
+              </div>
+              <div v-if="showBrowser" class="dir-browser">
+                <div class="dir-browser__header">
+                  <span class="dir-browser__path">{{ browseCurrent || "此电脑" }}</span>
+                  <button v-if="browseCurrent" class="dir-browser__up" type="button" @click="browseTo(browseParent)">⬆ 上级</button>
+                </div>
+                <div v-if="browseLoading" class="dir-browser__empty">加载中...</div>
+                <div v-else-if="browseEntries.length === 0" class="dir-browser__empty">此目录下无子文件夹</div>
+                <div v-else class="dir-browser__list">
+                  <button
+                    v-for="entry in browseEntries"
+                    :key="entry.path"
+                    class="dir-browser__item"
+                    type="button"
+                    @click="browseTo(entry.path)"
+                  >
+                    📁 {{ entry.name }}
+                  </button>
+                </div>
+                <div class="dir-browser__footer">
+                  <button class="button button--primary button--sm" type="button" @click="confirmBrowse">选择此目录</button>
+                  <button class="button button--ghost button--sm" type="button" @click="showBrowser = false">取消</button>
+                </div>
+              </div>
             </label>
             <button class="button button--primary" type="submit" :disabled="submittingLibrary">
               {{ submittingLibrary ? "添加中..." : "添加素材库目录" }}
             </button>
+            <div v-if="libraryError" class="alert alert--error">
+              {{ libraryError }}
+            </div>
           </form>
         </article>
 
@@ -242,8 +273,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import MetricCard from "./components/MetricCard.vue";
-import { createLibrary, fetchAssets, fetchLibraries, tagAsset } from "./lib/api";
-import type { AssetItem, AssetType, LibraryItem } from "./lib/types";
+import { browseDirectory, createLibrary, fetchAssets, fetchLibraries, tagAsset } from "./lib/api";
+import type { AssetItem, AssetType, BrowseResponse, DirectoryEntry, LibraryItem } from "./lib/types";
 
 type PanelKey = "libraries" | "files" | "tagging";
 
@@ -264,7 +295,15 @@ const assetTypeFilters = [
 const activePanel = ref<PanelKey>("libraries");
 const loading = ref(false);
 const submittingLibrary = ref(false);
+const libraryError = ref("");
 const tagging = ref(false);
+
+// Directory browser state
+const showBrowser = ref(false);
+const browseLoading = ref(false);
+const browseCurrent = ref("");
+const browseParent = ref<string | null>(null);
+const browseEntries = ref<DirectoryEntry[]>([]);
 const errorMessage = ref("");
 const typeFilter = ref<(typeof assetTypeFilters)[number]["value"]>("all");
 const libraries = ref<LibraryItem[]>([]);
@@ -339,8 +378,49 @@ async function refreshAll() {
   }
 }
 
+async function toggleBrowser() {
+  if (showBrowser.value) {
+    showBrowser.value = false;
+    return;
+  }
+  showBrowser.value = true;
+  await browseTo("");
+}
+
+async function browseTo(path: string | null) {
+  browseLoading.value = true;
+  try {
+    const data: BrowseResponse = await browseDirectory(path || "");
+    browseCurrent.value = data.current;
+    browseParent.value = data.parent;
+    browseEntries.value = data.entries;
+  } catch (error) {
+    libraryError.value = error instanceof Error ? error.message : "浏览目录失败";
+  } finally {
+    browseLoading.value = false;
+  }
+}
+
+function confirmBrowse() {
+  if (browseCurrent.value) {
+    libraryForm.root_path = browseCurrent.value;
+    // Auto-fill library name from folder name if empty
+    if (!libraryForm.name) {
+      const parts = browseCurrent.value.replace(/[\/\\]$/, "").split(/[\/\\]/);
+      libraryForm.name = parts[parts.length - 1] || "";
+    }
+  }
+  showBrowser.value = false;
+}
+
 async function handleCreateLibrary() {
+  if (!libraryForm.name.trim() || !libraryForm.root_path.trim()) {
+    libraryError.value = "请填写素材库名称和目录路径";
+    return;
+  }
+
   submittingLibrary.value = true;
+  libraryError.value = "";
   errorMessage.value = "";
   try {
     const payload = {
@@ -355,7 +435,9 @@ async function handleCreateLibrary() {
     await selectLibrary(created.id);
     activePanel.value = "files";
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : "添加素材库失败";
+    const msg = error instanceof Error ? error.message : "添加素材库失败";
+    libraryError.value = msg;
+    errorMessage.value = msg;
   } finally {
     submittingLibrary.value = false;
   }

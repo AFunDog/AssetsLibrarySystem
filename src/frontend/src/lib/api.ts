@@ -1,5 +1,6 @@
 import type {
   AssetListResponse,
+  BrowseResponse,
   LibraryCreateRequest,
   LibraryItem,
   LibraryListResponse,
@@ -76,4 +77,9 @@ export async function tagAsset(payload: TaggingRequest): Promise<TaggingResponse
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function browseDirectory(path: string = ""): Promise<BrowseResponse> {
+  const query = path ? `?path=${encodeURIComponent(path)}` : "";
+  return requestJson<BrowseResponse>(`/libraries/browse${query}`);
 }

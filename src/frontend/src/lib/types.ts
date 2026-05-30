@@ -69,3 +69,14 @@ export interface TaggingResponse {
   raw_text: string;
   stage: string;
 }
+
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+}
+
+export interface BrowseResponse {
+  current: string;
+  parent: string | null;
+  entries: DirectoryEntry[];
+}

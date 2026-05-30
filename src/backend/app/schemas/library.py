@@ -19,3 +19,19 @@ class LibraryListResponse(BaseModel):
     items: list[LibraryItem]
     total: int
     stage: str
+
+
+class DirectoryEntry(BaseModel):
+    name: str
+    path: str
+
+
+class DriveEntry(BaseModel):
+    path: str
+    label: str
+
+
+class BrowseResponse(BaseModel):
+    current: str
+    parent: str | None
+    entries: list[DirectoryEntry]
