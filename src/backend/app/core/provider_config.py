@@ -27,12 +27,18 @@ class ProviderConfigManager:
         self._raw = self._load()
 
     def _load(self) -> dict[str, Any]:
-        if not self.config_path.exists():
-            raise FileNotFoundError(f"provider 配置不存在: {self.config_path}")
-        with self.config_path.open("r", encoding="utf-8") as f:
+        path = self.config_path
+        if not path.exists():
+            example_path = path.with_name(f"{path.stem}.example{path.suffix}")
+            if example_path.exists():
+                path = example_path
+            else:
+                raise FileNotFoundError(f"provider 配置不存在: {self.config_path}")
+
+        with path.open("r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         if not isinstance(data, dict):
-            raise ValueError(f"provider 配置格式错误: {self.config_path}")
+            raise ValueError(f"provider 配置格式错误: {path}")
         return data
 
     def get(self, slot: str) -> ProviderConfig:

@@ -26,6 +26,9 @@ src/
       schemas/             # API 输入输出模型
       main.py              # FastAPI 入口
     pyproject.toml         # 后端项目配置与依赖声明
+    configs/
+      providers.example.yaml # 私有 provider 模板，实际 providers.yaml 不进仓库
+      prompts.yaml
   frontend/
     src/
       components/          # 页面组件
@@ -69,6 +72,7 @@ README.md
 
 ```powershell
 cd src/backend
+copy configs\providers.example.yaml configs\providers.yaml
 pip install -e .
 uvicorn app.main:app --reload
 ```

@@ -5,3 +5,4 @@ dist/
 node_modules/
 
 *.egg-info/
+src/backend/configs/providers.yaml
