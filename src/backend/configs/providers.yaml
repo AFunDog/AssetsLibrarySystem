@@ -1,0 +1,12 @@
+# 提供商配置
+# api_key 留空时会回退读取环境变量，如 DASHSCOPE_API_KEY
+
+asset_describer:
+  provider: dashscope
+  model: qwen-vl-max
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  api_key: ""
+  temperature: 0.2
+  max_tokens: 1024
+  reasoning_effort: null
+  extra_body: {}
