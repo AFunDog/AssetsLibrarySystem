@@ -4,7 +4,6 @@
 asset_describer:
   provider: dashscope
   model: qwen-vl-max
-  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
   api_key: ""
   temperature: 0.2
   max_tokens: 1024

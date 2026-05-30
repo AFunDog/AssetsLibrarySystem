@@ -12,7 +12,6 @@ import yaml
 class ProviderConfig:
     provider: str
     model: str
-    base_url: str
     api_key: str
     temperature: float = 0.2
     max_tokens: int = 1024
@@ -44,14 +43,12 @@ class ProviderConfigManager:
         api_key = str(item.get("api_key") or "").strip()
         provider = str(item.get("provider") or "").strip()
         model = str(item.get("model") or "").strip()
-        base_url = str(item.get("base_url") or "").strip()
         if not api_key:
             api_key = os.getenv("DASHSCOPE_API_KEY", "") if provider == "dashscope" else ""
 
         return ProviderConfig(
             provider=provider,
             model=model,
-            base_url=base_url,
             api_key=api_key,
             temperature=float(item.get("temperature") or 0.2),
             max_tokens=int(item.get("max_tokens") or 1024),
