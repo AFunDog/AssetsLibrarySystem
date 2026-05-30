@@ -7,3 +7,7 @@ node_modules/
 *.egg-info/
 src/backend/configs/providers.yaml
 src/backend/data/
+
+.idea/
+bin/
+obj/
