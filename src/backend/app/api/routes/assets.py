@@ -9,5 +9,5 @@ asset_service = AssetService()
 
 
 @router.get("", response_model=AssetListResponse)
-def list_assets() -> AssetListResponse:
-    return asset_service.list_assets()
+def list_assets(library_id: str | None = None) -> AssetListResponse:
+    return asset_service.list_assets(library_id=library_id)

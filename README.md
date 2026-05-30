@@ -77,6 +77,15 @@ pip install -e .
 uvicorn app.main:app --reload
 ```
 
+测试：
+
+```powershell
+cd src/backend
+python -m unittest discover -s tests -v
+```
+
+默认素材落库文件在 `src/backend/data/assets.json`，该目录已加入 `.gitignore`。
+
 前端：
 
 ```powershell
