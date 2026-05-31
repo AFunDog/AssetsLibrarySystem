@@ -52,3 +52,23 @@ uvicorn app.main:app --reload
 ```
 
 如果未配置真实 API Key，`/api/v1/model/generate` 会返回占位响应，便于先和桌面端联调。
+
+## 单素材控制台测试入口
+
+安装后可以直接运行：
+
+```powershell
+assets-library-system-tag --asset-format 图片 --asset-path D:\Data\sample.png --mock-response
+```
+
+或者在源码目录下直接用模块方式运行：
+
+```powershell
+python -m app.cli --asset-format 图片 --asset-path D:\Data\sample.png --mock-response
+```
+
+可选参数：
+
+- `--prompt`：覆盖默认提示词
+- `--system-prompt`：覆盖默认系统提示词
+- `--json`：输出完整 JSON 响应，便于脚本化检查

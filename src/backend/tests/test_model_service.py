@@ -1,18 +1,39 @@
+from __future__ import annotations
+
 import asyncio
 from pathlib import Path
-import tempfile
 import unittest
+from unittest.mock import patch
 
-from app.application.services.model_service import ModelService
-from app.core.provider_config import ProviderConfigManager
+from app.application.services.model_service import ModelRuntimeContext, ModelService
+from app.core.provider_config import ProviderConfig, ProviderConfigManager
 from app.schemas.model import ModelGenerateRequest
 
 
 class ModelServiceTestCase(unittest.TestCase):
     def test_capabilities_falls_back_to_example_config(self) -> None:
-        service = ModelService()
+        fake_manager = self._build_fake_provider_manager(
+            raw={
+                "文本": {
+                    "provider": "dashscope",
+                    "model": "qwen-plus",
+                    "temperature": 0.2,
+                    "max_tokens": 1024,
+                    "reasoning_effort": None,
+                    "extra_body": {},
+                }
+            },
+            provider=ProviderConfig(
+                provider="dashscope",
+                model="qwen-plus",
+                api_key="",
+            ),
+        )
 
-        capabilities = service.get_capabilities()
+        with patch("app.application.services.model_service.ProviderConfigManager", return_value=fake_manager):
+            service = ModelService()
+
+            capabilities = service.get_capabilities()
 
         self.assertEqual(capabilities.provider_slot, "llm_gateway")
         self.assertEqual(capabilities.provider, "dashscope")
@@ -22,15 +43,41 @@ class ModelServiceTestCase(unittest.TestCase):
     def test_generate_text_returns_mock_output_without_api_key(self) -> None:
         service = ModelService()
 
-        response = asyncio.run(
-            service.generate_text(
-                ModelGenerateRequest(
-                    asset_format="音频",
-                    asset_path=r"D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav",
+        with (
+            patch.object(
+                ModelService,
+                "_resolve_provider_context_for_asset_format",
+                return_value=ModelRuntimeContext(
+                    config_slot="音频",
+                    provider="dashscope",
+                    model="qwen3-omni-30b-a3b-captioner",
+                    system_prompt="",
+                    prompt="",
+                    supports_live_call=False,
+                ),
+            ),
+            patch.object(
+                ModelService,
+                "_resolve_prompt_context",
+                return_value=ModelRuntimeContext(
+                    config_slot="音频",
+                    provider="dashscope",
+                    model="qwen3-omni-30b-a3b-captioner",
+                    system_prompt="你是 Assets Library System 的音频素材打标助手。",
                     prompt="请生成一句适合桌面端联调的说明。",
+                    supports_live_call=False,
+                ),
+            ),
+        ):
+            response = asyncio.run(
+                service.generate_text(
+                    ModelGenerateRequest(
+                        asset_format="音频",
+                        asset_path=r"D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav",
+                        prompt="请生成一句适合桌面端联调的说明。",
+                    )
                 )
             )
-        )
 
         self.assertEqual(response.mode, "mock")
         self.assertIn("桌面端联调阶段", response.output_text)
@@ -40,19 +87,20 @@ class ModelServiceTestCase(unittest.TestCase):
     def test_text_asset_helpers_build_real_inputs(self) -> None:
         service = ModelService()
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            text_path = Path(tmp_dir) / "sample.txt"
-            text_path.write_text("第一行\n第二行", encoding="utf-8")
+        self.assertEqual(
+            service._to_file_uri(r"D:\Data\sample.txt"),
+            "file://D:/Data/sample.txt",
+        )
+        self.assertEqual(
+            service._build_text_user_prompt("请生成摘要", r"D:\Data\sample.txt"),
+            "请生成摘要\n\n素材绝对路径：D:\\Data\\sample.txt",
+        )
 
-            self.assertEqual(
-                service._to_file_uri(str(text_path)),
-                f"file://{text_path.resolve().as_posix()}",
-            )
-            self.assertEqual(service._read_text_asset(str(text_path)), "第一行\n第二行")
-            self.assertEqual(
-                service._build_text_user_prompt("请生成摘要", str(text_path)),
-                f"请生成摘要\n\n素材绝对路径：{text_path}",
-            )
+        with (
+            patch.object(Path, "exists", return_value=True),
+            patch.object(Path, "read_text", side_effect=self._fake_read_text),
+        ):
+            self.assertEqual(service._read_text_asset(r"D:\Data\sample.txt"), "第一行\n第二行")
 
     def test_multimodal_content_uses_file_uri(self) -> None:
         service = ModelService()
@@ -77,13 +125,63 @@ class ModelServiceTestCase(unittest.TestCase):
         self.assertEqual(context.provider, "dashscope")
 
     def test_shared_api_key_is_inherited_by_all_slots(self) -> None:
-        manager = ProviderConfigManager("configs/providers.yaml")
+        with patch.object(
+            ProviderConfigManager,
+            "_load",
+            return_value={
+                "api_key": "sk-shared",
+                "文本": {
+                    "provider": "dashscope",
+                    "model": "qwen-plus",
+                    "temperature": 0.2,
+                    "max_tokens": 1024,
+                    "reasoning_effort": None,
+                    "extra_body": {},
+                },
+                "图片": {
+                    "provider": "dashscope",
+                    "model": "qwen-vl-max",
+                    "temperature": 0.2,
+                    "max_tokens": 1024,
+                    "reasoning_effort": None,
+                    "extra_body": {},
+                },
+            },
+        ):
+            with patch.object(ProviderConfigManager, "_load_shared_api_key", return_value="sk-shared"):
+                manager = ProviderConfigManager("configs/providers.yaml")
 
         text_config = manager.get("文本")
         image_config = manager.get("图片")
 
-        self.assertTrue(text_config.api_key)
+        self.assertEqual(text_config.api_key, "sk-shared")
         self.assertEqual(text_config.api_key, image_config.api_key)
+
+    def _build_fake_provider_manager(
+        self,
+        *,
+        raw: dict[str, object],
+        provider: ProviderConfig,
+    ) -> object:
+        class FakeProviderManager:
+            def __init__(self, raw_data: dict[str, object], provider_config: ProviderConfig) -> None:
+                self._raw = raw_data
+                self._provider_config = provider_config
+
+            def get(self, slot: str) -> ProviderConfig:
+                if slot not in self._raw:
+                    raise KeyError(slot)
+                return self._provider_config
+
+        return FakeProviderManager(raw, provider)
+
+    @staticmethod
+    def _fake_read_text(encoding: str | None = None, errors: str | None = None) -> str:
+        if encoding == "utf-8-sig":
+            raise UnicodeDecodeError("utf-8", b"", 0, 1, "bad")
+        if encoding in {"utf-8", "gb18030"}:
+            return "第一行\n第二行"
+        raise UnicodeDecodeError("utf-8", b"", 0, 1, "bad")
 
 
 if __name__ == "__main__":
