@@ -35,6 +35,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 直接使用系统文件夹选择器，让目录登记走本地文件系统而不是手工输入。
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = "选择素材库目录",
@@ -57,6 +58,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Button 直接承载当前库项，点击后把它切换成当前工作库。
         if (button.DataContext is AssetsLibrarySystem.Avalonia.Models.LibraryWorkspace library)
         {
             viewModel.SelectedLibrary = library;
@@ -70,6 +72,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 右侧素材卡同理，点击后只更新当前选中素材，不引入额外的列表选择态。
         if (button.DataContext is AssetsLibrarySystem.Avalonia.Models.ManagedAssetRecord asset)
         {
             viewModel.SelectedAsset = asset;

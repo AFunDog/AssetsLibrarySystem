@@ -120,6 +120,7 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        // 登记目录后立即扫描，这样右侧列表能直接展示内容。
         var library = await _assetLibraryService.AddLibraryAsync(folderPath);
         var existing = Libraries.FirstOrDefault(item =>
             string.Equals(item.RootPath, library.RootPath, StringComparison.OrdinalIgnoreCase));
@@ -336,6 +337,7 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        // 切换库时先刷新右侧摘要，再按需触发扫描或使用缓存结果。
         WorkspaceTitle = library.Name;
         WorkspaceSummary = library.RootPath;
         AssetSummary = library.AssetCount > 0
@@ -361,6 +363,7 @@ public partial class MainWindowViewModel : ObservableObject
         try
         {
             _isLibraryScanRunning = true;
+            // 扫描期间先更新状态，避免界面看起来没有响应。
             library.SyncMode = "扫描中";
             library.Summary = "正在扫描目录下的文本、图片、视频和音频文件。";
             OperatorNotice = $"正在扫描素材库：{library.RootPath}";
@@ -406,6 +409,7 @@ public partial class MainWindowViewModel : ObservableObject
             items = items.Where(asset => asset.LibraryName == library.Name);
         }
 
+        // 右侧按类型和名称排序，便于人工浏览与后续检索。
         foreach (var asset in items.OrderBy(asset => asset.AssetType).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase))
         {
             VisibleAssets.Add(asset);
@@ -418,6 +422,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         Metrics.Clear();
 
+        // 这些指标只反映当前桌面端扫描与排队状态。
         var totalAssets = _allAssets.Count;
         var pendingModel = _allAssets.Count(asset => asset.AiState.Contains("待", StringComparison.Ordinal));
         var textImageVideoAudio = _allAssets
