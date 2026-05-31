@@ -1,0 +1,122 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
+             x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.AssetDetailPage"
+             x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="Border.surface">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="Border.soft-surface">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="1.4" />
+        </Style>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.section-subtitle">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14,9" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14,9" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid ColumnDefinitions="*,300" ColumnSpacing="20">
+            <Border Classes="surface">
+                <StackPanel Spacing="14">
+                    <TextBlock Classes="eyebrow" Text="Selected Asset" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <LucideIcon Classes="shell-glyph" Kind="FileText" Size="20" />
+                        <TextBlock Classes="section-title" Text="{Binding SelectedAssetName}" />
+                    </StackPanel>
+                    <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding SelectedAssetLibrary}" />
+                    <TextBlock Classes="section-subtitle" Text="{Binding SelectedAssetPath}" />
+
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                        <Border Classes="soft-surface">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="eyebrow" Text="Type" />
+                                <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetType}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1" Classes="soft-surface">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="eyebrow" Text="Stage" />
+                                <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetStage}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="2" Classes="soft-surface">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="eyebrow" Text="AI State" />
+                                <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetAiState}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Border Classes="soft-surface">
+                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding SelectedAssetDetail}" />
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding SelectedAssetTags}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,8,8"
+                                        Background="{DynamicResource AppAccentSurfaceBrush}"
+                                        CornerRadius="999"
+                                        Padding="10,5">
+                                    <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding .}" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Classes="surface">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="eyebrow" Text="Actions" />
+                    <TextBlock Classes="section-title" Text="素材操作" />
+                    <TextBlock Classes="section-subtitle" Text="保留当前占位交互，后续再接真实目录扫描、描述任务和索引流水线。" />
+                    <Button Classes="primary" Command="{Binding QueueDescriptionCommand}" Content="排入描述任务" />
+                    <Button Classes="secondary" Command="{Binding QueueEmbeddingCommand}" Content="排入索引任务" />
+                    <Button Classes="secondary" Command="{Binding MarkManagedCommand}" Content="标记为 .NET 已接管" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

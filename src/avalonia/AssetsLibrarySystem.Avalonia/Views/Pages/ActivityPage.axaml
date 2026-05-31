@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
+             x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.ActivityPage"
+             x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="Border.surface">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="1.4" />
+        </Style>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.section-subtitle">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Border Classes="surface">
+            <StackPanel Spacing="14">
+                <TextBlock Classes="eyebrow" Text="Activity Feed" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <LucideIcon Classes="shell-glyph" Kind="History" Size="20" />
+                    <TextBlock Classes="section-title" Text="桌面端任务纪要" />
+                </StackPanel>
+                <TextBlock Classes="section-subtitle" Text="保留近期桌面端操作与模型网关状态，便于后续扩展为真实任务流水线日志。" />
+                <ItemsControl ItemsSource="{Binding ActivityFeed}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,10"
+                                    Background="{DynamicResource AppSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="12">
+                                <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding .}" />
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </ScrollViewer>
+</UserControl>

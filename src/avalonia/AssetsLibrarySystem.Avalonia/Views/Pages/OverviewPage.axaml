@@ -1,0 +1,147 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
+             xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
+             x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.OverviewPage"
+             x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="Border.surface">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="Border.soft-surface">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+        <Style Selector="Border.metric-card">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Margin" Value="0,0,12,0" />
+        </Style>
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="1.4" />
+        </Style>
+        <Style Selector="TextBlock.hero-title">
+            <Setter Property="FontSize" Value="28" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.section-subtitle">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid ColumnDefinitions="*,320" ColumnSpacing="20">
+            <StackPanel Spacing="20">
+                <Border Classes="surface">
+                    <StackPanel Spacing="10">
+                        <TextBlock Classes="eyebrow" Text="Assets Library System / Desktop Shell" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border
+                                Background="{DynamicResource AppAccentSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppAccentBrush}"
+                                BorderThickness="1"
+                                CornerRadius="14"
+                                Padding="9">
+                                <LucideIcon Classes="shell-glyph" Kind="House" Size="20" />
+                            </Border>
+                            <TextBlock Classes="hero-title" Text="桌面端负责素材管理，Python 只做模型网关" />
+                        </StackPanel>
+                        <TextBlock
+                            Classes="section-subtitle"
+                            Text="主窗口现在收敛为 Windows 11 Fluent 风格的桌面工作台，左侧导航切换页面，右侧承载素材库、素材详情和模型能力面。" />
+                    </StackPanel>
+                </Border>
+
+                <ItemsControl ItemsSource="{Binding Metrics}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="4" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:DashboardMetric">
+                            <Border Classes="metric-card">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Classes="eyebrow" Text="{Binding Label}" />
+                                    <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="{Binding Value}" />
+                                    <TextBlock Classes="section-subtitle" Text="{Binding Hint}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border Classes="surface">
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="18">
+                        <StackPanel Spacing="10">
+                            <TextBlock Classes="eyebrow" Text="Workspace" />
+                            <TextBlock Classes="section-title" Text="{Binding WorkspaceTitle}" />
+                            <TextBlock Classes="section-subtitle" Text="{Binding WorkspaceSummary}" />
+                            <Border Classes="soft-surface">
+                                <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding AssetSummary}" />
+                            </Border>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="10">
+                            <TextBlock Classes="eyebrow" Text="Operator Notice" />
+                            <TextBlock Classes="section-title" Text="当前处理原则" />
+                            <TextBlock Classes="section-subtitle" Text="{Binding OperatorNotice}" />
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                <Button Classes="secondary" Command="{Binding RefreshWorkspaceCommand}" Content="刷新桌面工作台" />
+                                <Button Grid.Column="1" Classes="secondary" Command="{Binding MarkManagedCommand}" Content="标记为 .NET 已接管" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Spacing="20">
+                <Border Classes="surface">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="eyebrow" Text="Backend Status" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <LucideIcon Classes="shell-glyph" Kind="Bot" Size="20" />
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="{Binding BackendStatusTitle}" />
+                        </StackPanel>
+                        <TextBlock Classes="section-subtitle" Text="{Binding BackendStatusDetail}" />
+                        <Border Classes="soft-surface">
+                            <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding BackendEndpoint}" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="surface">
+                    <StackPanel Spacing="10">
+                        <TextBlock Classes="eyebrow" Text="Selected Asset" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <LucideIcon Classes="shell-glyph" Kind="FileText" Size="20" />
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetName}" />
+                        </StackPanel>
+                        <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding SelectedAssetLibrary}" />
+                        <TextBlock Classes="section-subtitle" Text="{Binding SelectedAssetPath}" />
+                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding SelectedAssetDetail}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

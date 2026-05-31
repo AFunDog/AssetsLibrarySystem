@@ -1,0 +1,102 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
+             xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
+             x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.ModelGatewayPage"
+             x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="Border.surface">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="Border.soft-surface">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="1.4" />
+        </Style>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.section-subtitle">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBox.prompt-box">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14,9" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid ColumnDefinitions="340,*" ColumnSpacing="20">
+            <Border Classes="surface">
+                <StackPanel Spacing="10">
+                    <TextBlock Classes="eyebrow" Text="Model Gateway" />
+                    <TextBlock Classes="section-title" Text="Python HTTP 能力面" />
+                    <TextBlock Classes="section-subtitle" Text="{Binding BackendStatusDetail}" />
+                    <Border Classes="soft-surface">
+                        <StackPanel Spacing="6">
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="{Binding BackendStatusTitle}" />
+                            <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding BackendEndpoint}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Classes="surface">
+                <StackPanel Spacing="14">
+                    <ItemsControl ItemsSource="{Binding AiCapabilities}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:AiCapabilityRecord">
+                                <Border Margin="0,0,0,10"
+                                        Background="{DynamicResource AppSurfaceBrush}"
+                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="14"
+                                        Padding="14">
+                                    <StackPanel Spacing="6">
+                                        <DockPanel>
+                                            <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="{Binding Name}" />
+                                            <TextBlock DockPanel.Dock="Right" Foreground="{DynamicResource AppAccentBrush}" Text="{Binding Endpoint}" />
+                                        </DockPanel>
+                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap" Text="{Binding Summary}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Classes="eyebrow" Text="Prompt Draft" />
+                    <TextBox Classes="prompt-box"
+                             MinHeight="140"
+                             AcceptsReturn="True"
+                             Text="{Binding PromptDraft}" />
+                    <Button Classes="primary" Command="{Binding SubmitPromptCommand}" Content="准备发送提示词" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

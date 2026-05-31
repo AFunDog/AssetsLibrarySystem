@@ -1,0 +1,165 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
+             xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
+             x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.LibraryPage"
+             x:DataType="vm:MainWindowViewModel">
+    <UserControl.Styles>
+        <Style Selector="Border.surface">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="Border.soft-surface">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="1.4" />
+        </Style>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.section-subtitle">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="ItemsControl.library-list, ItemsControl.asset-list">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.card-button">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="ClipToBounds" Value="True" />
+        </Style>
+        <Style Selector="Button.card-button:pointerover">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+        </Style>
+        <Style Selector="Button.card-button:pressed">
+            <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14,9" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14,9" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid ColumnDefinitions="340,*" ColumnSpacing="20">
+            <Border Classes="surface">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="eyebrow" Text="Local Libraries" />
+                        <TextBlock Classes="section-title" Text="素材库导航" />
+                        <TextBlock Classes="section-subtitle" Text="登记本地文件夹为素材库目录，再扫描并展示文本、图片、视频和音频文件。" />
+                    </StackPanel>
+
+                    <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+                        <Button Classes="primary" Click="AddLibraryFolder_Click" Content="添加素材库目录" />
+                        <Button Grid.Column="1" Classes="secondary" Command="{Binding ScanSelectedLibraryCommand}" Content="扫描当前素材库" />
+                    </Grid>
+
+                    <ItemsControl Classes="library-list" ItemsSource="{Binding Libraries}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:LibraryWorkspace">
+                                <Button Classes="card-button" Click="SelectLibrary_Click">
+                                    <StackPanel Spacing="8">
+                                        <DockPanel>
+                                            <TextBlock FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppTextBrush}"
+                                                       Text="{Binding Name}" />
+                                            <Border DockPanel.Dock="Right"
+                                                    Background="{DynamicResource AppAccentSurfaceBrush}"
+                                                    CornerRadius="999"
+                                                    Padding="10,4">
+                                                <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                           Text="{Binding AssetCount}" />
+                                            </Border>
+                                        </DockPanel>
+                                        <TextBlock Classes="section-subtitle" Text="{Binding RootPath}" />
+                                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding Summary}" />
+                                        <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding SyncMode}" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Classes="surface">
+                <Grid RowDefinitions="Auto,Auto,*" RowSpacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="eyebrow" Text="Asset Queue" />
+                        <TextBlock Classes="section-title" Text="{Binding WorkspaceTitle}" />
+                        <TextBlock Classes="section-subtitle" Text="{Binding WorkspaceSummary}" />
+                    </StackPanel>
+
+                    <Border Grid.Row="1" Classes="soft-surface">
+                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding AssetSummary}" />
+                    </Border>
+
+                    <ItemsControl Grid.Row="2" Classes="asset-list" ItemsSource="{Binding VisibleAssets}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:ManagedAssetRecord">
+                                <Button Classes="card-button" Click="SelectAsset_Click">
+                                    <Grid ColumnDefinitions="*,120" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                                        <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="{Binding Name}" />
+                                        <Border Grid.Column="1"
+                                                HorizontalAlignment="Right"
+                                                Background="{DynamicResource AppBadgeBrush}"
+                                                CornerRadius="999"
+                                                Padding="10,4">
+                                            <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding AssetType}" />
+                                        </Border>
+                                        <TextBlock Grid.Row="1" Classes="section-subtitle" Text="{Binding RelativePath}" />
+                                        <TextBlock Grid.Row="1"
+                                                   Grid.Column="1"
+                                                   HorizontalAlignment="Right"
+                                                   Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                   Text="{Binding Stage}" />
+                                        <TextBlock Grid.Row="2"
+                                                   Grid.ColumnSpan="2"
+                                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Text="{Binding Summary}" />
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>
