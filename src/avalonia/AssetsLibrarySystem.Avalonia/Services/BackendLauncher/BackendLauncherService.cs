@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 
@@ -29,25 +30,41 @@ public sealed class BackendLauncherService : IBackendLauncher
     public async Task StartAsync(CancellationToken ct = default)
     {
         if (IsRunning)
+        {
+            Log.Information("后端进程已在运行，跳过重复启动");
             return;
+        }
 
         var psi = CreateProcessStartInfo();
+        Log.Information(
+            "准备启动后端: mode={Mode}, file={File}, arguments={Arguments}, workingDirectory={WorkingDirectory}",
+            IsDebugBuild ? "Debug" : "Release",
+            psi.FileName,
+            psi.Arguments,
+            psi.WorkingDirectory);
 
         _process = Process.Start(psi)
             ?? throw new InvalidOperationException("无法启动 Python 进程。");
+
+        Log.Information("后端进程已启动，pid={Pid}", _process.Id);
 
         // 后台吞掉 stdout/stderr 防止管道阻塞
         _ = _process.StandardOutput.ReadToEndAsync(ct);
         _ = _process.StandardError.ReadToEndAsync(ct);
 
         await WaitForHealthAsync(ct);
+        Log.Information("后端健康检查通过，baseUrl={BaseUrl}", BaseUrl);
     }
 
     public async Task StopAsync(CancellationToken ct = default)
     {
         if (_process is not { HasExited: false })
+        {
+            Log.Information("后端进程未运行，跳过停止");
             return;
+        }
 
+        Log.Information("准备停止后端进程，pid={Pid}", _process.Id);
         _process.Kill(entireProcessTree: true);
 
         // 等待进程退出，最多 5 秒
@@ -64,6 +81,7 @@ public sealed class BackendLauncherService : IBackendLauncher
 
         _process.Dispose();
         _process = null;
+        Log.Information("后端进程已停止");
     }
 
     public async ValueTask DisposeAsync()
@@ -85,8 +103,11 @@ public sealed class BackendLauncherService : IBackendLauncher
             ct.ThrowIfCancellationRequested();
 
             if (_process?.HasExited == true)
+            {
+                Log.Error("后端进程提前退出，exitCode={ExitCode}", _process.ExitCode);
                 throw new InvalidOperationException(
                     $"Python 后端进程已退出（exit code: {_process.ExitCode}）。");
+            }
 
             try
             {
@@ -102,6 +123,7 @@ public sealed class BackendLauncherService : IBackendLauncher
             await Task.Delay(_options.HealthCheckInterval, ct);
         }
 
+        Log.Error("后端健康检查超时，url={HealthUrl}, timeoutSeconds={TimeoutSeconds}", healthUrl, _options.StartupTimeout.TotalSeconds);
         throw new TimeoutException(
             $"后端健康检查超时（{_options.StartupTimeout.TotalSeconds}s），地址: {healthUrl}");
     }
@@ -148,6 +170,15 @@ public sealed class BackendLauncherService : IBackendLauncher
         return template
             .Replace("{host}", _options.Host, StringComparison.OrdinalIgnoreCase)
             .Replace("{port}", _options.Port.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDebugBuild
+    {
+#if DEBUG
+        get => true;
+#else
+        get => false;
+#endif
     }
 
     private static BackendLauncherOptions BuildOptions(IConfiguration configuration)
