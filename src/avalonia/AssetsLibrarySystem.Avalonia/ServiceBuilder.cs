@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using Autofac;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.ViewModels;
 using Autofac.Core.Lifetime;
+using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Avalonia;
 
@@ -27,13 +28,8 @@ public static class ServiceBuilder
     {
         var builder = new ContainerBuilder();
 
-        // 显式注册 BackendLauncherModule
-        var backendOptions = CreateBackendLauncherOptions();
-        builder.RegisterModule(new BackendLauncherModule(backendOptions));
-
-        // 自动扫描当前程序集中所有无参 Autofac Module 并注册
-        var assembly = Assembly.GetExecutingAssembly();
-        builder.RegisterAssemblyModules(assembly);
+        builder.RegisterInstance(CreateConfiguration()).As<IConfiguration>().SingleInstance();
+        builder.RegisterModule<BackendLauncherModule>();
 
         // 注册 ViewModels（自动注入构造函数参数）
         builder.RegisterType<MainWindowViewModel>().AsSelf().InstancePerDependency();
@@ -41,19 +37,36 @@ public static class ServiceBuilder
         var container = builder.Build();
         return container;
     }
-    
+
     /// <summary>
-    /// 根据当前可执行文件位置推算出 src/backend 的绝对路径。
+    /// 构建桌面端配置，并为未显式指定的后端工作目录补默认值。
     /// </summary>
-    private static BackendLauncherOptions CreateBackendLauncherOptions()
+    private static IConfiguration CreateConfiguration()
     {
         var baseDir = AppContext.BaseDirectory;
-        // 从 bin/Debug/net10.0 回退到仓库根目录，再拼 src/backend
         var backendDir = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "src", "backend"));
+        var appsettingsPath = Path.Combine(baseDir, "appsettings.json");
 
-        return new BackendLauncherOptions
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(baseDir)
+            .AddJsonFile(appsettingsPath, optional: true, reloadOnChange: false)
+            .AddEnvironmentVariables(prefix: "ALS_")
+            .Build();
+
+        var configuredWorkingDirectory = configuration["BackendLauncher:BackendWorkingDirectory"];
+        if (!string.IsNullOrWhiteSpace(configuredWorkingDirectory))
         {
-            BackendWorkingDirectory = backendDir,
+            return configuration;
+        }
+
+        var fallbackValues = new[]
+        {
+            new KeyValuePair<string, string?>("BackendLauncher:BackendWorkingDirectory", backendDir),
         };
+
+        return new ConfigurationBuilder()
+            .AddConfiguration(configuration)
+            .AddInMemoryCollection(fallbackValues)
+            .Build();
     }
 }

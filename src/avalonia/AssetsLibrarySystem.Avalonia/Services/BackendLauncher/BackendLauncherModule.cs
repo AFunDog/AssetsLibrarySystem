@@ -7,17 +7,8 @@ namespace AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 /// </summary>
 public sealed class BackendLauncherModule : Module
 {
-    private readonly BackendLauncherOptions _options;
-
-    public BackendLauncherModule(BackendLauncherOptions options)
-    {
-        _options = options;
-    }
-
     protected override void Load(ContainerBuilder builder)
     {
-        builder.RegisterInstance(_options).SingleInstance();
-
         builder.RegisterType<BackendLauncherService>()
             .As<IBackendLauncher>()
             .SingleInstance()

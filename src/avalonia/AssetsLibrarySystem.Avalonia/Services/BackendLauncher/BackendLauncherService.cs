@@ -1,8 +1,10 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 
@@ -15,10 +17,10 @@ public sealed class BackendLauncherService : IBackendLauncher
     private Process? _process;
     private readonly HttpClient _http = new();
 
-    public BackendLauncherService(BackendLauncherOptions options)
+    public BackendLauncherService(IConfiguration configuration)
     {
-        _options = options;
-        BaseUrl = $"http://{options.Host}:{options.Port}";
+        _options = BuildOptions(configuration);
+        BaseUrl = $"http://{_options.Host}:{_options.Port}";
     }
 
     public bool IsRunning => _process is { HasExited: false };
@@ -29,19 +31,7 @@ public sealed class BackendLauncherService : IBackendLauncher
         if (IsRunning)
             return;
 
-        var arguments = $"-m uvicorn app.main:app " +
-                        $"--host {_options.Host} --port {_options.Port}";
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = _options.PythonPath,
-            Arguments = arguments,
-            WorkingDirectory = _options.BackendWorkingDirectory,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
+        var psi = CreateProcessStartInfo();
 
         _process = Process.Start(psi)
             ?? throw new InvalidOperationException("无法启动 Python 进程。");
@@ -114,5 +104,72 @@ public sealed class BackendLauncherService : IBackendLauncher
 
         throw new TimeoutException(
             $"后端健康检查超时（{_options.StartupTimeout.TotalSeconds}s），地址: {healthUrl}");
+    }
+
+    private ProcessStartInfo CreateProcessStartInfo()
+    {
+#if DEBUG
+        var fileName = ResolvePath(_options.DebugPythonPath);
+        var arguments = FormatArguments(_options.DebugArgumentsTemplate);
+#else
+        var fileName = ResolvePath(_options.PublishedExecutablePath);
+        var arguments = FormatArguments(_options.PublishedArgumentsTemplate);
+#endif
+
+        return new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            WorkingDirectory = _options.BackendWorkingDirectory,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+    }
+
+    private string ResolvePath(string configuredPath)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            throw new InvalidOperationException("后端启动路径不能为空。");
+        }
+
+        if (Path.IsPathRooted(configuredPath))
+        {
+            return configuredPath;
+        }
+
+        return Path.GetFullPath(Path.Combine(_options.BackendWorkingDirectory, configuredPath));
+    }
+
+    private string FormatArguments(string template)
+    {
+        return template
+            .Replace("{host}", _options.Host, StringComparison.OrdinalIgnoreCase)
+            .Replace("{port}", _options.Port.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static BackendLauncherOptions BuildOptions(IConfiguration configuration)
+    {
+        var section = configuration.GetSection("BackendLauncher");
+        var backendWorkingDirectory = section["BackendWorkingDirectory"];
+        if (string.IsNullOrWhiteSpace(backendWorkingDirectory))
+        {
+            throw new InvalidOperationException("缺少配置项 BackendLauncher:BackendWorkingDirectory。");
+        }
+
+        return new BackendLauncherOptions
+        {
+            DebugPythonPath = section["DebugPythonPath"] ?? @".venv\Scripts\python.exe",
+            DebugArgumentsTemplate = section["DebugArgumentsTemplate"] ?? "-m uvicorn app.main:app --host {host} --port {port}",
+            PublishedExecutablePath = section["PublishedExecutablePath"] ?? "assets-library-system-backend.exe",
+            PublishedArgumentsTemplate = section["PublishedArgumentsTemplate"] ?? "--host {host} --port {port}",
+            BackendWorkingDirectory = backendWorkingDirectory,
+            Host = section["Host"] ?? "127.0.0.1",
+            Port = section.GetValue<int?>("Port") ?? 8000,
+            StartupTimeout = TimeSpan.FromSeconds(section.GetValue<double?>("StartupTimeoutSeconds") ?? 30),
+            HealthCheckInterval = TimeSpan.FromMilliseconds(section.GetValue<double?>("HealthCheckIntervalMilliseconds") ?? 500),
+        };
     }
 }

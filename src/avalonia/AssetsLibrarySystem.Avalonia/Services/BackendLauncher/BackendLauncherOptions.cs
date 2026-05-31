@@ -8,12 +8,27 @@ namespace AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 public sealed class BackendLauncherOptions
 {
     /// <summary>
-    /// Python 解释器路径，默认 "python"（依赖 PATH 环境变量）。
+    /// 调试模式下使用的 Python 解释器路径。
     /// </summary>
-    public string PythonPath { get; init; } = "python";
+    public string DebugPythonPath { get; init; } = @".venv\Scripts\python.exe";
 
     /// <summary>
-    /// 后端项目的工作目录（即 src/backend 所在路径）。
+    /// 调试模式下传给 Python 的命令参数模板。
+    /// </summary>
+    public string DebugArgumentsTemplate { get; init; } = "-m uvicorn app.main:app --host {host} --port {port}";
+
+    /// <summary>
+    /// 发布模式下直接启动的后端可执行文件。
+    /// </summary>
+    public string PublishedExecutablePath { get; init; } = "assets-library-system-backend.exe";
+
+    /// <summary>
+    /// 发布模式下传给后端可执行文件的参数模板。
+    /// </summary>
+    public string PublishedArgumentsTemplate { get; init; } = "--host {host} --port {port}";
+
+    /// <summary>
+    /// 后端根目录。
     /// </summary>
     public required string BackendWorkingDirectory { get; init; }
 
