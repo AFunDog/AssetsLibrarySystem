@@ -140,6 +140,17 @@ public partial class MainWindowViewModel : ObservableObject
         await ScanLibraryCoreAsync(library);
     }
 
+    [RelayCommand]
+    private void SelectLibrary(LibraryWorkspace? library)
+    {
+        if (library is null)
+        {
+            return;
+        }
+
+        SelectedLibrary = library;
+    }
+
     partial void OnSelectedLibraryChanged(LibraryWorkspace? value)
     {
         _ = LoadSelectedLibraryAsync(value);

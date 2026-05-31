@@ -122,17 +122,25 @@
             <Setter Property="CornerRadius" Value="14" />
             <Setter Property="Padding" Value="14" />
         </Style>
-        <Style Selector="ListBox.library-list, ListBox.asset-list">
+        <Style Selector="ItemsControl.library-list, ItemsControl.asset-list">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
         </Style>
-        <Style Selector="ListBoxItem">
+        <Style Selector="Button.card-button">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="14" />
             <Setter Property="Margin" Value="0,0,0,10" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="ClipToBounds" Value="True" />
         </Style>
-        <Style Selector="ListBoxItem:selected Border.selectable-card">
+        <Style Selector="Button.card-button:pointerover">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+        </Style>
+        <Style Selector="Button.card-button:pressed">
             <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
         </Style>
@@ -402,32 +410,40 @@
                                         <Button Grid.Column="1" Classes="secondary" Command="{Binding ScanSelectedLibraryCommand}" Content="扫描当前素材库" />
                                     </Grid>
 
-                                    <ListBox
+                                    <ItemsControl
                                         Classes="library-list"
-                                        ItemsSource="{Binding Libraries}"
-                                        SelectedItem="{Binding SelectedLibrary}">
-                                        <ListBox.ItemTemplate>
+                                        ItemsSource="{Binding Libraries}">
+                                        <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="models:LibraryWorkspace">
-                                                <Border Classes="selectable-card">
+                                                <Button
+                                                    Classes="card-button"
+                                                    Click="SelectLibrary_Click">
                                                     <StackPanel Spacing="8">
                                                         <DockPanel>
-                                                            <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="{Binding Name}" />
-                                                            <Border
-                                                                DockPanel.Dock="Right"
-                                                                Background="{DynamicResource AppAccentSurfaceBrush}"
-                                                                CornerRadius="999"
-                                                                Padding="10,4">
-                                                                <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding AssetCount}" />
+                                                            <TextBlock FontSize="14"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource AppTextBrush}"
+                                                                       Text="{Binding Name}" />
+                                                            <Border DockPanel.Dock="Right"
+                                                                    Background="{DynamicResource AppAccentSurfaceBrush}"
+                                                                    CornerRadius="999"
+                                                                    Padding="10,4">
+                                                                <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                                           Text="{Binding AssetCount}" />
                                                             </Border>
                                                         </DockPanel>
-                                                        <TextBlock Classes="section-subtitle" Text="{Binding RootPath}" />
-                                                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding Summary}" />
-                                                        <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding SyncMode}" />
+                                                        <TextBlock Classes="section-subtitle"
+                                                                   Text="{Binding RootPath}" />
+                                                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="{Binding Summary}" />
+                                                        <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                                   Text="{Binding SyncMode}" />
                                                     </StackPanel>
-                                                </Border>
+                                                </Button>
                                             </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
                             </Border>
 
@@ -443,22 +459,22 @@
                                         <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding AssetSummary}" />
                                     </Border>
 
-                                    <ListBox
+                                    <ItemsControl
                                         Grid.Row="2"
                                         Classes="asset-list"
-                                        ItemsSource="{Binding VisibleAssets}"
-                                        SelectedItem="{Binding SelectedAsset}">
-                                        <ListBox.ItemTemplate>
+                                        ItemsSource="{Binding VisibleAssets}">
+                                        <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="models:ManagedAssetRecord">
-                                                <Border Classes="selectable-card">
+                                                <Button
+                                                    Classes="card-button"
+                                                    Click="SelectAsset_Click">
                                                     <Grid ColumnDefinitions="*,120" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
                                                         <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="{Binding Name}" />
-                                                        <Border
-                                                            Grid.Column="1"
-                                                            HorizontalAlignment="Right"
-                                                            Background="{DynamicResource AppBadgeBrush}"
-                                                            CornerRadius="999"
-                                                            Padding="10,4">
+                                                        <Border Grid.Column="1"
+                                                                HorizontalAlignment="Right"
+                                                                Background="{DynamicResource AppBadgeBrush}"
+                                                                CornerRadius="999"
+                                                                Padding="10,4">
                                                             <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding AssetType}" />
                                                         </Border>
                                                         <TextBlock Grid.Row="1" Classes="section-subtitle" Text="{Binding RelativePath}" />
@@ -475,10 +491,10 @@
                                                             TextWrapping="Wrap"
                                                             Text="{Binding Summary}" />
                                                     </Grid>
-                                                </Border>
+                                                </Button>
                                             </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </Grid>
                             </Border>
                         </Grid>

@@ -49,4 +49,30 @@ public partial class MainWindow : Window
 
         await viewModel.AddLibraryDirectoryAsync(folderPath);
     }
+
+    private void SelectLibrary_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (button.DataContext is AssetsLibrarySystem.Avalonia.Models.LibraryWorkspace library)
+        {
+            viewModel.SelectedLibrary = library;
+        }
+    }
+
+    private void SelectAsset_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (button.DataContext is AssetsLibrarySystem.Avalonia.Models.ManagedAssetRecord asset)
+        {
+            viewModel.SelectedAsset = asset;
+        }
+    }
 }
