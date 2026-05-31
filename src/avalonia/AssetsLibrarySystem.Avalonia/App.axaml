@@ -1,12 +1,37 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:semi="https://irihi.tech/semi"
              x:Class="AssetsLibrarySystem.Avalonia.App"
              RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
-  
     <Application.Styles>
-        <semi:SemiTheme/>
-        <!-- <FluentTheme /> -->
+        <FluentTheme />
     </Application.Styles>
+
+    <Application.Resources>
+            <ResourceDictionary>
+            <SolidColorBrush x:Key="AppAccentBrush" Color="{DynamicResource SystemAccentColor}" />
+            <SolidColorBrush x:Key="AppAccentSurfaceBrush" Color="{DynamicResource SystemAccentColor}" Opacity="0.14" />
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AppWindowBackgroundBrush" Color="#EEF3F9" />
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FCFEFF" />
+                    <SolidColorBrush x:Key="AppSoftSurfaceBrush" Color="#F7FAFD" />
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#DDE5EF" />
+                    <SolidColorBrush x:Key="AppTextBrush" Color="#141B24" />
+                    <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#5B6B7E" />
+                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#314155" />
+                    <SolidColorBrush x:Key="AppBadgeBrush" Color="#EDF3FA" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AppWindowBackgroundBrush" Color="#10151B" />
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#171D24" />
+                    <SolidColorBrush x:Key="AppSoftSurfaceBrush" Color="#1D242C" />
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#2B3642" />
+                    <SolidColorBrush x:Key="AppTextBrush" Color="#F1F4F7" />
+                    <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#A7B3BF" />
+                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#D1D9E1" />
+                    <SolidColorBrush x:Key="AppBadgeBrush" Color="#1F2933" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
 </Application>
