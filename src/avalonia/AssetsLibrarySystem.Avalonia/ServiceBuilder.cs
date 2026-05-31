@@ -48,8 +48,8 @@ public static class ServiceBuilder
     private static BackendLauncherOptions CreateBackendLauncherOptions()
     {
         var baseDir = AppContext.BaseDirectory;
-        // 从 bin/Debug/net10.0 回退四层到项目根，再拼 src/backend
-        var backendDir = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "src", "backend"));
+        // 从 bin/Debug/net10.0 回退到仓库根目录，再拼 src/backend
+        var backendDir = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "..", "..", "src", "backend"));
 
         return new BackendLauncherOptions
         {

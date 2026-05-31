@@ -1,8 +1,6 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
-using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.ViewModels;
 using AssetsLibrarySystem.Avalonia.Views;
 using Autofac;
@@ -18,12 +16,14 @@ public partial class App : Application
 
     public override async void OnFrameworkInitializationCompleted()
     {
-        // 3. 从容器解析 ViewModel，创建主窗口
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var viewModel = ServiceBuilder.Services.Resolve<MainWindowViewModel>();
+            await viewModel.InitializeAsync();
+
             desktop.MainWindow = new MainWindow
             {
-                DataContext = ServiceBuilder.Services.Resolve<MainWindowViewModel>(),
+                DataContext = viewModel,
             };
         }
 

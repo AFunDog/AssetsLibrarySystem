@@ -1,26 +1,378 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
+        xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="860"
         x:Class="AssetsLibrarySystem.Avalonia.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="AssetsLibrarySystem.Avalonia">
+        Title="Assets Library System">
 
     <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
-    
+
     <Window.Styles>
         <Style Selector="Window">
-            <Setter Property="WindowDecorations" Value="Full"></Setter>
-            <Setter Property="ExtendClientAreaToDecorationsHint" Value="True"></Setter>
+            <Setter Property="WindowDecorations" Value="Full" />
+            <Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
+            <Setter Property="Background" Value="#071017" />
+        </Style>
+        <Style Selector="TextBlock.hero-title">
+            <Setter Property="FontSize" Value="30" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#F8F5EC" />
+        </Style>
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="Foreground" Value="#D39A5B" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="Border.panel">
+            <Setter Property="Background" Value="#111922" />
+            <Setter Property="CornerRadius" Value="22" />
+            <Setter Property="BorderBrush" Value="#223140" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="Border.metric-card">
+            <Setter Property="Background" Value="#101720" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="BorderBrush" Value="#1F2A36" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="18" />
+            <Setter Property="Margin" Value="0,0,16,0" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#D6782A" />
+            <Setter Property="Foreground" Value="#FFF8F1" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="16,10" />
+        </Style>
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="#17212C" />
+            <Setter Property="Foreground" Value="#E8EDF2" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="BorderBrush" Value="#2A3745" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="ListBox.library-list, ListBox.asset-list">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ListBoxItem:selected Border.selectable-card">
+            <Setter Property="Background" Value="#1A2632" />
+            <Setter Property="BorderBrush" Value="#D6782A" />
+        </Style>
+        <Style Selector="Border.selectable-card">
+            <Setter Property="Background" Value="#0D141C" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="BorderBrush" Value="#1E2935" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16" />
+        </Style>
+        <Style Selector="TextBox.prompt-box">
+            <Setter Property="Background" Value="#0D141C" />
+            <Setter Property="Foreground" Value="#EFF3F7" />
+            <Setter Property="BorderBrush" Value="#2B3743" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
     </Window.Styles>
 
-    
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="24" RowDefinitions="Auto,*">
+            <Border Classes="panel" Padding="28">
+                <Grid ColumnDefinitions="*,340">
+                    <StackPanel Spacing="10">
+                        <TextBlock Classes="eyebrow" Text="Assets Library System / Avalonia Workspace" />
+                        <TextBlock Classes="hero-title" Text="桌面端负责素材管理，Python 只做模型网关" />
+                        <TextBlock
+                            FontSize="15"
+                            Foreground="#A9B5C1"
+                            Text="当前主入口已经切换到 Avalonia/.NET。素材库、目录结构、任务编排和人工校对都留在桌面端；Python 后端只保留可被桌面端调用的大模型 HTTP 能力。" />
+                    </StackPanel>
+
+                    <Border
+                        Grid.Column="1"
+                        Background="#0D141C"
+                        BorderBrush="#2C3947"
+                        BorderThickness="1"
+                        CornerRadius="18"
+                        Padding="18">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="eyebrow" Text="Backend Status" />
+                            <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="#F4F0E8" Text="{Binding BackendStatusTitle}" />
+                            <TextBlock Foreground="#B3BEC8" TextWrapping="Wrap" Text="{Binding BackendStatusDetail}" />
+                            <Border
+                                Background="#161F29"
+                                BorderBrush="#243241"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="10,8">
+                                <TextBlock Foreground="#E7EEF5" Text="{Binding BackendEndpoint}" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <Grid
+                Grid.Row="1"
+                Margin="0,20,0,0"
+                ColumnDefinitions="300,*,360"
+                RowDefinitions="Auto,*"
+                ColumnSpacing="20"
+                RowSpacing="20">
+                <StackPanel Grid.RowSpan="2" Spacing="20">
+                    <Border Classes="panel">
+                        <StackPanel Spacing="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="eyebrow" Text="Local Libraries" />
+                                <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="#F7F2EA" Text="素材库视图" />
+                                <TextBlock Foreground="#9DACBA" TextWrapping="Wrap" Text="素材目录、元数据和本地工作流状态统一放在桌面端，不再回流到 Python 服务。" />
+                            </StackPanel>
+
+                            <ListBox
+                                Classes="library-list"
+                                ItemsSource="{Binding Libraries}"
+                                SelectedItem="{Binding SelectedLibrary}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:LibraryWorkspace">
+                                        <Border Classes="selectable-card">
+                                            <StackPanel Spacing="8">
+                                                <DockPanel>
+                                                    <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="#F2EEE6" Text="{Binding Name}" />
+                                                    <Border
+                                                        DockPanel.Dock="Right"
+                                                        Background="#18222D"
+                                                        CornerRadius="999"
+                                                        Padding="10,4">
+                                                        <TextBlock Foreground="#D39A5B" Text="{Binding AssetCount}" />
+                                                    </Border>
+                                                </DockPanel>
+                                                <TextBlock Foreground="#9FB0BE" TextWrapping="Wrap" Text="{Binding RootPath}" />
+                                                <TextBlock Foreground="#D2DCE5" TextWrapping="Wrap" Text="{Binding Summary}" />
+                                                <TextBlock Foreground="#D6782A" Text="{Binding SyncMode}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="panel">
+                        <StackPanel Spacing="12">
+                            <TextBlock Classes="eyebrow" Text="Operator Notice" />
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="#F7F2EA" Text="当前处理原则" />
+                            <TextBlock Foreground="#C6D0DA" TextWrapping="Wrap" Text="{Binding OperatorNotice}" />
+                            <StackPanel Spacing="10">
+                                <Button Classes="secondary" Command="{Binding RefreshWorkspaceCommand}" Content="刷新桌面工作台" />
+                                <Button Classes="secondary" Command="{Binding MarkManagedCommand}" Content="标记为 .NET 已接管" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding Metrics}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="4" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:DashboardMetric">
+                            <Border Classes="metric-card">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Classes="eyebrow" Text="{Binding Label}" />
+                                    <TextBlock FontSize="28" FontWeight="Bold" Foreground="#F7F2EA" Text="{Binding Value}" />
+                                    <TextBlock Foreground="#A6B3BF" TextWrapping="Wrap" Text="{Binding Hint}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border Grid.Column="1" Grid.Row="1" Classes="panel">
+                    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="16">
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="eyebrow" Text="Asset Queue" />
+                            <TextBlock FontSize="24" FontWeight="SemiBold" Foreground="#F7F2EA" Text="{Binding WorkspaceTitle}" />
+                            <TextBlock Foreground="#9FB0BE" TextWrapping="Wrap" Text="{Binding WorkspaceSummary}" />
+                        </StackPanel>
+
+                        <Border
+                            Grid.Row="1"
+                            Background="#0D141C"
+                            BorderBrush="#1F2B37"
+                            BorderThickness="1"
+                            CornerRadius="16"
+                            Padding="16">
+                            <TextBlock Foreground="#CDD6DE" TextWrapping="Wrap" Text="{Binding AssetSummary}" />
+                        </Border>
+
+                        <ListBox
+                            Grid.Row="2"
+                            Classes="asset-list"
+                            ItemsSource="{Binding VisibleAssets}"
+                            SelectedItem="{Binding SelectedAsset}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="models:ManagedAssetRecord">
+                                    <Border Classes="selectable-card">
+                                        <Grid ColumnDefinitions="*,150" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                                            <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="#F3EEE6" Text="{Binding Name}" />
+                                            <Border
+                                                Grid.Column="1"
+                                                HorizontalAlignment="Right"
+                                                Background="#171F29"
+                                                CornerRadius="999"
+                                                Padding="10,4">
+                                                <TextBlock Foreground="#D39A5B" Text="{Binding AssetType}" />
+                                            </Border>
+                                            <TextBlock Grid.Row="1" Foreground="#9EB0BE" Text="{Binding RelativePath}" />
+                                            <TextBlock
+                                                Grid.Row="1"
+                                                Grid.Column="1"
+                                                HorizontalAlignment="Right"
+                                                Foreground="#C8D1DA"
+                                                Text="{Binding Stage}" />
+                                            <TextBlock
+                                                Grid.Row="2"
+                                                Grid.ColumnSpan="2"
+                                                Foreground="#D6DEE5"
+                                                TextWrapping="Wrap"
+                                                Text="{Binding Summary}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
+
+                <StackPanel Grid.Column="2" Grid.RowSpan="2" Spacing="20">
+                    <Border Classes="panel">
+                        <StackPanel Spacing="14">
+                            <TextBlock Classes="eyebrow" Text="Selected Asset" />
+                            <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="#F7F2EA" Text="{Binding SelectedAssetName}" />
+                            <TextBlock Foreground="#D39A5B" Text="{Binding SelectedAssetLibrary}" />
+                            <TextBlock Foreground="#9FB0BE" TextWrapping="Wrap" Text="{Binding SelectedAssetPath}" />
+
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                                <Border Background="#0D141C" CornerRadius="14" Padding="12">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="eyebrow" Text="Type" />
+                                        <TextBlock Foreground="#F0EBE4" Text="{Binding SelectedAssetType}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1" Background="#0D141C" CornerRadius="14" Padding="12">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="eyebrow" Text="Stage" />
+                                        <TextBlock Foreground="#F0EBE4" Text="{Binding SelectedAssetStage}" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <Border Background="#0D141C" CornerRadius="14" Padding="12">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="eyebrow" Text="AI State" />
+                                    <TextBlock Foreground="#F0EBE4" Text="{Binding SelectedAssetAiState}" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Foreground="#D5DEE6" TextWrapping="Wrap" Text="{Binding SelectedAssetDetail}" />
+
+                            <ItemsControl ItemsSource="{Binding SelectedAssetTags}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            Margin="0,0,8,8"
+                                            Background="#17212C"
+                                            CornerRadius="999"
+                                            Padding="10,5">
+                                            <TextBlock Foreground="#E9EEF4" Text="{Binding .}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                                <Button Classes="primary" Command="{Binding QueueDescriptionCommand}" Content="排入描述任务" />
+                                <Button Grid.Column="1" Classes="secondary" Command="{Binding QueueEmbeddingCommand}" Content="排入索引任务" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="panel">
+                        <StackPanel Spacing="14">
+                            <TextBlock Classes="eyebrow" Text="Model Gateway" />
+                            <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="#F7F2EA" Text="Python HTTP 能力面" />
+                            <ItemsControl ItemsSource="{Binding AiCapabilities}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:AiCapabilityRecord">
+                                        <Border
+                                            Margin="0,0,0,10"
+                                            Background="#0D141C"
+                                            BorderBrush="#20303F"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="14">
+                                            <StackPanel Spacing="6">
+                                                <DockPanel>
+                                                    <TextBlock FontWeight="SemiBold" Foreground="#F2EEE6" Text="{Binding Name}" />
+                                                    <TextBlock DockPanel.Dock="Right" Foreground="#D39A5B" Text="{Binding Endpoint}" />
+                                                </DockPanel>
+                                                <TextBlock Foreground="#C6D0DA" TextWrapping="Wrap" Text="{Binding Summary}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBox
+                                Classes="prompt-box"
+                                MinHeight="120"
+                                AcceptsReturn="True"
+                                Text="{Binding PromptDraft}" />
+                            <Button Classes="primary" Command="{Binding SubmitPromptCommand}" Content="准备发送提示词" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="panel">
+                        <StackPanel Spacing="12">
+                            <TextBlock Classes="eyebrow" Text="Activity Feed" />
+                            <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="#F7F2EA" Text="桌面端任务纪要" />
+                            <ItemsControl ItemsSource="{Binding ActivityFeed}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border
+                                            Margin="0,0,0,10"
+                                            Background="#0D141C"
+                                            CornerRadius="12"
+                                            Padding="12">
+                                            <TextBlock Foreground="#D4DDE6" TextWrapping="Wrap" Text="{Binding .}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
 </Window>

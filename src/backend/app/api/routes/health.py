@@ -6,4 +6,4 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 def health_check() -> dict[str, str]:
-    return {"status": "ok", "stage": "skeleton"}
+    return {"status": "ok", "stage": "llm-gateway"}

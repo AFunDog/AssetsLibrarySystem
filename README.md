@@ -2,7 +2,12 @@
 
 一个面向文本、图片、视频、音乐素材的管理系统骨架项目。
 
-当前阶段完成前后端基础入口、分层目录与架构文档，并补了一个基于 DashScope 的素材打标入口；素材管理、RAG 和自然语言搜索仍然以骨架和占位实现为主。
+当前阶段已经把职责重新收敛为两部分：
+
+- `Avalonia/.NET` 负责素材管理主流程
+- `Python FastAPI` 只负责大模型 HTTP 服务
+
+也就是说，素材库、目录、元数据和桌面工作流由本地桌面端承担；Python 后端不再包含素材管理功能。
 
 ## 目标
 
@@ -16,43 +21,41 @@
 docs/
   architecture.md          # 方案说明与演进路线
 src/
+  avalonia/
+    AssetsLibrarySystem.Avalonia/ # 桌面端主入口，承担素材管理工作台
   backend/
-    app/
+    app/                   # Python 模型网关
       api/                 # HTTP 路由层
-      application/         # 用例与编排层
-      core/                # 配置与基础设施抽象
-      domain/              # 领域模型
-      infrastructure/      # 仓储、索引、外部能力适配
-      schemas/             # API 输入输出模型
+      application/         # 模型调用服务
+      core/                # provider / prompt 配置
+      schemas/             # HTTP 输入输出模型
       main.py              # FastAPI 入口
-    pyproject.toml         # 后端项目配置与依赖声明
+    pyproject.toml
     configs/
       providers.example.yaml # 私有 provider 模板，实际 providers.yaml 不进仓库
       prompts.yaml
   frontend/
-    src/
-      components/          # 页面组件
-      App.vue              # 应用壳层
-      main.ts              # Vue 入口
-      styles.css           # 全局样式
-    index.html
-    package.json
-    tsconfig.json
-    vite.config.ts
+    ...                    # 早期 Web 骨架，当前不是素材管理主入口
 AGENTS.md
 CLAUDE.md
 README.md
 ```
 
-## 规划中的能力映射
+## 当前边界
 
-- 素材管理：统一素材实体、文件元数据、标签、描述、状态
-- 打标：文件解析、内容提取、多模态标注、人工修订
-- 检索：关键词检索、向量召回、重排序
-- RAG：基于素材描述、标签、摘要和扩展知识构造回答上下文
-- 自然语言搜索：把用户查询转成过滤条件、召回请求和回答结果
+- Avalonia/.NET
+  - 素材库登记
+  - 本地目录管理
+  - 素材元数据维护
+  - 工作台状态展示
+  - 后续检索与索引编排入口
+- Python FastAPI
+  - 模型网关健康检查
+  - 模型能力清单
+  - 文本提示词转发
+  - 后续统一扩展多模型 HTTP 调用
 
-其中检索链路将参考 `RenderTest/test2.py` 中的两阶段方案：
+检索链路后续仍参考 `RenderTest/test2.py` 中的两阶段方案：
 
 - Embedding 建索引与召回
 - Reranker 精排
@@ -60,15 +63,15 @@ README.md
 
 ## 后续建议
 
-1. 先实现素材元数据落库与文件扫描
-2. 再接入打标与向量索引构建流程
-3. 最后补齐搜索、RAG 与前端交互闭环
+1. 先在 .NET 侧补齐真实素材库扫描、本地仓储和任务状态持久化
+2. 再让桌面端通过 Python 网关接入真实模型调用
+3. 最后补齐召回、精排、索引持久化与 RAG 相关能力
 
 ## 本地启动方式
 
-当前仅为骨架，命令主要用于后续开发阶段约定。
+当前主要有两个入口。
 
-后端：
+Python 模型网关：
 
 ```powershell
 cd src/backend
@@ -77,19 +80,16 @@ pip install -e .
 uvicorn app.main:app --reload
 ```
 
-测试：
+后端测试：
 
 ```powershell
 cd src/backend
-python -m unittest discover -s tests -v
+pytest
 ```
 
-默认素材落库文件在 `src/backend/data/assets.json`，该目录已加入 `.gitignore`。
-
-前端：
+Avalonia 桌面端：
 
 ```powershell
-cd src/frontend
-npm install
-npm run dev
+cd src/avalonia
+dotnet build AssetsLibrarySystem.sln
 ```
