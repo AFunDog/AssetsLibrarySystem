@@ -14,7 +14,13 @@
              to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel/>
     </Design.DataContext>
+    
+    <Window.Styles>
+        <Style Selector="Window">
+            <Setter Property="WindowDecorations" Value="Full"></Setter>
+            <Setter Property="ExtendClientAreaToDecorationsHint" Value="True"></Setter>
+        </Style>
+    </Window.Styles>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-
+    
 </Window>

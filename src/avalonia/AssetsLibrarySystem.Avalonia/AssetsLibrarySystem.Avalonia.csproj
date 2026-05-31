@@ -13,6 +13,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Autofac" Version="9.1.0" />
+    <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="11.0.0" />
     <PackageReference Include="Avalonia" Version="12.0.4" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.4" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.4" />
@@ -22,5 +24,6 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.1" />
+    <PackageReference Include="Semi.Avalonia" Version="12.0.3" />
   </ItemGroup>
 </Project>

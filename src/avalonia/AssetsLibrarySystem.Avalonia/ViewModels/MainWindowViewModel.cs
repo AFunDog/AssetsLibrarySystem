@@ -1,6 +1,20 @@
-﻿namespace AssetsLibrarySystem.Avalonia.ViewModels;
+using CommunityToolkit.Mvvm.ComponentModel;
+using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 
-public partial class MainWindowViewModel : ViewModelBase
+namespace AssetsLibrarySystem.Avalonia.ViewModels;
+
+public partial class MainWindowViewModel : ObservableObject
 {
-    public string Greeting { get; } = "Welcome to Avalonia!";
+    private readonly IBackendLauncher _backendLauncher;
+
+    public MainWindowViewModel() : this(null!)
+    {
+        
+    }
+
+    public MainWindowViewModel(IBackendLauncher backendLauncher)
+    {
+        _backendLauncher = backendLauncher;
+    }
+    
 }
