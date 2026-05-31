@@ -18,22 +18,30 @@ public sealed class DashboardMetric
     public string Hint { get; }
 }
 
-public sealed class LibraryWorkspace
+public sealed partial class LibraryWorkspace : ObservableObject
 {
-    public LibraryWorkspace(string name, string rootPath, string summary, string syncMode, int assetCount)
+    public LibraryWorkspace(string id, string name, string rootPath, string summary, string syncMode, int assetCount)
     {
+        Id = id;
         Name = name;
         RootPath = rootPath;
-        Summary = summary;
-        SyncMode = syncMode;
-        AssetCount = assetCount;
+        this.summary = summary;
+        this.syncMode = syncMode;
+        this.assetCount = assetCount;
     }
 
+    public string Id { get; }
     public string Name { get; }
     public string RootPath { get; }
-    public string Summary { get; }
-    public string SyncMode { get; }
-    public int AssetCount { get; }
+
+    [ObservableProperty]
+    private string summary;
+
+    [ObservableProperty]
+    private string syncMode;
+
+    [ObservableProperty]
+    private int assetCount;
 }
 
 public sealed partial class ManagedAssetRecord : ObservableObject

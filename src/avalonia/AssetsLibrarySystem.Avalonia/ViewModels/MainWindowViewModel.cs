@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,16 +13,19 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject
 {
+    private readonly IAssetLibraryService? _assetLibraryService;
     private readonly IBackendLauncher? _backendLauncher;
     private readonly List<ManagedAssetRecord> _allAssets = [];
+    private bool _isLibraryScanRunning;
 
-    public MainWindowViewModel() : this(null)
+    public MainWindowViewModel() : this(null, null)
     {
     }
 
-    public MainWindowViewModel(IBackendLauncher? backendLauncher)
+    public MainWindowViewModel(IBackendLauncher? backendLauncher, IAssetLibraryService? assetLibraryService)
     {
         _backendLauncher = backendLauncher;
+        _assetLibraryService = assetLibraryService;
 
         Metrics = new ObservableCollection<DashboardMetric>();
         Libraries = new ObservableCollection<LibraryWorkspace>();
@@ -30,7 +34,9 @@ public partial class MainWindowViewModel : ObservableObject
         SelectedAssetTags = new ObservableCollection<string>();
         ActivityFeed = new ObservableCollection<string>();
 
-        SeedWorkspace();
+        SeedStaticData();
+        RebuildMetrics();
+        SetEmptyWorkspaceState();
     }
 
     public ObservableCollection<DashboardMetric> Metrics { get; }
@@ -59,13 +65,13 @@ public partial class MainWindowViewModel : ObservableObject
     private string workspaceTitle = "本地素材工作台";
 
     [ObservableProperty]
-    private string workspaceSummary = "以 Avalonia/.NET 为主入口，围绕素材库登记、状态编排和模型任务队列组织桌面体验。";
+    private string workspaceSummary = "先登记素材库目录，再扫描本地文件，桌面端负责目录和元数据展示。";
 
     [ObservableProperty]
-    private string assetSummary = "当前展示的是桌面端素材目录样例数据，后续可在此挂接真实扫描与本地仓储。";
+    private string assetSummary = "当前还没有扫描结果。选择一个素材库后，点击“扫描当前素材库”加载文件。";
 
     [ObservableProperty]
-    private string operatorNotice = "先完成边界收敛：素材管理留在 .NET，本地模型调用走 Python HTTP 服务。";
+    private string operatorNotice = "先在桌面端选择一个文件夹并登记为素材库目录，再触发扫描。";
 
     [ObservableProperty]
     private string promptDraft = "请基于当前素材生成一段适合检索与人工校对的中文描述。";
@@ -74,7 +80,7 @@ public partial class MainWindowViewModel : ObservableObject
     private string selectedAssetName = "尚未选择素材";
 
     [ObservableProperty]
-    private string selectedAssetLibrary = "请从中间列表选择一个条目";
+    private string selectedAssetLibrary = "请先添加并扫描一个素材库";
 
     [ObservableProperty]
     private string selectedAssetPath = "当前未加载本地文件路径";
@@ -89,40 +95,54 @@ public partial class MainWindowViewModel : ObservableObject
     private string selectedAssetAiState = "未排队";
 
     [ObservableProperty]
-    private string selectedAssetDetail = "右侧详情区域当前只展示桌面端维护的元数据和任务状态。";
+    private string selectedAssetDetail = "右侧详情区域会展示当前素材的路径、类型和扫描结果。";
 
     public async Task InitializeAsync()
     {
         if (_backendLauncher is null)
         {
             BackendStatusTitle = "设计时模式";
-            BackendStatusDetail = "当前界面使用样例数据渲染，没有注入 Python 模型服务。";
+            BackendStatusDetail = "当前界面使用桌面端本地逻辑，没有注入 Python 模型服务。";
+        }
+        else
+        {
+            await InitializeBackendAsync();
+        }
+
+        await LoadLibrariesAsync();
+    }
+
+    public async Task AddLibraryDirectoryAsync(string folderPath)
+    {
+        if (_assetLibraryService is null)
+        {
+            OperatorNotice = "素材库服务尚未注册，当前无法保存目录。";
             return;
         }
 
-        BackendStatusTitle = "Python 模型服务启动中";
-        BackendStatusDetail = "正在等待 /health 返回，就绪后桌面端可将提示词任务转发给 HTTP 后端。";
+        var library = await _assetLibraryService.AddLibraryAsync(folderPath);
+        var existing = Libraries.FirstOrDefault(item =>
+            string.Equals(item.RootPath, library.RootPath, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            Libraries.Add(library);
+            ActivityFeed.Insert(0, $"已登记素材库目录：{library.RootPath}");
+        }
+        else
+        {
+            library = existing;
+            ActivityFeed.Insert(0, $"素材库目录已存在：{library.RootPath}");
+        }
 
-        try
-        {
-            await _backendLauncher.StartAsync();
-            BackendEndpoint = _backendLauncher.BaseUrl;
-            BackendStatusTitle = "Python 模型服务已连接";
-            BackendStatusDetail = "模型服务只负责大模型 HTTP 接口，不再承担素材库、文件扫描或目录管理。";
-            ActivityFeed.Insert(0, $"模型网关就绪：{BackendEndpoint}");
-        }
-        catch (Exception ex)
-        {
-            BackendStatusTitle = "Python 模型服务未就绪";
-            BackendStatusDetail = ex.Message;
-            OperatorNotice = "后端启动失败，当前仍可继续设计桌面端素材流程。";
-            ActivityFeed.Insert(0, $"模型网关启动失败：{ex.Message}");
-        }
+        SelectedLibrary = library;
+        OperatorNotice = $"已登记素材库“{library.Name}”，下一步请执行扫描。";
+        RebuildMetrics();
+        await ScanLibraryCoreAsync(library);
     }
 
     partial void OnSelectedLibraryChanged(LibraryWorkspace? value)
     {
-        RebuildVisibleAssets(value);
+        _ = LoadSelectedLibraryAsync(value);
     }
 
     partial void OnSelectedAssetChanged(ManagedAssetRecord? value)
@@ -132,12 +152,12 @@ public partial class MainWindowViewModel : ObservableObject
         if (value is null)
         {
             SelectedAssetName = "尚未选择素材";
-            SelectedAssetLibrary = "请从中间列表选择一个条目";
+            SelectedAssetLibrary = "请先扫描一个素材库";
             SelectedAssetPath = "当前未加载本地文件路径";
             SelectedAssetType = "未选择";
             SelectedAssetStage = "待选择";
             SelectedAssetAiState = "未排队";
-            SelectedAssetDetail = "右侧详情区域当前只展示桌面端维护的元数据和任务状态。";
+            SelectedAssetDetail = "右侧详情区域会展示当前素材的路径、类型和扫描结果。";
             return;
         }
 
@@ -157,10 +177,27 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void RefreshWorkspace()
+    private async Task RefreshWorkspaceAsync()
     {
-        OperatorNotice = "当前刷新的是桌面端素材视图；真实目录扫描和本地持久化后续接入 .NET 服务层。";
-        ActivityFeed.Insert(0, "已刷新桌面端工作台视图。");
+        if (SelectedLibrary is null)
+        {
+            OperatorNotice = "请先选择一个素材库，再刷新扫描结果。";
+            return;
+        }
+
+        await ScanLibraryCoreAsync(SelectedLibrary);
+    }
+
+    [RelayCommand]
+    private async Task ScanSelectedLibraryAsync()
+    {
+        if (SelectedLibrary is null)
+        {
+            OperatorNotice = "请先添加或选择一个素材库。";
+            return;
+        }
+
+        await ScanLibraryCoreAsync(SelectedLibrary);
     }
 
     [RelayCommand]
@@ -222,98 +259,130 @@ public partial class MainWindowViewModel : ObservableObject
 
         var target = SelectedAsset?.Name ?? "当前会话";
         OperatorNotice = _backendLauncher?.IsRunning == true
-            ? $"提示词已准备发送到 {BackendEndpoint}，当前先保留为界面占位联动。"
-            : "Python 模型服务尚未就绪，当前只演示桌面端任务编排。";
+            ? $"提示词已准备发送到 {BackendEndpoint}，当前先保留为桌面端联动占位。"
+            : "Python 模型服务尚未就绪，当前先完成本地素材扫描与管理。";
         ActivityFeed.Insert(0, $"提示词草稿已更新：{target}");
     }
 
-    private void SeedWorkspace()
+    private async Task InitializeBackendAsync()
     {
-        Metrics.Clear();
-        Metrics.Add(new DashboardMetric("本地素材库", "03", "Avalonia 侧维护目录与元数据"));
-        Metrics.Add(new DashboardMetric("待模型处理", "07", "仅把提示词和推理请求交给 Python"));
-        Metrics.Add(new DashboardMetric("检索候选位", "12", "为后续召回 + 精排链路预留"));
-        Metrics.Add(new DashboardMetric("后端职责", ".PY", "HTTP 模型网关"));
+        BackendStatusTitle = "Python 模型服务启动中";
+        BackendStatusDetail = "正在等待 /health 返回，就绪后桌面端可将提示词任务转发给 HTTP 后端。";
 
+        try
+        {
+            await _backendLauncher!.StartAsync();
+            BackendEndpoint = _backendLauncher.BaseUrl;
+            BackendStatusTitle = "Python 模型服务已连接";
+            BackendStatusDetail = "模型服务只负责大模型 HTTP 接口，不再承担素材库、文件扫描或目录管理。";
+            ActivityFeed.Insert(0, $"模型网关就绪：{BackendEndpoint}");
+        }
+        catch (Exception ex)
+        {
+            BackendStatusTitle = "Python 模型服务未就绪";
+            BackendStatusDetail = ex.Message;
+            OperatorNotice = "后端启动失败，当前仍可继续使用桌面端素材库管理。";
+            ActivityFeed.Insert(0, $"模型网关启动失败：{ex.Message}");
+        }
+    }
+
+    private async Task LoadLibrariesAsync()
+    {
         Libraries.Clear();
-        Libraries.Add(new LibraryWorkspace(
-            "角色立绘总库",
-            @"D:\Assets\Characters",
-            "面向图片与表情差分，优先沉淀本地目录和人工校对状态。",
-            "桌面端本地目录",
-            18));
-        Libraries.Add(new LibraryWorkspace(
-            "演出视频素材",
-            @"D:\Assets\StageClips",
-            "面向镜头段落、节奏片段和后续摘要切片的管理。",
-            "桌面端扫描任务",
-            9));
-        Libraries.Add(new LibraryWorkspace(
-            "音乐与环境声",
-            @"D:\Assets\Music",
-            "面向音乐、氛围声和后续标签索引预处理。",
-            "桌面端人工整理",
-            24));
-
         _allAssets.Clear();
-        _allAssets.AddRange([
-            new ManagedAssetRecord(
-                "asset-001",
-                "mahiro_smile_pose.png",
-                "角色立绘总库",
-                "图片",
-                @"poses\mahiro_smile_pose.png",
-                @"D:\Assets\Characters\poses\mahiro_smile_pose.png",
-                "角色正面半身像，表情偏平稳，适合用作日常对话立绘基准帧。",
-                "桌面端已登记",
-                "未提交模型",
-                ["立绘", "正面", "日常"]),
-            new ManagedAssetRecord(
-                "asset-002",
-                "concert_cut_07.mp4",
-                "演出视频素材",
-                "视频",
-                @"cuts\concert_cut_07.mp4",
-                @"D:\Assets\StageClips\cuts\concert_cut_07.mp4",
-                "高能段落切片，后续可补节奏标签、镜头说明和摘要文本。",
-                "待片段标注",
-                "待摘要生成",
-                ["舞台", "节奏", "高潮"]),
-            new ManagedAssetRecord(
-                "asset-003",
-                "night_train_loop.flac",
-                "音乐与环境声",
-                "音乐",
-                @"ambient\night_train_loop.flac",
-                @"D:\Assets\Music\ambient\night_train_loop.flac",
-                "低速循环环境声，适合作为场景氛围素材，后续可补情绪与场景标签。",
-                "待索引",
-                "待向量化",
-                ["环境声", "夜晚", "列车"]),
-            new ManagedAssetRecord(
-                "asset-004",
-                "scene_notes_intro.txt",
-                "角色立绘总库",
-                "文本",
-                @"notes\scene_notes_intro.txt",
-                @"D:\Assets\Characters\notes\scene_notes_intro.txt",
-                "文本素材用于描述镜头场景和角色关系，可直接进入后续检索上下文。",
-                "桌面端已登记",
-                "待扩写摘要",
-                ["文本", "场景说明", "关系"]),
-        ]);
+        VisibleAssets.Clear();
 
-        AiCapabilities.Clear();
-        AiCapabilities.Add(new AiCapabilityRecord("健康检查", "/health", "供桌面端确认 Python 模型服务是否可达。"));
-        AiCapabilities.Add(new AiCapabilityRecord("能力清单", "/api/v1/model/capabilities", "返回当前模型网关的槽位、模式和占位能力。"));
-        AiCapabilities.Add(new AiCapabilityRecord("文本生成", "/api/v1/model/generate", "只负责提示词转发与模型输出，不管理素材目录。"));
+        if (_assetLibraryService is null)
+        {
+            SetEmptyWorkspaceState();
+            return;
+        }
 
-        ActivityFeed.Clear();
-        ActivityFeed.Add("桌面端作为素材管理主入口，先固定本地工作流边界。");
-        ActivityFeed.Add("Python 进程仅暴露 HTTP 模型能力，避免再次把素材管理逻辑塞回后端。");
-        ActivityFeed.Add("后续检索链路仍参考 RenderTest/test2.py 的召回 + 精排 + 索引持久化思路。");
+        var libraries = await _assetLibraryService.GetLibrariesAsync();
+        foreach (var library in libraries)
+        {
+            Libraries.Add(library);
+        }
 
-        SelectedLibrary = Libraries.FirstOrDefault();
+        RebuildMetrics();
+
+        if (Libraries.Count == 0)
+        {
+            SetEmptyWorkspaceState();
+            ActivityFeed.Insert(0, "当前尚未登记素材库目录。");
+            return;
+        }
+
+        SelectedLibrary = Libraries[0];
+    }
+
+    private async Task LoadSelectedLibraryAsync(LibraryWorkspace? library)
+    {
+        if (library is null)
+        {
+            VisibleAssets.Clear();
+            SetEmptyWorkspaceState();
+            return;
+        }
+
+        WorkspaceTitle = library.Name;
+        WorkspaceSummary = library.RootPath;
+        AssetSummary = library.AssetCount > 0
+            ? $"当前素材库已加载 {library.AssetCount} 个支持的素材文件。"
+            : library.Summary;
+
+        if (!_allAssets.Any(asset => asset.LibraryName == library.Name))
+        {
+            await ScanLibraryCoreAsync(library);
+            return;
+        }
+
+        RebuildVisibleAssets(library);
+    }
+
+    private async Task ScanLibraryCoreAsync(LibraryWorkspace library)
+    {
+        if (_assetLibraryService is null || _isLibraryScanRunning)
+        {
+            return;
+        }
+
+        try
+        {
+            _isLibraryScanRunning = true;
+            library.SyncMode = "扫描中";
+            library.Summary = "正在扫描目录下的文本、图片、视频和音频文件。";
+            OperatorNotice = $"正在扫描素材库：{library.RootPath}";
+
+            var assets = await _assetLibraryService.ScanLibraryAsync(library);
+            _allAssets.RemoveAll(asset => asset.LibraryName == library.Name);
+            _allAssets.AddRange(assets);
+
+            library.AssetCount = assets.Count;
+            library.SyncMode = "已扫描";
+            library.Summary = assets.Count == 0
+                ? "目录中没有找到受支持的文本、图片、视频或音频文件。"
+                : $"已扫描 {assets.Count} 个素材文件，可在右侧列表查看。";
+
+            WorkspaceTitle = library.Name;
+            WorkspaceSummary = library.RootPath;
+            AssetSummary = library.Summary;
+
+            RebuildVisibleAssets(library);
+            RebuildMetrics();
+            ActivityFeed.Insert(0, $"扫描完成：{library.Name}，共 {assets.Count} 个素材文件。");
+        }
+        catch (Exception ex)
+        {
+            library.SyncMode = "扫描失败";
+            library.Summary = ex.Message;
+            OperatorNotice = $"扫描失败：{ex.Message}";
+            ActivityFeed.Insert(0, $"扫描失败：{library.Name} -> {ex.Message}");
+        }
+        finally
+        {
+            _isLibraryScanRunning = false;
+        }
     }
 
     private void RebuildVisibleAssets(LibraryWorkspace? library)
@@ -324,23 +393,52 @@ public partial class MainWindowViewModel : ObservableObject
         if (library is not null)
         {
             items = items.Where(asset => asset.LibraryName == library.Name);
-            WorkspaceTitle = library.Name;
-            WorkspaceSummary = $"{library.SyncMode} · {library.RootPath}";
-            AssetSummary = library.Summary;
-        }
-        else
-        {
-            WorkspaceTitle = "本地素材工作台";
-            WorkspaceSummary = "以 Avalonia/.NET 为主入口，围绕素材库登记、状态编排和模型任务队列组织桌面体验。";
-            AssetSummary = "当前展示的是桌面端素材目录样例数据，后续可在此挂接真实扫描与本地仓储。";
         }
 
-        foreach (var asset in items)
+        foreach (var asset in items.OrderBy(asset => asset.AssetType).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase))
         {
             VisibleAssets.Add(asset);
         }
 
         SelectedAsset = VisibleAssets.FirstOrDefault();
+    }
+
+    private void RebuildMetrics()
+    {
+        Metrics.Clear();
+
+        var totalAssets = _allAssets.Count;
+        var pendingModel = _allAssets.Count(asset => asset.AiState.Contains("待", StringComparison.Ordinal));
+        var textImageVideoAudio = _allAssets
+            .Select(asset => asset.AssetType)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
+        Metrics.Add(new DashboardMetric("本地素材库", Libraries.Count.ToString("D2"), "Avalonia 侧维护目录登记"));
+        Metrics.Add(new DashboardMetric("已扫描素材", totalAssets.ToString("D2"), "文本 | 图片 | 视频 | 音频"));
+        Metrics.Add(new DashboardMetric("待模型处理", pendingModel.ToString("D2"), "仅把提示词和推理请求交给 Python"));
+        Metrics.Add(new DashboardMetric("素材类型", textImageVideoAudio.ToString("D2"), "当前已识别的文件类型数量"));
+    }
+
+    private void SeedStaticData()
+    {
+        AiCapabilities.Clear();
+        AiCapabilities.Add(new AiCapabilityRecord("健康检查", "/health", "供桌面端确认 Python 模型服务是否可达。"));
+        AiCapabilities.Add(new AiCapabilityRecord("能力清单", "/api/v1/model/capabilities", "返回当前模型网关的槽位、模式和占位能力。"));
+        AiCapabilities.Add(new AiCapabilityRecord("文本生成", "/api/v1/model/generate", "只负责提示词转发与模型输出，不管理素材目录。"));
+
+        ActivityFeed.Clear();
+        ActivityFeed.Add("桌面端作为素材管理主入口，先固定本地工作流边界。");
+        ActivityFeed.Add("本地素材库目录会持久化为 JSON，并由 .NET 负责目录扫描与文件展示。");
+        ActivityFeed.Add("Python 进程仅暴露 HTTP 模型能力，避免再次把素材管理逻辑塞回后端。");
+    }
+
+    private void SetEmptyWorkspaceState()
+    {
+        WorkspaceTitle = "尚未添加素材库";
+        WorkspaceSummary = "请选择一个本地文件夹并登记为素材库目录。";
+        AssetSummary = "支持扫描文本、图片、视频和音频文件。";
+        SelectedAsset = null;
     }
 
     private void SyncSelectedAssetFields()

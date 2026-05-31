@@ -325,6 +325,10 @@
                                             <Border Classes="soft-surface">
                                                 <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding AssetSummary}" />
                                             </Border>
+                                            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+                                                <Button Classes="primary" Click="AddLibraryFolder_Click" Content="添加素材库目录" />
+                                                <Button Grid.Column="1" Classes="secondary" Command="{Binding ScanSelectedLibraryCommand}" Content="扫描当前素材库" />
+                                            </Grid>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Spacing="10">
                                             <TextBlock Classes="eyebrow" Text="Operator Notice" />
@@ -390,8 +394,13 @@
                                     <StackPanel Spacing="4">
                                         <TextBlock Classes="eyebrow" Text="Local Libraries" />
                                         <TextBlock Classes="section-title" Text="素材库导航" />
-                                        <TextBlock Classes="section-subtitle" Text="左侧聚焦素材库目录，右侧展示当前库的素材条目。" />
+                                        <TextBlock Classes="section-subtitle" Text="登记本地文件夹为素材库目录，再扫描并展示文本、图片、视频和音频文件。" />
                                     </StackPanel>
+
+                                    <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10">
+                                        <Button Classes="primary" Click="AddLibraryFolder_Click" Content="添加素材库目录" />
+                                        <Button Grid.Column="1" Classes="secondary" Command="{Binding ScanSelectedLibraryCommand}" Content="扫描当前素材库" />
+                                    </Grid>
 
                                     <ListBox
                                         Classes="library-list"

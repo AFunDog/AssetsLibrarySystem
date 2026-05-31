@@ -1,5 +1,8 @@
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
+using AssetsLibrarySystem.Avalonia.ViewModels;
 
 namespace AssetsLibrarySystem.Avalonia.Views;
 
@@ -23,5 +26,27 @@ public partial class MainWindow : Window
     private void CloseWindow_Click(object? sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private async void AddLibraryFolder_Click(object? sender, RoutedEventArgs e)
+    {
+        if (StorageProvider is null || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "选择素材库目录",
+            AllowMultiple = false
+        });
+
+        var folderPath = folders.FirstOrDefault()?.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(folderPath))
+        {
+            return;
+        }
+
+        await viewModel.AddLibraryDirectoryAsync(folderPath);
     }
 }
