@@ -25,9 +25,6 @@
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
         </Style>
-        <Style Selector="Border.shell">
-            <Setter Property="Background" Value="{DynamicResource AppWindowBackgroundBrush}" />
-        </Style>
         <Style Selector="Border.shell-header">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -113,7 +110,7 @@
         </Style>
     </Window.Styles>
 
-    <Border Classes="shell" Padding="20">
+    <Border Margin="8">
         <Grid RowDefinitions="Auto,*" RowSpacing="16">
             <Border Classes="shell-header">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">

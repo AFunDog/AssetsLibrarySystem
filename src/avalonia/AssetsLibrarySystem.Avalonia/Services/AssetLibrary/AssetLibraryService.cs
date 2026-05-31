@@ -31,20 +31,20 @@ public sealed class AssetLibraryService : IAssetLibraryService
         ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".wma"
     };
 
-    private readonly JsonSerializerOptions _jsonOptions = new()
+    private JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
     };
 
-    private readonly string _storePath;
+    private string StorePath { get; }
 
     public AssetLibraryService()
     {
         // 素材库登记信息只保存在程序工作目录下的 data 目录。
         var dataDirectory = Path.Combine(Directory.GetCurrentDirectory(), "data");
         Directory.CreateDirectory(dataDirectory);
-        _storePath = Path.Combine(dataDirectory, "libraries.json");
+        StorePath = Path.Combine(dataDirectory, "libraries.json");
     }
 
     public async Task<IReadOnlyList<LibraryWorkspace>> GetLibrariesAsync(CancellationToken ct = default)
@@ -268,19 +268,19 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     private async Task<List<LibraryStoreItem>> ReadStoreAsync(CancellationToken ct)
     {
-        if (!File.Exists(_storePath))
+        if (!File.Exists(StorePath))
         {
             return [];
         }
 
-        await using var stream = File.OpenRead(_storePath);
-        return await JsonSerializer.DeserializeAsync<List<LibraryStoreItem>>(stream, _jsonOptions, ct) ?? [];
+        await using var stream = File.OpenRead(StorePath);
+        return await JsonSerializer.DeserializeAsync<List<LibraryStoreItem>>(stream, JsonOptions, ct) ?? [];
     }
 
     private async Task WriteStoreAsync(List<LibraryStoreItem> items, CancellationToken ct)
     {
-        await using var stream = File.Create(_storePath);
-        await JsonSerializer.SerializeAsync(stream, items, _jsonOptions, ct);
+        await using var stream = File.Create(StorePath);
+        await JsonSerializer.SerializeAsync(stream, items, JsonOptions, ct);
     }
 
     private sealed class LibraryStoreItem

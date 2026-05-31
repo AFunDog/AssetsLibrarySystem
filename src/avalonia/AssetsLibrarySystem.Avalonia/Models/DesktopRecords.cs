@@ -4,19 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AssetsLibrarySystem.Avalonia.Models;
 
-public sealed class DashboardMetric
-{
-    public DashboardMetric(string label, string value, string hint)
-    {
-        Label = label;
-        Value = value;
-        Hint = hint;
-    }
-
-    public string Label { get; }
-    public string Value { get; }
-    public string Hint { get; }
-}
+public sealed record DashboardMetric(string Label, string Value, string Hint);
 
 public sealed partial class LibraryWorkspace : ObservableObject
 {
@@ -25,9 +13,9 @@ public sealed partial class LibraryWorkspace : ObservableObject
         Id = id;
         Name = name;
         RootPath = rootPath;
-        this.summary = summary;
-        this.syncMode = syncMode;
-        this.assetCount = assetCount;
+        Summary = summary;
+        SyncMode = syncMode;
+        AssetCount = assetCount;
     }
 
     public string Id { get; }
@@ -35,13 +23,13 @@ public sealed partial class LibraryWorkspace : ObservableObject
     public string RootPath { get; }
 
     [ObservableProperty]
-    private string summary;
+    public partial string Summary { get; set; } = string.Empty;
 
     [ObservableProperty]
-    private string syncMode;
+    public partial string SyncMode { get; set; } = string.Empty;
 
     [ObservableProperty]
-    private int assetCount;
+    public partial int AssetCount { get; set; }
 }
 
 public sealed partial class ManagedAssetRecord : ObservableObject
@@ -65,8 +53,8 @@ public sealed partial class ManagedAssetRecord : ObservableObject
         RelativePath = relativePath;
         LocalPath = localPath;
         Summary = summary;
-        this.stage = stage;
-        this.aiState = aiState;
+        Stage = stage;
+        AiState = aiState;
         Tags = new ObservableCollection<string>(tags);
     }
 
@@ -80,22 +68,10 @@ public sealed partial class ManagedAssetRecord : ObservableObject
     public ObservableCollection<string> Tags { get; }
 
     [ObservableProperty]
-    private string stage;
+    public partial string Stage { get; set; } = string.Empty;
 
     [ObservableProperty]
-    private string aiState;
+    public partial string AiState { get; set; } = string.Empty;
 }
 
-public sealed class AiCapabilityRecord
-{
-    public AiCapabilityRecord(string name, string endpoint, string summary)
-    {
-        Name = name;
-        Endpoint = endpoint;
-        Summary = summary;
-    }
-
-    public string Name { get; }
-    public string Endpoint { get; }
-    public string Summary { get; }
-}
+public sealed record AiCapabilityRecord(string Name, string Endpoint, string Summary);
