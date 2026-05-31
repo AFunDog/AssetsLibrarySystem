@@ -21,6 +21,27 @@
 - `GET /api/v1/model/capabilities`
 - `POST /api/v1/model/generate`
 
+`POST /api/v1/model/generate` 现在接收的是素材打标请求，而不是对话消息流。请求体的核心字段是：
+
+- `asset_format`：`文本`、`图片`、`视频`、`音频` 之一，用来选择对应的 `prompts.yaml` 配置
+- `asset_path`：素材文件的绝对路径
+- `prompt`：可选，覆盖默认提示词
+- `system_prompt`：可选，覆盖默认系统提示词
+- `mock_response`：可选，强制返回占位结果
+
+如果 `prompt` 和 `system_prompt` 都不传，后端会根据 `asset_format` 自动读取 `configs/prompts.yaml` 中对应的系统提示词和默认提示词。当前默认提示词配置为空，后端会把素材格式和绝对路径一并带入实际请求上下文。
+
+`configs/providers.yaml` 也已经按素材类型分组，分别为 `文本`、`图片`、`视频`、`音频` 配置独立模型。后端会优先读取与 `asset_format` 同名的槽位，再按兼容顺序回退到 `llm_gateway`、`asset_describer` 或第一个可用槽位。
+
+`api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取环境变量 `DASHSCOPE_API_KEY`。
+
+当前 DashScope 传参方式如下：
+
+- `文本`：后端读取 `asset_path` 指向的文本文件内容，通过 `Generation.call()` 发送给大模型
+- `图片`：后端将 `asset_path` 转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `image` 项发送
+- `视频`：后端将 `asset_path` 转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `video` 项发送，并默认附带 `fps=2`
+- `音频`：后端将 `asset_path` 转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `audio` 项发送；如果当前配置模型不是音频兼容模型，会自动回退到 `qwen3-omni-30b-a3b-captioner`
+
 ## 本地启动
 
 ```powershell

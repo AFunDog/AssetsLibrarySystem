@@ -247,6 +247,12 @@
             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
+        <Style Selector="Border.tag-chip">
+            <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+        </Style>
     </UserControl.Styles>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -291,58 +297,144 @@
                         <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding AssetSummary}" />
                     </Border>
 
-                    <TreeView Grid.Row="2"
-                              Classes="asset-tree"
-                              AutoScrollToSelectedItem="True"
-                              ItemsSource="{Binding AssetTreeRoots}"
-                              SelectedItem="{Binding SelectedAssetTreeNode, Mode=TwoWay}">
-                        <TreeView.ItemTemplate>
-                            <TreeDataTemplate x:DataType="models:AssetLibraryTreeNode"
-                                              ItemsSource="{Binding Children}">
-                                <Border Classes="tree-node-surface">
-                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
-                                        <Border Width="22"
-                                                Height="22"
-                                                Background="{DynamicResource AppBadgeBrush}"
-                                                CornerRadius="999"
-                                                VerticalAlignment="Center">
-                                            <lucide:LucideIcon HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"
-                                                               Size="14"
-                                                               Kind="FolderTree" />
+                    <Grid Grid.Row="2" ColumnDefinitions="*,320" ColumnSpacing="16">
+                        <TreeView Classes="asset-tree"
+                                  AutoScrollToSelectedItem="True"
+                                  ItemsSource="{Binding AssetTreeRoots}"
+                                  SelectedItem="{Binding SelectedAssetTreeNode, Mode=TwoWay}">
+                            <TreeView.ItemTemplate>
+                                <TreeDataTemplate x:DataType="models:AssetLibraryTreeNode"
+                                                  ItemsSource="{Binding Children}">
+                                    <Border Classes="tree-node-surface">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+                                            <Border Width="22"
+                                                    Height="22"
+                                                    Background="{DynamicResource AppBadgeBrush}"
+                                                    CornerRadius="999"
+                                                    VerticalAlignment="Center">
+                                                <lucide:LucideIcon HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   Size="14"
+                                                                   Kind="FolderTree" />
+                                            </Border>
+                                            <TextBlock Grid.Column="1"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource AppTextBrush}"
+                                                       Text="{Binding DisplayName}" />
+                                            <TextBlock Grid.Column="2"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                       Text="{Binding MetaLabel}" />
+                                            <Border Grid.Column="3"
+                                                    Background="{DynamicResource AppBadgeBrush}"
+                                                    CornerRadius="999"
+                                                    Padding="8,3"
+                                                    HorizontalAlignment="Right">
+                                                <TextBlock FontSize="11"
+                                                           Foreground="{DynamicResource AppAccentBrush}"
+                                                           Text="{Binding CategorySummary}" />
+                                            </Border>
+                                            <TextBlock Grid.Column="4"
+                                                       HorizontalAlignment="Right"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                       Text="{Binding StatusLabel}" />
+                                        </Grid>
+                                    </Border>
+                                </TreeDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+
+                        <StackPanel Grid.Column="1" Spacing="14">
+                            <Border Classes="soft-surface">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Classes="eyebrow" Text="Selected Asset" />
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <lucide:LucideIcon HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Size="18"
+                                                           Kind="FileText" />
+                                        <TextBlock Classes="section-title"
+                                                   FontSize="18"
+                                                   Text="{Binding SelectedAssetName}" />
+                                    </StackPanel>
+                                    <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                               Text="{Binding SelectedAssetLibrary}" />
+                                    <TextBlock Classes="section-subtitle"
+                                               Text="{Binding SelectedAssetPath}" />
+
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowDefinitions="Auto,Auto">
+                                        <Border Classes="soft-surface">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Classes="eyebrow" Text="Type" />
+                                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                           Text="{Binding SelectedAssetType}" />
+                                            </StackPanel>
                                         </Border>
-                                        <TextBlock Grid.Column="1"
-                                                   FontSize="13"
-                                                   FontWeight="SemiBold"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Foreground="{DynamicResource AppTextBrush}"
-                                                   Text="{Binding DisplayName}" />
-                                        <TextBlock Grid.Column="2"
-                                                   FontSize="11"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                   Text="{Binding MetaLabel}" />
-                                        <Border Grid.Column="3"
-                                                Background="{DynamicResource AppBadgeBrush}"
-                                                CornerRadius="999"
-                                                Padding="8,3"
-                                                HorizontalAlignment="Right">
-                                            <TextBlock FontSize="11"
-                                                       Foreground="{DynamicResource AppAccentBrush}"
-                                                       Text="{Binding CategorySummary}" />
+                                        <Border Grid.Column="1" Classes="soft-surface">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Classes="eyebrow" Text="Stage" />
+                                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                           Text="{Binding SelectedAssetStage}" />
+                                            </StackPanel>
                                         </Border>
-                                        <TextBlock Grid.Column="4"
-                                                   HorizontalAlignment="Right"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="11"
-                                                   Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                   Text="{Binding StatusLabel}" />
+                                        <Border Grid.Row="1" Classes="soft-surface" Grid.ColumnSpan="2">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Classes="eyebrow" Text="AI State" />
+                                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                           Text="{Binding SelectedAssetAiState}" />
+                                            </StackPanel>
+                                        </Border>
                                     </Grid>
-                                </Border>
-                            </TreeDataTemplate>
-                        </TreeView.ItemTemplate>
-                    </TreeView>
+
+                                    <Border Classes="soft-surface">
+                                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Text="{Binding SelectedAssetDetail}" />
+                                    </Border>
+
+                                    <ItemsControl ItemsSource="{Binding SelectedAssetTags}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Classes="tag-chip">
+                                                    <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                               Text="{Binding .}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Classes="soft-surface">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Classes="eyebrow" Text="Actions" />
+                                    <TextBlock Classes="section-title" FontSize="18" Text="素材操作" />
+                                    <TextBlock Classes="section-subtitle"
+                                               Text="保留当前占位交互，后续再接真实目录扫描、描述任务和索引流水线。" />
+                                    <Button Classes="primary"
+                                            Command="{Binding QueueDescriptionCommand}"
+                                            Content="排入描述任务" />
+                                    <Button Classes="secondary"
+                                            Command="{Binding QueueEmbeddingCommand}"
+                                            Content="排入索引任务" />
+                                    <Button Classes="secondary"
+                                            Command="{Binding MarkManagedCommand}"
+                                            Content="标记为 .NET 已接管" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
             </Border>
         </Grid>

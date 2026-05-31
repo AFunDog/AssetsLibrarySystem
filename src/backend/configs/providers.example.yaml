@@ -1,10 +1,35 @@
 # 本地私有配置模板
 # 复制为 providers.yaml 后填写真实密钥，或直接设置 DASHSCOPE_API_KEY 环境变量
 
-llm_gateway:
+api_key: ""
+
+文本:
   provider: dashscope
   model: qwen-plus
-  api_key: ""
+  temperature: 0.2
+  max_tokens: 1024
+  reasoning_effort: null
+  extra_body: {}
+
+图片:
+  provider: dashscope
+  model: qwen-vl-max
+  temperature: 0.2
+  max_tokens: 1024
+  reasoning_effort: null
+  extra_body: {}
+
+视频:
+  provider: dashscope
+  model: qwen3.6-plus
+  temperature: 0.2
+  max_tokens: 1024
+  reasoning_effort: null
+  extra_body: {}
+
+音频:
+  provider: dashscope
+  model: qwen3-omni-30b-a3b-captioner
   temperature: 0.2
   max_tokens: 1024
   reasoning_effort: null

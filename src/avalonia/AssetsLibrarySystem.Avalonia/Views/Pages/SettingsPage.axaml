@@ -1,0 +1,174 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
+             xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
+             x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.SettingsPage"
+             x:DataType="vm:MainWindowViewModel">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel BackendStatusTitle="Python 模型服务已连接"
+                                BackendStatusDetail="后端仅保留大模型 HTTP 服务与心跳监控，桌面端负责素材目录扫描和展示。"
+                                BackendEndpoint="http://127.0.0.1:8000"
+                                PromptDraft="请根据当前选中素材生成更适合检索与复用的中文描述。"
+                                OperatorNotice="当前设置页用于集中展示模型网关状态、能力清单和桌面端活动纪要。">
+            <vm:MainWindowViewModel.AiCapabilities>
+                <models:AiCapabilityRecord Name="健康检查"
+                                           Endpoint="/health"
+                                           Summary="桌面端轮询后端存活状态，用于界面展示与启动确认。" />
+                <models:AiCapabilityRecord Name="提示词调用"
+                                           Endpoint="/api/v1/model/*"
+                                           Summary="向 Python 模型网关发送提示词请求，不再承载素材扫描和目录管理。" />
+            </vm:MainWindowViewModel.AiCapabilities>
+            <vm:MainWindowViewModel.ActivityFeed>
+                <x:String>桌面端启动后已完成后端健康检查，当前心跳轮询正常。</x:String>
+                <x:String>素材库目录已交由 Avalonia 本地服务维护，不再依赖 Python 扫描。</x:String>
+                <x:String>当前设置页合并了模型能力和活动纪要，便于统一查看运行状态。</x:String>
+            </vm:MainWindowViewModel.ActivityFeed>
+        </vm:MainWindowViewModel>
+    </Design.DataContext>
+
+    <UserControl.Styles>
+        <Style Selector="Border.surface">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="20" />
+        </Style>
+        <Style Selector="Border.soft-surface">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="1.4" />
+        </Style>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+        <Style Selector="TextBlock.section-subtitle">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBox.prompt-box">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14,9" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid ColumnDefinitions="340,*" ColumnSpacing="20">
+            <StackPanel Spacing="20">
+                <Border Classes="surface">
+                    <StackPanel Spacing="10">
+                        <TextBlock Classes="eyebrow" Text="Settings / Gateway" />
+                        <TextBlock Classes="section-title" Text="模型网关与桌面设置" />
+                        <TextBlock Classes="section-subtitle" Text="{Binding OperatorNotice}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="surface">
+                    <StackPanel Spacing="12">
+                        <TextBlock Classes="eyebrow" Text="Backend Status" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <LucideIcon Classes="shell-glyph" Kind="Bot" Size="20" />
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AppTextBrush}"
+                                       Text="{Binding BackendStatusTitle}" />
+                        </StackPanel>
+                        <TextBlock Classes="section-subtitle" Text="{Binding BackendStatusDetail}" />
+                        <Border Classes="soft-surface">
+                            <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding BackendEndpoint}" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="20">
+                <Border Classes="surface">
+                    <StackPanel Spacing="14">
+                        <TextBlock Classes="eyebrow" Text="Model Capabilities" />
+                        <ItemsControl ItemsSource="{Binding AiCapabilities}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:AiCapabilityRecord">
+                                    <Border Margin="0,0,0,10"
+                                            Background="{DynamicResource AppSoftSurfaceBrush}"
+                                            BorderBrush="{DynamicResource AppBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="14"
+                                            Padding="14">
+                                        <StackPanel Spacing="6">
+                                            <DockPanel>
+                                                <TextBlock FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AppTextBrush}"
+                                                           Text="{Binding Name}" />
+                                                <TextBlock DockPanel.Dock="Right"
+                                                           Foreground="{DynamicResource AppAccentBrush}"
+                                                           Text="{Binding Endpoint}" />
+                                            </DockPanel>
+                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                       TextWrapping="Wrap"
+                                                       Text="{Binding Summary}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Classes="eyebrow" Text="Prompt Draft" />
+                        <TextBox Classes="prompt-box"
+                                 MinHeight="120"
+                                 AcceptsReturn="True"
+                                 Text="{Binding PromptDraft}" />
+                        <Button Classes="primary"
+                                Command="{Binding SubmitPromptCommand}"
+                                Content="准备发送提示词" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Classes="surface">
+                    <StackPanel Spacing="14">
+                        <TextBlock Classes="eyebrow" Text="Activity Feed" />
+                        <TextBlock Classes="section-title" Text="桌面端活动纪要" />
+                        <TextBlock Classes="section-subtitle"
+                                   Text="集中展示当前模型网关状态、桌面端操作结果和后续接入真实流水线前的运行备注。" />
+                        <ItemsControl ItemsSource="{Binding ActivityFeed}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,10"
+                                            Background="{DynamicResource AppSoftSurfaceBrush}"
+                                            BorderBrush="{DynamicResource AppBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Padding="12">
+                                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Text="{Binding .}" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

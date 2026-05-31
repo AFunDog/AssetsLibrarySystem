@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+@dataclass(slots=True)
+class PromptTemplate:
+    system_prompt: str
+    prompt: str
 
 
 def load_prompt_config(prompts_path: str | Path) -> dict[str, Any]:
@@ -17,12 +24,18 @@ def load_prompt_config(prompts_path: str | Path) -> dict[str, Any]:
     return data
 
 
-def extract_system_prompts(prompt_config: dict[str, Any]) -> dict[str, str]:
-    prompts: dict[str, str] = {}
-    for slot, payload in prompt_config.items():
+def extract_prompt_templates(prompt_config: dict[str, Any]) -> dict[str, PromptTemplate]:
+    templates: dict[str, PromptTemplate] = {}
+    for asset_format, payload in prompt_config.items():
         if not isinstance(payload, dict):
             continue
-        prompt = payload.get("system_prompt")
-        if isinstance(prompt, str):
-            prompts[slot] = prompt
-    return prompts
+
+        system_prompt = payload.get("system_prompt")
+        prompt = payload.get("prompt", "")
+        if isinstance(system_prompt, str):
+            templates[asset_format] = PromptTemplate(
+                system_prompt=system_prompt,
+                prompt=prompt if isinstance(prompt, str) else "",
+            )
+
+    return templates

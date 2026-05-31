@@ -68,7 +68,7 @@
                         </StackPanel>
                         <TextBlock
                             Classes="section-subtitle"
-                            Text="主窗口现在收敛为 Windows 11 Fluent 风格的桌面工作台，左侧导航切换页面，右侧承载素材库、素材详情和模型能力面。" />
+                            Text="主窗口现在收敛为 Windows 11 Fluent 风格的桌面工作台，左侧导航切换页面，右侧承载概览、素材库和统一设置页。" />
                     </StackPanel>
                 </Border>
 

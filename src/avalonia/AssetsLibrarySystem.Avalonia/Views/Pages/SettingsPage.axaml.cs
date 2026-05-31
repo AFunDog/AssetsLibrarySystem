@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace AssetsLibrarySystem.Avalonia.Views.Pages;
 
-public partial class AssetDetailPage : UserControl
+public partial class SettingsPage : UserControl
 {
-    public AssetDetailPage()
+    public SettingsPage()
     {
         InitializeComponent();
     }

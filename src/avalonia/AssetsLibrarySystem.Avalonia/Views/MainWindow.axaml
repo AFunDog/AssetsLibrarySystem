@@ -213,45 +213,15 @@
                     <TabItem.Header>
                         <Grid ColumnDefinitions="36,*" ColumnSpacing="10" VerticalAlignment="Center">
                             <Border Classes="nav-icon">
-                                <LucideIcon Classes="shell-glyph" Kind="FileText" />
+                                <LucideIcon Classes="shell-glyph" Kind="Settings2" />
                             </Border>
                             <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Classes="nav-title" Text="素材详情" />
-                                <TextBlock Classes="nav-subtitle" Text="状态与操作" />
+                                <TextBlock Classes="nav-title" Text="设置" />
+                                <TextBlock Classes="nav-subtitle" Text="模型与日志" />
                             </StackPanel>
                         </Grid>
                     </TabItem.Header>
-                    <pages:AssetDetailPage />
-                </TabItem>
-
-                <TabItem Classes="nav-item">
-                    <TabItem.Header>
-                        <Grid ColumnDefinitions="36,*" ColumnSpacing="10" VerticalAlignment="Center">
-                            <Border Classes="nav-icon">
-                                <LucideIcon Classes="shell-glyph" Kind="Bot" />
-                            </Border>
-                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Classes="nav-title" Text="模型能力" />
-                                <TextBlock Classes="nav-subtitle" Text="HTTP 网关" />
-                            </StackPanel>
-                        </Grid>
-                    </TabItem.Header>
-                    <pages:ModelGatewayPage />
-                </TabItem>
-
-                <TabItem Classes="nav-item">
-                    <TabItem.Header>
-                        <Grid ColumnDefinitions="36,*" ColumnSpacing="10" VerticalAlignment="Center">
-                            <Border Classes="nav-icon">
-                                <LucideIcon Classes="shell-glyph" Kind="History" />
-                            </Border>
-                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Classes="nav-title" Text="活动纪要" />
-                                <TextBlock Classes="nav-subtitle" Text="运行日志" />
-                            </StackPanel>
-                        </Grid>
-                    </TabItem.Header>
-                    <pages:ActivityPage />
+                    <pages:SettingsPage />
                 </TabItem>
             </TabControl>
         </Grid>

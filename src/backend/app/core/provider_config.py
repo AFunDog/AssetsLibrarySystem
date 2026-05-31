@@ -25,6 +25,7 @@ class ProviderConfigManager:
     def __init__(self, config_path: str | Path) -> None:
         self.config_path = Path(config_path)
         self._raw = self._load()
+        self._shared_api_key = self._load_shared_api_key()
 
     def _load(self) -> dict[str, Any]:
         path = self.config_path
@@ -41,6 +42,10 @@ class ProviderConfigManager:
             raise ValueError(f"provider 配置格式错误: {path}")
         return data
 
+    def _load_shared_api_key(self) -> str:
+        api_key = str(self._raw.get("api_key") or "").strip()
+        return api_key
+
     def get(self, slot: str) -> ProviderConfig:
         item = self._raw.get(slot)
         if not isinstance(item, dict):
@@ -49,6 +54,8 @@ class ProviderConfigManager:
         api_key = str(item.get("api_key") or "").strip()
         provider = str(item.get("provider") or "").strip()
         model = str(item.get("model") or "").strip()
+        if not api_key:
+            api_key = self._shared_api_key
         if not api_key:
             api_key = os.getenv("DASHSCOPE_API_KEY", "") if provider == "dashscope" else ""
 
