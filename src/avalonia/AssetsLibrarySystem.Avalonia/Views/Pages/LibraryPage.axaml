@@ -5,6 +5,176 @@
              xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.LibraryPage"
              x:DataType="vm:MainWindowViewModel">
+    
+    <Design.DataContext>
+        <vm:MainWindowViewModel BackendStatusTitle="设计时模式"
+                                BackendStatusDetail="当前展示的是页面内定义的设计时素材树。"
+                                WorkspaceTitle="DDLC_PLUS"
+                                WorkspaceSummary="D:\Data\全资源\music\DDLC\DDLC_PLUS"
+                                AssetSummary="已展开目录，便于直接调整树节点间距、文字密度和徽标布局。"
+                                OperatorNotice="设计时数据写在 LibraryPage.axaml 的 Design.DataContext 中。"
+                                PromptDraft="请围绕当前素材生成更适合检索的中文描述。"
+                                SelectedAssetName="1.wav"
+                                SelectedAssetLibrary="music"
+                                SelectedAssetPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
+                                SelectedAssetType="音频"
+                                SelectedAssetStage="已扫描"
+                                SelectedAssetAiState="已标注"
+                                SelectedAssetDetail="音频文件 · 2.1 MB · 修改于 2026-05-13 09:15">
+            <vm:MainWindowViewModel.Libraries>
+                <models:LibraryWorkspace Id="lib-music"
+                                         Name="music"
+                                         RootPath="D:\Data\全资源\music"
+                                         Summary="已扫描 615 个素材文件，可在树中继续展开目录。"
+                                         SyncMode="已扫描"
+                                         AssetCount="615" />
+                <models:LibraryWorkspace Id="lib-illustration"
+                                         Name="illustration"
+                                         RootPath="D:\Assets\Illustrations"
+                                         Summary="已扫描 248 个插画与参考图像。"
+                                         SyncMode="已扫描"
+                                         AssetCount="248" />
+            </vm:MainWindowViewModel.Libraries>
+            <vm:MainWindowViewModel.SelectedLibrary>
+                <models:LibraryWorkspace Id="lib-music"
+                                         Name="music"
+                                         RootPath="D:\Data\全资源\music"
+                                         Summary="已扫描 615 个素材文件，可在树中继续展开目录。"
+                                         SyncMode="已扫描"
+                                         AssetCount="615" />
+            </vm:MainWindowViewModel.SelectedLibrary>
+            <vm:MainWindowViewModel.SelectedAsset>
+                <models:ManagedAssetRecord Id="asset-002"
+                                           Name="1.wav"
+                                           LibraryName="music"
+                                           AssetType="音频"
+                                           RelativePath="DDLC\DDLC_PLUS\1.wav"
+                                           LocalPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
+                                           Summary="音频文件 · 2.1 MB · 修改于 2026-05-13 09:15"
+                                           Stage="已扫描"
+                                           AiState="已标注" />
+            </vm:MainWindowViewModel.SelectedAsset>
+            <vm:MainWindowViewModel.SelectedAssetTreeNode>
+                <models:AssetLibraryTreeNode DisplayName="1.wav"
+                                             MetaLabel="音频"
+                                             CategorySummary="已扫描"
+                                             TypeLabel="音频"
+                                             StatusLabel="已扫描"
+                                             PathLabel="DDLC\DDLC_PLUS\1.wav"
+                                             Summary="音频文件 · 2.1 MB · 修改于 2026-05-13 09:15"
+                                             FullPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
+                                             Kind="File">
+                    <models:AssetLibraryTreeNode.Asset>
+                        <models:ManagedAssetRecord Id="asset-002"
+                                                   Name="1.wav"
+                                                   LibraryName="music"
+                                                   AssetType="音频"
+                                                   RelativePath="DDLC\DDLC_PLUS\1.wav"
+                                                   LocalPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
+                                                   Summary="音频文件 · 2.1 MB · 修改于 2026-05-13 09:15"
+                                                   Stage="已扫描"
+                                                   AiState="已标注" />
+                    </models:AssetLibraryTreeNode.Asset>
+                </models:AssetLibraryTreeNode>
+            </vm:MainWindowViewModel.SelectedAssetTreeNode>
+            <vm:MainWindowViewModel.SelectedAssetTags>
+                <x:String>音频</x:String>
+                <x:String>wav</x:String>
+                <x:String>环境音</x:String>
+            </vm:MainWindowViewModel.SelectedAssetTags>
+            <vm:MainWindowViewModel.AssetTreeRoots>
+                <models:AssetLibraryTreeNode DisplayName="music"
+                                             MetaLabel="615 项"
+                                             CategorySummary="视频 / 音频"
+                                             TypeLabel="素材库"
+                                             StatusLabel="已扫描"
+                                             PathLabel="D:\Data\全资源\music"
+                                             Summary="已扫描 615 个素材文件，可在树中继续展开目录。"
+                                             FullPath="D:\Data\全资源\music"
+                                             Kind="Library">
+                    <models:AssetLibraryTreeNode.Children>
+                        <models:AssetLibraryTreeNode DisplayName="DDLC"
+                                                     MetaLabel="102 项"
+                                                     CategorySummary="音频"
+                                                     TypeLabel="目录"
+                                                     StatusLabel=""
+                                                     PathLabel="DDLC"
+                                                     Summary="目录 · DDLC"
+                                                     FullPath="D:\Data\全资源\music\DDLC"
+                                                     Kind="Directory">
+                            <models:AssetLibraryTreeNode.Children>
+                                <models:AssetLibraryTreeNode DisplayName="Boki Boki Literature Club!! .mp3"
+                                                             MetaLabel="音频"
+                                                             CategorySummary="已扫描"
+                                                             TypeLabel="音频"
+                                                             StatusLabel="已扫描"
+                                                             PathLabel="DDLC\Boki Boki Literature Club!! .mp3"
+                                                             Summary="音频文件 · 8.4 MB · 修改于 2026-05-12 19:42"
+                                                             FullPath="D:\Data\全资源\music\DDLC\Boki Boki Literature Club!! .mp3"
+                                                             Kind="File" />
+                                <models:AssetLibraryTreeNode DisplayName="DDLC_PLUS"
+                                                             MetaLabel="85 项"
+                                                             CategorySummary="音频"
+                                                             TypeLabel="目录"
+                                                             StatusLabel=""
+                                                             PathLabel="DDLC\DDLC_PLUS"
+                                                             Summary="目录 · DDLC\DDLC_PLUS"
+                                                             FullPath="D:\Data\全资源\music\DDLC\DDLC_PLUS"
+                                                             Kind="Directory">
+                                    <models:AssetLibraryTreeNode.Children>
+                                        <models:AssetLibraryTreeNode DisplayName="1.wav"
+                                                                     MetaLabel="音频"
+                                                                     CategorySummary="已扫描"
+                                                                     TypeLabel="音频"
+                                                                     StatusLabel="已扫描"
+                                                                     PathLabel="DDLC\DDLC_PLUS\1.wav"
+                                                                     Summary="音频文件 · 2.1 MB · 修改于 2026-05-13 09:15"
+                                                                     FullPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
+                                                                     Kind="File">
+                                            <models:AssetLibraryTreeNode.Asset>
+                                                <models:ManagedAssetRecord Id="asset-002"
+                                                                           Name="1.wav"
+                                                                           LibraryName="music"
+                                                                           AssetType="音频"
+                                                                           RelativePath="DDLC\DDLC_PLUS\1.wav"
+                                                                           LocalPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
+                                                                           Summary="音频文件 · 2.1 MB · 修改于 2026-05-13 09:15"
+                                                                           Stage="已扫描"
+                                                                           AiState="已标注" />
+                                            </models:AssetLibraryTreeNode.Asset>
+                                        </models:AssetLibraryTreeNode>
+                                        <models:AssetLibraryTreeNode DisplayName="10-yuri.wav"
+                                                                     MetaLabel="音频"
+                                                                     CategorySummary="已扫描"
+                                                                     TypeLabel="音频"
+                                                                     StatusLabel="已扫描"
+                                                                     PathLabel="DDLC\DDLC_PLUS\10-yuri.wav"
+                                                                     Summary="音频文件 · 2.4 MB · 修改于 2026-05-13 09:16"
+                                                                     FullPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\10-yuri.wav"
+                                                                     Kind="File" />
+                                    </models:AssetLibraryTreeNode.Children>
+                                </models:AssetLibraryTreeNode>
+                            </models:AssetLibraryTreeNode.Children>
+                        </models:AssetLibraryTreeNode>
+                    </models:AssetLibraryTreeNode.Children>
+                </models:AssetLibraryTreeNode>
+                <models:AssetLibraryTreeNode DisplayName="illustration"
+                                             MetaLabel="248 项"
+                                             CategorySummary="图片 / 视频"
+                                             TypeLabel="素材库"
+                                             StatusLabel="已扫描"
+                                             PathLabel="D:\Assets\Illustrations"
+                                             Summary="已扫描 248 个插画与参考图像。"
+                                             FullPath="D:\Assets\Illustrations"
+                                             Kind="Library" />
+            </vm:MainWindowViewModel.AssetTreeRoots>
+            <vm:MainWindowViewModel.ActivityFeed>
+                <x:String>设计时数据写在页面内，便于单独调整树节点模板。</x:String>
+                <x:String>树节点当前是单行布局，展示数量、类型和状态。</x:String>
+                <x:String>默认选中样式已覆盖，只保留自定义节点高亮。</x:String>
+            </vm:MainWindowViewModel.ActivityFeed>
+        </vm:MainWindowViewModel>
+    </Design.DataContext>
     <UserControl.Styles>
         <Style Selector="Border.surface">
             <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
@@ -40,34 +210,8 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="0" />
         </Style>
-        <Style Selector="TreeView.asset-tree TreeViewItem">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin" Value="0,0,0,2" />
-            <Setter Property="MinHeight" Value="0" />
-        </Style>
-        <Style Selector="TreeView.asset-tree TreeViewItem:pointerover">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="TreeView.asset-tree TreeViewItem:selected">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="TreeView.asset-tree TreeViewItem:pointerover /template/ ContentPresenter#PART_HeaderPresenter">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="TreeView.asset-tree TreeViewItem:selected /template/ ContentPresenter#PART_HeaderPresenter">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-        </Style>
-        <Style Selector="TreeView.asset-tree TreeViewItem:selected:pointerover /template/ ContentPresenter#PART_HeaderPresenter">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-        </Style>
-        <Style Selector="TreeView.asset-tree TreeViewItem /template/ Grid#PART_Header">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Margin" Value="0" />
-            <Setter Property="MinHeight" Value="0" />
+        <Style Selector="TreeView.asset-tree TreeViewItem /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background"  Value="{x:Null}"></Setter>
         </Style>
         <Style Selector="TreeView.asset-tree TreeViewItem /template/ ToggleButton">
             <Setter Property="Width" Value="18" />
@@ -139,7 +283,7 @@
                 <Grid RowDefinitions="Auto,Auto,*" RowSpacing="16">
                     <StackPanel Spacing="4">
                         <TextBlock Classes="eyebrow" Text="Asset Queue" />
-                        <TextBlock Classes="section-title" Text="{Binding WorkspaceTitle}" />
+                        <TextBlock Classes="section-title" MinHeight="26" Text="{Binding WorkspaceTitle}" />
                         <TextBlock Classes="section-subtitle" Text="{Binding WorkspaceSummary}" />
                     </StackPanel>
 

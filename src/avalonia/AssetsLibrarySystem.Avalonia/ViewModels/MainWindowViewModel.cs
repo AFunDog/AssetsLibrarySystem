@@ -54,13 +54,6 @@ public partial class MainWindowViewModel : ObservableObject
         SelectedAssetDetail = "右侧详情区域会展示当前素材的路径、类型和扫描结果。";
 
         SeedStaticData();
-
-        if (BackendLauncher is null && AssetLibraryService is null)
-        {
-            SeedDesignTimeData();
-            return;
-        }
-
         RebuildMetrics();
         SetEmptyWorkspaceState();
     }
@@ -708,96 +701,6 @@ public partial class MainWindowViewModel : ObservableObject
         ActivityFeed.Add("桌面端作为素材管理主入口，先固定本地工作流边界。");
         ActivityFeed.Add("本地素材库目录会持久化为 JSON，并由 .NET 负责目录扫描与文件展示。");
         ActivityFeed.Add("Python 进程仅暴露 HTTP 模型能力，避免再次把素材管理逻辑塞回后端。");
-    }
-
-    private void SeedDesignTimeData()
-    {
-        BackendStatusTitle = "设计时模式";
-        BackendStatusDetail = "当前展示的是设计时素材树与右侧详情示例。";
-        OperatorNotice = "设计器中使用样例素材库、目录层级和素材节点，便于直接调整 TreeView UI。";
-
-        var musicLibrary = new LibraryWorkspace(
-            "lib-music",
-            "music",
-            @"D:\Data\全资源\music",
-            "已扫描 615 个素材文件，可在树中继续展开目录。",
-            "已扫描",
-            615);
-
-        var illustrationLibrary = new LibraryWorkspace(
-            "lib-illustration",
-            "illustration",
-            @"D:\Assets\Illustrations",
-            "已扫描 248 个插画与参考图像。",
-            "已扫描",
-            248);
-
-        Libraries.Add(musicLibrary);
-        Libraries.Add(illustrationLibrary);
-
-        var designAssets = new[]
-        {
-            new ManagedAssetRecord(
-                "asset-001",
-                "Boki Boki Literature Club!! .mp3",
-                musicLibrary.Name,
-                "音频",
-                @"DDLC\Boki Boki Literature Club!! .mp3",
-                @"D:\Data\全资源\music\DDLC\Boki Boki Literature Club!! .mp3",
-                "音频文件 · 8.4 MB · 修改于 2026-05-12 19:42",
-                "已扫描",
-                "未提交模型",
-                ["音频", "mp3", "背景音乐"]),
-            new ManagedAssetRecord(
-                "asset-002",
-                "1.wav",
-                musicLibrary.Name,
-                "音频",
-                @"DDLC\DDLC_PLUS\1.wav",
-                @"D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav",
-                "音频文件 · 2.1 MB · 修改于 2026-05-13 09:15",
-                "已扫描",
-                "已标注",
-                ["音频", "wav", "环境音"]),
-            new ManagedAssetRecord(
-                "asset-003",
-                "mahiro_smile_pose.png",
-                illustrationLibrary.Name,
-                "图片",
-                @"characters\mahiro_smile_pose.png",
-                @"D:\Assets\Illustrations\characters\mahiro_smile_pose.png",
-                "图片文件 · 1.7 MB · 修改于 2026-05-10 16:08",
-                "待索引",
-                "等待桌面端索引流水线",
-                ["图片", "png", "角色立绘"]),
-            new ManagedAssetRecord(
-                "asset-004",
-                "campfire_loop.mp4",
-                illustrationLibrary.Name,
-                "视频",
-                @"scenes\campfire_loop.mp4",
-                @"D:\Assets\Illustrations\scenes\campfire_loop.mp4",
-                "视频文件 · 24.9 MB · 修改于 2026-05-08 22:31",
-                "已扫描",
-                "未提交模型",
-                ["视频", "mp4", "场景素材"]),
-        };
-
-        AllAssets.AddRange(designAssets);
-        RebuildVisibleAssets(musicLibrary);
-        RebuildAssetTree();
-        RebuildMetrics();
-
-        SuppressLibrarySelectionLoad = true;
-        SelectedLibrary = musicLibrary;
-        SuppressLibrarySelectionLoad = false;
-
-        WorkspaceTitle = musicLibrary.Name;
-        WorkspaceSummary = musicLibrary.RootPath;
-        AssetSummary = musicLibrary.Summary;
-
-        SelectedAsset = designAssets[1];
-        SelectedAssetTreeNode = FindAssetTreeNode(designAssets[1].Id);
     }
 
     private void SetEmptyWorkspaceState()

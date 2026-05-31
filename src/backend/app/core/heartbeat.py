@@ -3,12 +3,11 @@ import os
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI
 
 
 class HeartbeatMonitor:
     def __init__(self) -> None:
-        self.token = os.environ.get("BACKEND_HEARTBEAT_TOKEN", "")
         self.timeout_seconds = float(os.environ.get("BACKEND_HEARTBEAT_TIMEOUT", "8"))
         self.check_interval_seconds = float(os.environ.get("BACKEND_HEARTBEAT_CHECK_INTERVAL", "1"))
         self.startup_grace_seconds = float(os.environ.get("BACKEND_HEARTBEAT_STARTUP_GRACE", "15"))
@@ -19,10 +18,7 @@ class HeartbeatMonitor:
     def touch(self) -> None:
         self.last_heartbeat_at = time.monotonic()
 
-    async def verify_token(self, x_backend_token: str = Header(default="")) -> dict[str, bool]:
-        if self.token and x_backend_token != self.token:
-            raise HTTPException(status_code=403, detail="invalid heartbeat token")
-
+    async def heartbeat(self) -> dict[str, bool]:
         self.touch()
         return {"ok": True}
 

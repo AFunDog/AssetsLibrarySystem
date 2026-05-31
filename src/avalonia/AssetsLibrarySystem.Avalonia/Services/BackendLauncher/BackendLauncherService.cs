@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -19,7 +18,6 @@ public sealed class BackendLauncherService : IBackendLauncher
     private Process? BackendProcess { get; set; }
     private HttpClient Http { get; } = new() { Timeout = TimeSpan.FromSeconds(1) };
     private CancellationTokenSource? HeartbeatCts { get; set; }
-    private string HeartbeatToken { get; set; } = string.Empty;
 
     public BackendLauncherService(IConfiguration configuration)
     {
@@ -136,8 +134,6 @@ public sealed class BackendLauncherService : IBackendLauncher
 
     private ProcessStartInfo CreateProcessStartInfo()
     {
-        HeartbeatToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-
 #if DEBUG
         var fileName = ResolvePath(Options.DebugPythonPath);
         var arguments = FormatArguments(Options.DebugArgumentsTemplate);
@@ -156,8 +152,6 @@ public sealed class BackendLauncherService : IBackendLauncher
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-
-        processStartInfo.Environment["BACKEND_HEARTBEAT_TOKEN"] = HeartbeatToken;
         processStartInfo.Environment["BACKEND_HEARTBEAT_TIMEOUT"] = Options.HeartbeatTimeout.TotalSeconds.ToString("0.###");
         processStartInfo.Environment["BACKEND_HEARTBEAT_CHECK_INTERVAL"] = "1";
         processStartInfo.Environment["BACKEND_HEARTBEAT_STARTUP_GRACE"] = Options.HeartbeatStartupGrace.TotalSeconds.ToString("0.###");
@@ -201,7 +195,6 @@ public sealed class BackendLauncherService : IBackendLauncher
                 try
                 {
                     using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/internal/heartbeat");
-                    request.Headers.Add("X-Backend-Token", HeartbeatToken);
                     using var response = await Http.SendAsync(request, heartbeatCts.Token);
                     if (!response.IsSuccessStatusCode)
                     {

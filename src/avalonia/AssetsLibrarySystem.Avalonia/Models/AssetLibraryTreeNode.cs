@@ -11,15 +11,15 @@ public enum AssetLibraryTreeNodeKind
 
 public sealed class AssetLibraryTreeNode
 {
-    public required string DisplayName { get; init; }
+    public string DisplayName { get; init; } = string.Empty;
     public string MetaLabel { get; set; } = string.Empty;
     public string CategorySummary { get; set; } = string.Empty;
-    public required string TypeLabel { get; init; }
-    public required string StatusLabel { get; init; }
-    public required string PathLabel { get; init; }
-    public required string Summary { get; init; }
-    public required string FullPath { get; init; }
-    public required AssetLibraryTreeNodeKind Kind { get; init; }
+    public string TypeLabel { get; init; } = string.Empty;
+    public string StatusLabel { get; init; } = string.Empty;
+    public string PathLabel { get; init; } = string.Empty;
+    public string Summary { get; init; } = string.Empty;
+    public string FullPath { get; init; } = string.Empty;
+    public AssetLibraryTreeNodeKind Kind { get; init; }
     public LibraryWorkspace? Library { get; init; }
     public ManagedAssetRecord? Asset { get; init; }
     public ObservableCollection<AssetLibraryTreeNode> Children { get; } = [];
