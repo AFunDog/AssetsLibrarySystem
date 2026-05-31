@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
+             xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.LibraryPage"
              x:DataType="vm:MainWindowViewModel">
     <UserControl.Styles>
@@ -34,25 +35,56 @@
             <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
-        <Style Selector="ItemsControl.library-list, ItemsControl.asset-list">
+        <Style Selector="TreeView.asset-tree">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="TreeView.asset-tree TreeViewItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="TreeView.asset-tree TreeViewItem:pointerover">
             <Setter Property="Background" Value="Transparent" />
         </Style>
-        <Style Selector="Button.card-button">
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+        <Style Selector="TreeView.asset-tree TreeViewItem:selected">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="TreeView.asset-tree TreeViewItem:pointerover /template/ ContentPresenter#PART_HeaderPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="TreeView.asset-tree TreeViewItem:selected /template/ ContentPresenter#PART_HeaderPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+        <Style Selector="TreeView.asset-tree TreeViewItem:selected:pointerover /template/ ContentPresenter#PART_HeaderPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+        <Style Selector="TreeView.asset-tree TreeViewItem /template/ Grid#PART_Header">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="TreeView.asset-tree TreeViewItem /template/ ToggleButton">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,2,6,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Border.tree-node-surface">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Padding" Value="14" />
-            <Setter Property="Margin" Value="0,0,0,10" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Stretch" />
-            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="10,6" />
         </Style>
-        <Style Selector="Button.card-button:pointerover">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-        </Style>
-        <Style Selector="Button.card-button:pressed">
+        <Style Selector="TreeViewItem:selected Border.tree-node-surface">
             <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
         </Style>
@@ -88,32 +120,18 @@
                         <Button Grid.Column="1" Classes="secondary" Command="{Binding ScanSelectedLibraryCommand}" Content="扫描当前素材库" />
                     </Grid>
 
-                    <ItemsControl Classes="library-list" ItemsSource="{Binding Libraries}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="models:LibraryWorkspace">
-                                <Button Classes="card-button" Click="SelectLibrary_Click">
-                                    <StackPanel Spacing="8">
-                                        <DockPanel>
-                                            <TextBlock FontSize="14"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource AppTextBrush}"
-                                                       Text="{Binding Name}" />
-                                            <Border DockPanel.Dock="Right"
-                                                    Background="{DynamicResource AppAccentSurfaceBrush}"
-                                                    CornerRadius="999"
-                                                    Padding="10,4">
-                                                <TextBlock Foreground="{DynamicResource AppAccentBrush}"
-                                                           Text="{Binding AssetCount}" />
-                                            </Border>
-                                        </DockPanel>
-                                        <TextBlock Classes="section-subtitle" Text="{Binding RootPath}" />
-                                        <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding Summary}" />
-                                        <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding SyncMode}" />
-                                    </StackPanel>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <Border Classes="soft-surface">
+                        <StackPanel Spacing="10">
+                            <TextBlock FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AppTextBrush}"
+                                       Text="{Binding SelectedLibrary.Name, FallbackValue=尚未选择素材库}" />
+                            <TextBlock Classes="section-subtitle"
+                                       Text="{Binding SelectedLibrary.RootPath, FallbackValue=请先添加一个素材库目录。}" />
+                            <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding SelectedLibrary.Summary, FallbackValue=树状视图会按素材库、目录和文件展示扫描结果。}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 
@@ -129,35 +147,58 @@
                         <TextBlock Foreground="{DynamicResource AppMutedTextBrush}" TextWrapping="Wrap" Text="{Binding AssetSummary}" />
                     </Border>
 
-                    <ItemsControl Grid.Row="2" Classes="asset-list" ItemsSource="{Binding VisibleAssets}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="models:ManagedAssetRecord">
-                                <Button Classes="card-button" Click="SelectAsset_Click">
-                                    <Grid ColumnDefinitions="*,120" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-                                        <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="{Binding Name}" />
-                                        <Border Grid.Column="1"
-                                                HorizontalAlignment="Right"
+                    <TreeView Grid.Row="2"
+                              Classes="asset-tree"
+                              AutoScrollToSelectedItem="True"
+                              ItemsSource="{Binding AssetTreeRoots}"
+                              SelectedItem="{Binding SelectedAssetTreeNode, Mode=TwoWay}">
+                        <TreeView.ItemTemplate>
+                            <TreeDataTemplate x:DataType="models:AssetLibraryTreeNode"
+                                              ItemsSource="{Binding Children}">
+                                <Border Classes="tree-node-surface">
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+                                        <Border Width="22"
+                                                Height="22"
                                                 Background="{DynamicResource AppBadgeBrush}"
                                                 CornerRadius="999"
-                                                Padding="10,4">
-                                            <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding AssetType}" />
+                                                VerticalAlignment="Center">
+                                            <lucide:LucideIcon HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Size="14"
+                                                               Kind="FolderTree" />
                                         </Border>
-                                        <TextBlock Grid.Row="1" Classes="section-subtitle" Text="{Binding RelativePath}" />
-                                        <TextBlock Grid.Row="1"
-                                                   Grid.Column="1"
-                                                   HorizontalAlignment="Right"
+                                        <TextBlock Grid.Column="1"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource AppTextBrush}"
+                                                   Text="{Binding DisplayName}" />
+                                        <TextBlock Grid.Column="2"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center"
                                                    Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                   Text="{Binding Stage}" />
-                                        <TextBlock Grid.Row="2"
-                                                   Grid.ColumnSpan="2"
-                                                   Foreground="{DynamicResource AppMutedTextBrush}"
-                                                   TextWrapping="Wrap"
-                                                   Text="{Binding Summary}" />
+                                                   Text="{Binding MetaLabel}" />
+                                        <Border Grid.Column="3"
+                                                Background="{DynamicResource AppBadgeBrush}"
+                                                CornerRadius="999"
+                                                Padding="8,3"
+                                                HorizontalAlignment="Right">
+                                            <TextBlock FontSize="11"
+                                                       Foreground="{DynamicResource AppAccentBrush}"
+                                                       Text="{Binding CategorySummary}" />
+                                        </Border>
+                                        <TextBlock Grid.Column="4"
+                                                   HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                   Text="{Binding StatusLabel}" />
                                     </Grid>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                </Border>
+                            </TreeDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
                 </Grid>
             </Border>
         </Grid>

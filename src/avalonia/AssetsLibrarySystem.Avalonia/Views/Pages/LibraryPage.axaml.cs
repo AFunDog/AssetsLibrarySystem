@@ -2,7 +2,6 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
-using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.ViewModels;
 
 namespace AssetsLibrarySystem.Avalonia.Views.Pages;
@@ -36,31 +35,5 @@ public partial class LibraryPage : UserControl
         }
 
         await viewModel.AddLibraryDirectoryAsync(folderPath);
-    }
-
-    private void SelectLibrary_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button button || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        if (button.DataContext is LibraryWorkspace library)
-        {
-            viewModel.SelectedLibrary = library;
-        }
-    }
-
-    private void SelectAsset_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button button || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        if (button.DataContext is ManagedAssetRecord asset)
-        {
-            viewModel.SelectedAsset = asset;
-        }
     }
 }

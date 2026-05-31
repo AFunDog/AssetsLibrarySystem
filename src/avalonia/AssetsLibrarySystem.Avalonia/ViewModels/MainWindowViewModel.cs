@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Models;
@@ -16,6 +17,7 @@ public partial class MainWindowViewModel : ObservableObject
     private IAssetLibraryService? AssetLibraryService { get; }
     private IBackendLauncher? BackendLauncher { get; }
     private List<ManagedAssetRecord> AllAssets { get; } = [];
+    private bool SuppressLibrarySelectionLoad { get; set; }
     private bool IsLibraryScanRunning { get; set; }
 
     public MainWindowViewModel() : this(null, null)
@@ -28,6 +30,7 @@ public partial class MainWindowViewModel : ObservableObject
         AssetLibraryService = assetLibraryService;
 
         Metrics = new ObservableCollection<DashboardMetric>();
+        AssetTreeRoots = [];
         Libraries = new ObservableCollection<LibraryWorkspace>();
         VisibleAssets = new ObservableCollection<ManagedAssetRecord>();
         AiCapabilities = new ObservableCollection<AiCapabilityRecord>();
@@ -51,11 +54,19 @@ public partial class MainWindowViewModel : ObservableObject
         SelectedAssetDetail = "右侧详情区域会展示当前素材的路径、类型和扫描结果。";
 
         SeedStaticData();
+
+        if (BackendLauncher is null && AssetLibraryService is null)
+        {
+            SeedDesignTimeData();
+            return;
+        }
+
         RebuildMetrics();
         SetEmptyWorkspaceState();
     }
 
     public ObservableCollection<DashboardMetric> Metrics { get; }
+    public ObservableCollection<AssetLibraryTreeNode> AssetTreeRoots { get; }
     public ObservableCollection<LibraryWorkspace> Libraries { get; }
     public ObservableCollection<ManagedAssetRecord> VisibleAssets { get; }
     public ObservableCollection<AiCapabilityRecord> AiCapabilities { get; }
@@ -113,6 +124,9 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     public partial string SelectedAssetDetail { get; set; }
 
+    [ObservableProperty]
+    public partial AssetLibraryTreeNode? SelectedAssetTreeNode { get; set; }
+
     public async Task InitializeAsync()
     {
         if (BackendLauncher is null)
@@ -144,6 +158,7 @@ public partial class MainWindowViewModel : ObservableObject
         {
             Libraries.Add(library);
             ActivityFeed.Insert(0, $"已登记素材库目录：{library.RootPath}");
+            RebuildAssetTree();
         }
         else
         {
@@ -170,12 +185,22 @@ public partial class MainWindowViewModel : ObservableObject
 
     partial void OnSelectedLibraryChanged(LibraryWorkspace? value)
     {
+        if (SuppressLibrarySelectionLoad)
+        {
+            return;
+        }
+
         _ = LoadSelectedLibraryAsync(value);
     }
 
     partial void OnSelectedAssetChanged(ManagedAssetRecord? value)
     {
         UpdateSelectedAssetDetails(value);
+    }
+
+    partial void OnSelectedAssetTreeNodeChanged(AssetLibraryTreeNode? value)
+    {
+        ApplyTreeSelection(value);
     }
 
     private void UpdateSelectedAssetDetails(ManagedAssetRecord? value)
@@ -322,6 +347,7 @@ public partial class MainWindowViewModel : ObservableObject
     private async Task LoadLibrariesAsync()
     {
         Libraries.Clear();
+        AssetTreeRoots.Clear();
         AllAssets.Clear();
         VisibleAssets.Clear();
 
@@ -337,6 +363,7 @@ public partial class MainWindowViewModel : ObservableObject
             Libraries.Add(library);
         }
 
+        RebuildAssetTree();
         RebuildMetrics();
 
         if (Libraries.Count == 0)
@@ -347,6 +374,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
 
         SelectedLibrary = Libraries[0];
+        SelectedAssetTreeNode = FindLibraryTreeNode(Libraries[0].Id);
     }
 
     private async Task LoadSelectedLibraryAsync(LibraryWorkspace? library)
@@ -404,6 +432,8 @@ public partial class MainWindowViewModel : ObservableObject
             AssetSummary = library.Summary;
 
             RebuildVisibleAssets(library);
+            RebuildAssetTree();
+            RestoreTreeSelection(library);
             RebuildMetrics();
             ActivityFeed.Insert(0, $"扫描完成：{library.Name}，共 {assets.Count} 个素材文件。");
         }
@@ -435,8 +465,218 @@ public partial class MainWindowViewModel : ObservableObject
         {
             VisibleAssets.Add(asset);
         }
+    }
 
-        SelectedAsset = VisibleAssets.FirstOrDefault();
+    private void RebuildAssetTree()
+    {
+        AssetTreeRoots.Clear();
+
+        foreach (var library in Libraries.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            AssetTreeRoots.Add(BuildLibraryTree(library));
+        }
+    }
+
+    private AssetLibraryTreeNode BuildLibraryTree(LibraryWorkspace library)
+    {
+        var libraryAssets = AllAssets
+            .Where(asset => asset.LibraryName == library.Name)
+            .OrderBy(asset => asset.RelativePath, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var root = new AssetLibraryTreeNode
+        {
+            DisplayName = library.Name,
+            MetaLabel = BuildCountLabel(libraryAssets.Count),
+            CategorySummary = BuildCategorySummary(libraryAssets.Select(asset => asset.AssetType)),
+            TypeLabel = "素材库",
+            StatusLabel = library.SyncMode,
+            PathLabel = library.RootPath,
+            Summary = library.Summary,
+            FullPath = library.RootPath,
+            Kind = AssetLibraryTreeNodeKind.Library,
+            Library = library
+        };
+
+        var directories = new Dictionary<string, AssetLibraryTreeNode>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var asset in libraryAssets)
+        {
+            var currentNode = root;
+            var relativeSegments = asset.RelativePath
+                .Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+
+            for (var index = 0; index < relativeSegments.Length - 1; index++)
+            {
+                var folderKey = string.Join('/', relativeSegments.Take(index + 1));
+                if (!directories.TryGetValue(folderKey, out var folderNode))
+                {
+                    folderNode = new AssetLibraryTreeNode
+                    {
+                        DisplayName = relativeSegments[index],
+                        MetaLabel = string.Empty,
+                        CategorySummary = string.Empty,
+                        TypeLabel = "目录",
+                        StatusLabel = string.Empty,
+                        PathLabel = folderKey,
+                        Summary = $"目录 · {folderKey}",
+                        FullPath = Path.Combine(library.RootPath, folderKey.Replace('/', Path.DirectorySeparatorChar)),
+                        Kind = AssetLibraryTreeNodeKind.Directory,
+                        Library = library
+                    };
+
+                    directories[folderKey] = folderNode;
+                    currentNode.Children.Add(folderNode);
+                }
+
+                currentNode = folderNode;
+            }
+
+            currentNode.Children.Add(new AssetLibraryTreeNode
+            {
+                DisplayName = asset.Name,
+                MetaLabel = asset.AssetType,
+                CategorySummary = asset.Stage,
+                TypeLabel = asset.AssetType,
+                StatusLabel = asset.Stage,
+                PathLabel = asset.RelativePath,
+                Summary = asset.Summary,
+                FullPath = asset.LocalPath,
+                Kind = AssetLibraryTreeNodeKind.File,
+                Library = library,
+                Asset = asset
+            });
+        }
+
+        PopulateDirectoryStatistics(root);
+
+        return root;
+    }
+
+    private void PopulateDirectoryStatistics(AssetLibraryTreeNode node)
+    {
+        foreach (var child in node.Children)
+        {
+            PopulateDirectoryStatistics(child);
+        }
+
+        if (node.Kind == AssetLibraryTreeNodeKind.File)
+        {
+            return;
+        }
+
+        var assetNodes = EnumerateAssetNodes(node).ToList();
+        node.MetaLabel = BuildCountLabel(assetNodes.Count);
+        node.CategorySummary = BuildCategorySummary(assetNodes.Select(assetNode => assetNode.TypeLabel));
+    }
+
+    private IEnumerable<AssetLibraryTreeNode> EnumerateAssetNodes(AssetLibraryTreeNode node)
+    {
+        foreach (var child in node.Children)
+        {
+            if (child.Kind == AssetLibraryTreeNodeKind.File)
+            {
+                yield return child;
+                continue;
+            }
+
+            foreach (var descendant in EnumerateAssetNodes(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    private static string BuildCountLabel(int count)
+    {
+        return count == 0 ? "空目录" : $"{count} 项";
+    }
+
+    private static string BuildCategorySummary(IEnumerable<string> categories)
+    {
+        var values = categories
+            .Where(category => !string.IsNullOrWhiteSpace(category))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(category => category, StringComparer.Ordinal)
+            .ToList();
+
+        return values.Count == 0 ? "暂无素材" : string.Join(" / ", values);
+    }
+
+    private void RestoreTreeSelection(LibraryWorkspace library)
+    {
+        if (SelectedAsset is not null)
+        {
+            SelectedAssetTreeNode = FindAssetTreeNode(SelectedAsset.Id);
+            return;
+        }
+
+        SelectedAssetTreeNode = FindLibraryTreeNode(library.Id);
+    }
+
+    private AssetLibraryTreeNode? FindLibraryTreeNode(string libraryId)
+    {
+        return AssetTreeRoots.FirstOrDefault(node => node.Library?.Id == libraryId);
+    }
+
+    private AssetLibraryTreeNode? FindAssetTreeNode(string assetId)
+    {
+        foreach (var root in AssetTreeRoots)
+        {
+            var match = FindAssetTreeNodeRecursive(root, assetId);
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private AssetLibraryTreeNode? FindAssetTreeNodeRecursive(AssetLibraryTreeNode node, string assetId)
+    {
+        if (node.Asset?.Id == assetId)
+        {
+            return node;
+        }
+
+        foreach (var child in node.Children)
+        {
+            var match = FindAssetTreeNodeRecursive(child, assetId);
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private void ApplyTreeSelection(AssetLibraryTreeNode? node)
+    {
+        if (node is null)
+        {
+            return;
+        }
+
+        if (node.Library is not null && !ReferenceEquals(SelectedLibrary, node.Library))
+        {
+            SuppressLibrarySelectionLoad = true;
+            SelectedLibrary = node.Library;
+            SuppressLibrarySelectionLoad = false;
+        }
+
+        WorkspaceTitle = node.DisplayName;
+        WorkspaceSummary = node.FullPath;
+        AssetSummary = node.Summary;
+        SelectedAsset = node.Asset;
+
+        if (node.Library is not null &&
+            node.Asset is null &&
+            !AllAssets.Any(asset => asset.LibraryName == node.Library.Name))
+        {
+            _ = LoadSelectedLibraryAsync(node.Library);
+        }
     }
 
     private void RebuildMetrics()
@@ -470,6 +710,96 @@ public partial class MainWindowViewModel : ObservableObject
         ActivityFeed.Add("Python 进程仅暴露 HTTP 模型能力，避免再次把素材管理逻辑塞回后端。");
     }
 
+    private void SeedDesignTimeData()
+    {
+        BackendStatusTitle = "设计时模式";
+        BackendStatusDetail = "当前展示的是设计时素材树与右侧详情示例。";
+        OperatorNotice = "设计器中使用样例素材库、目录层级和素材节点，便于直接调整 TreeView UI。";
+
+        var musicLibrary = new LibraryWorkspace(
+            "lib-music",
+            "music",
+            @"D:\Data\全资源\music",
+            "已扫描 615 个素材文件，可在树中继续展开目录。",
+            "已扫描",
+            615);
+
+        var illustrationLibrary = new LibraryWorkspace(
+            "lib-illustration",
+            "illustration",
+            @"D:\Assets\Illustrations",
+            "已扫描 248 个插画与参考图像。",
+            "已扫描",
+            248);
+
+        Libraries.Add(musicLibrary);
+        Libraries.Add(illustrationLibrary);
+
+        var designAssets = new[]
+        {
+            new ManagedAssetRecord(
+                "asset-001",
+                "Boki Boki Literature Club!! .mp3",
+                musicLibrary.Name,
+                "音频",
+                @"DDLC\Boki Boki Literature Club!! .mp3",
+                @"D:\Data\全资源\music\DDLC\Boki Boki Literature Club!! .mp3",
+                "音频文件 · 8.4 MB · 修改于 2026-05-12 19:42",
+                "已扫描",
+                "未提交模型",
+                ["音频", "mp3", "背景音乐"]),
+            new ManagedAssetRecord(
+                "asset-002",
+                "1.wav",
+                musicLibrary.Name,
+                "音频",
+                @"DDLC\DDLC_PLUS\1.wav",
+                @"D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav",
+                "音频文件 · 2.1 MB · 修改于 2026-05-13 09:15",
+                "已扫描",
+                "已标注",
+                ["音频", "wav", "环境音"]),
+            new ManagedAssetRecord(
+                "asset-003",
+                "mahiro_smile_pose.png",
+                illustrationLibrary.Name,
+                "图片",
+                @"characters\mahiro_smile_pose.png",
+                @"D:\Assets\Illustrations\characters\mahiro_smile_pose.png",
+                "图片文件 · 1.7 MB · 修改于 2026-05-10 16:08",
+                "待索引",
+                "等待桌面端索引流水线",
+                ["图片", "png", "角色立绘"]),
+            new ManagedAssetRecord(
+                "asset-004",
+                "campfire_loop.mp4",
+                illustrationLibrary.Name,
+                "视频",
+                @"scenes\campfire_loop.mp4",
+                @"D:\Assets\Illustrations\scenes\campfire_loop.mp4",
+                "视频文件 · 24.9 MB · 修改于 2026-05-08 22:31",
+                "已扫描",
+                "未提交模型",
+                ["视频", "mp4", "场景素材"]),
+        };
+
+        AllAssets.AddRange(designAssets);
+        RebuildVisibleAssets(musicLibrary);
+        RebuildAssetTree();
+        RebuildMetrics();
+
+        SuppressLibrarySelectionLoad = true;
+        SelectedLibrary = musicLibrary;
+        SuppressLibrarySelectionLoad = false;
+
+        WorkspaceTitle = musicLibrary.Name;
+        WorkspaceSummary = musicLibrary.RootPath;
+        AssetSummary = musicLibrary.Summary;
+
+        SelectedAsset = designAssets[1];
+        SelectedAssetTreeNode = FindAssetTreeNode(designAssets[1].Id);
+    }
+
     private void SetEmptyWorkspaceState()
     {
         WorkspaceTitle = "尚未添加素材库";
@@ -487,5 +817,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         SelectedAssetStage = SelectedAsset.Stage;
         SelectedAssetAiState = SelectedAsset.AiState;
+        RebuildAssetTree();
+        SelectedAssetTreeNode = FindAssetTreeNode(SelectedAsset.Id);
     }
 }

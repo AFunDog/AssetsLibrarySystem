@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -16,7 +17,9 @@ public sealed class BackendLauncherService : IBackendLauncher
 {
     private BackendLauncherOptions Options { get; }
     private Process? BackendProcess { get; set; }
-    private HttpClient Http { get; } = new();
+    private HttpClient Http { get; } = new() { Timeout = TimeSpan.FromSeconds(1) };
+    private CancellationTokenSource? HeartbeatCts { get; set; }
+    private string HeartbeatToken { get; set; } = string.Empty;
 
     public BackendLauncherService(IConfiguration configuration)
     {
@@ -53,11 +56,14 @@ public sealed class BackendLauncherService : IBackendLauncher
         _ = BackendProcess.StandardError.ReadToEndAsync(ct);
 
         await WaitForHealthAsync(ct);
+        StartHeartbeatLoop();
         Log.Information("后端健康检查通过，baseUrl={BaseUrl}", BaseUrl);
     }
 
     public async Task StopAsync(CancellationToken ct = default)
     {
+        StopHeartbeatLoop();
+
         if (BackendProcess is not { HasExited: false })
         {
             Log.Information("后端进程未运行，跳过停止");
@@ -130,6 +136,8 @@ public sealed class BackendLauncherService : IBackendLauncher
 
     private ProcessStartInfo CreateProcessStartInfo()
     {
+        HeartbeatToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+
 #if DEBUG
         var fileName = ResolvePath(Options.DebugPythonPath);
         var arguments = FormatArguments(Options.DebugArgumentsTemplate);
@@ -138,7 +146,7 @@ public sealed class BackendLauncherService : IBackendLauncher
         var arguments = FormatArguments(Options.PublishedArgumentsTemplate);
 #endif
 
-        return new ProcessStartInfo
+        var processStartInfo = new ProcessStartInfo
         {
             FileName = fileName,
             Arguments = arguments,
@@ -148,6 +156,13 @@ public sealed class BackendLauncherService : IBackendLauncher
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
+
+        processStartInfo.Environment["BACKEND_HEARTBEAT_TOKEN"] = HeartbeatToken;
+        processStartInfo.Environment["BACKEND_HEARTBEAT_TIMEOUT"] = Options.HeartbeatTimeout.TotalSeconds.ToString("0.###");
+        processStartInfo.Environment["BACKEND_HEARTBEAT_CHECK_INTERVAL"] = "1";
+        processStartInfo.Environment["BACKEND_HEARTBEAT_STARTUP_GRACE"] = Options.HeartbeatStartupGrace.TotalSeconds.ToString("0.###");
+
+        return processStartInfo;
     }
 
     private string ResolvePath(string configuredPath)
@@ -170,6 +185,46 @@ public sealed class BackendLauncherService : IBackendLauncher
         return template
             .Replace("{host}", Options.Host, StringComparison.OrdinalIgnoreCase)
             .Replace("{port}", Options.Port.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void StartHeartbeatLoop()
+    {
+        StopHeartbeatLoop();
+        var heartbeatCts = new CancellationTokenSource();
+        HeartbeatCts = heartbeatCts;
+
+        _ = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(Options.HeartbeatInterval);
+            while (await timer.WaitForNextTickAsync(heartbeatCts.Token))
+            {
+                try
+                {
+                    using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/internal/heartbeat");
+                    request.Headers.Add("X-Backend-Token", HeartbeatToken);
+                    using var response = await Http.SendAsync(request, heartbeatCts.Token);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        Log.Warning("后端心跳请求返回非成功状态码: {StatusCode}", (int)response.StatusCode);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug(ex, "后端心跳发送失败");
+                }
+            }
+        }, HeartbeatCts.Token);
+    }
+
+    private void StopHeartbeatLoop()
+    {
+        HeartbeatCts?.Cancel();
+        HeartbeatCts?.Dispose();
+        HeartbeatCts = null;
     }
 
     private static bool IsDebugBuild
@@ -201,6 +256,9 @@ public sealed class BackendLauncherService : IBackendLauncher
             Port = section.GetValue<int?>("Port") ?? 8000,
             StartupTimeout = TimeSpan.FromSeconds(section.GetValue<double?>("StartupTimeoutSeconds") ?? 30),
             HealthCheckInterval = TimeSpan.FromMilliseconds(section.GetValue<double?>("HealthCheckIntervalMilliseconds") ?? 500),
+            HeartbeatInterval = TimeSpan.FromSeconds(section.GetValue<double?>("HeartbeatIntervalSeconds") ?? 2),
+            HeartbeatTimeout = TimeSpan.FromSeconds(section.GetValue<double?>("HeartbeatTimeoutSeconds") ?? 8),
+            HeartbeatStartupGrace = TimeSpan.FromSeconds(section.GetValue<double?>("HeartbeatStartupGraceSeconds") ?? 15),
         };
     }
 }

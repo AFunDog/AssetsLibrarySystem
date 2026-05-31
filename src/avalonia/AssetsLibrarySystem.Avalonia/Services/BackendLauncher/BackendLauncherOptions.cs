@@ -51,4 +51,19 @@ public sealed class BackendLauncherOptions
     /// 每次健康检查的间隔。
     /// </summary>
     public TimeSpan HealthCheckInterval { get; init; } = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// 桌面端向后端发送心跳的间隔。
+    /// </summary>
+    public TimeSpan HeartbeatInterval { get; init; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// 后端在未收到心跳时的退出阈值。
+    /// </summary>
+    public TimeSpan HeartbeatTimeout { get; init; } = TimeSpan.FromSeconds(8);
+
+    /// <summary>
+    /// 后端启动后的心跳宽限期，避免启动阶段误判。
+    /// </summary>
+    public TimeSpan HeartbeatStartupGrace { get; init; } = TimeSpan.FromSeconds(15);
 }
