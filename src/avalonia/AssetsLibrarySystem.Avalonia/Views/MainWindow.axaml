@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
         xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
+        xmlns:chrome="using:Avalonia.Controls.Chrome"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="860"
@@ -16,8 +17,9 @@
 
     <Window.Styles>
         <Style Selector="Window">
-            <Setter Property="WindowDecorations" Value="Full" />
+            <Setter Property="WindowDecorations" Value="BorderOnly" />
             <Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
+            <Setter Property="ExtendClientAreaTitleBarHeightHint" Value="34" />
             <Setter Property="Background" Value="{DynamicResource AppWindowBackgroundBrush}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
@@ -26,11 +28,10 @@
             <Setter Property="Background" Value="{DynamicResource AppWindowBackgroundBrush}" />
         </Style>
         <Style Selector="Border.shell-header">
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="22" />
-            <Setter Property="Padding" Value="18" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="0" />
         </Style>
         <Style Selector="Border.surface">
             <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
@@ -90,6 +91,21 @@
         <Style Selector="TextBlock.nav-subtitle">
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+        </Style>
+        <Style Selector="Button.window-control">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="Button.window-control:pointerover">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+        </Style>
+        <Style Selector="Button.window-control:pressed">
+            <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
         </Style>
         <Style Selector="Border.metric-card">
             <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
@@ -184,49 +200,64 @@
     <Border Classes="shell" Padding="20">
         <Grid RowDefinitions="Auto,*" RowSpacing="16">
             <Border Classes="shell-header">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <Border
-                        Background="{DynamicResource AppAccentSurfaceBrush}"
-                        BorderBrush="{DynamicResource AppAccentBrush}"
-                        BorderThickness="1"
-                        CornerRadius="18"
-                        Width="48"
-                        Height="48"
+                        WindowDecorationProperties.ElementRole="TitleBar"
+                        Background="Transparent"
+                        CornerRadius="0"
                         Padding="0">
-                        <LucideIcon
-                            Classes="shell-glyph"
-                            Kind="LibraryBig" />
-                    </Border>
-
-                    <StackPanel Grid.Column="1" Spacing="2">
-                        <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="Assets Library System" />
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" Text="Windows 11 Fluent shell · 左侧导航，右侧页面" />
-                    </StackPanel>
-
-                    <Border
-                        Grid.Column="2"
-                        Background="{DynamicResource AppSoftSurfaceBrush}"
-                        BorderBrush="{DynamicResource AppBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="16"
-                        Padding="12,10">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                             <Border
                                 Background="{DynamicResource AppAccentSurfaceBrush}"
                                 BorderBrush="{DynamicResource AppAccentBrush}"
                                 BorderThickness="1"
-                                CornerRadius="999"
-                                Padding="7">
-                                <LucideIcon
-                                    Classes="shell-glyph"
-                                    Kind="Bot" />
+                                CornerRadius="8"
+                                Width="20"
+                                Height="20"
+                                Padding="0">
+                                <LucideIcon Classes="shell-glyph" Kind="LibraryBig" Size="12" />
                             </Border>
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding BackendStatusTitle}" />
-                                <TextBlock FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" Text="{Binding BackendEndpoint}" />
+
+                            <StackPanel Spacing="0" VerticalAlignment="Center">
+                                <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" Text="Assets Library System" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <Border
+                            Background="Transparent"
+                            BorderThickness="0"
+                            CornerRadius="0"
+                            Padding="0">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Border
+                                    Background="{DynamicResource AppAccentSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppAccentBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="999"
+                                    Width="20"
+                                    Height="20"
+                                    >
+                                    <LucideIcon Classes="shell-glyph" Kind="Bot" Size="12" />
+                                </Border>
+                                <StackPanel Spacing="2">
+                                    <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding BackendStatusTitle}" />
+                                    <TextBlock FontSize="10" Foreground="{DynamicResource AppSecondaryTextBrush}" Text="{Binding BackendEndpoint}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Button WindowDecorationProperties.ElementRole="MinimizeButton" Classes="window-control" Click="MinimizeWindow_Click">
+                            <LucideIcon Classes="shell-glyph" Kind="Minus" Size="12" />
+                        </Button>
+                        <Button WindowDecorationProperties.ElementRole="MaximizeButton" Classes="window-control" Click="ToggleMaximizeWindow_Click">
+                            <LucideIcon Classes="shell-glyph" Kind="Square" Size="12" />
+                        </Button>
+                        <Button WindowDecorationProperties.ElementRole="CloseButton" Classes="window-control" Click="CloseWindow_Click">
+                            <LucideIcon Classes="shell-glyph" Kind="X" Size="12" />
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
 
