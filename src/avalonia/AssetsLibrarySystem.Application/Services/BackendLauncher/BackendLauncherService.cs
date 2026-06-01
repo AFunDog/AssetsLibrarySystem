@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using AssetsLibrarySystem.Avalonia.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
@@ -155,6 +156,8 @@ public sealed class BackendLauncherService : IBackendLauncher
         processStartInfo.Environment["BACKEND_HEARTBEAT_CHECK_INTERVAL"] = "1";
         processStartInfo.Environment["BACKEND_HEARTBEAT_STARTUP_GRACE"] = Options.HeartbeatStartupGrace.TotalSeconds.ToString("0.###");
         processStartInfo.Environment["BACKEND_LAUNCHER_PID"] = Environment.ProcessId.ToString();
+        processStartInfo.Environment["APP_ENV"] = IsDebugBuild ? "dev" : "prod";
+        processStartInfo.Environment["DATA_ROOT"] = Options.DataRoot;
 
         return processStartInfo;
     }
@@ -235,7 +238,21 @@ public sealed class BackendLauncherService : IBackendLauncher
         var backendWorkingDirectory = section["BackendWorkingDirectory"];
         if (string.IsNullOrWhiteSpace(backendWorkingDirectory))
         {
-            throw new InvalidOperationException("缺少配置项 BackendLauncher:BackendWorkingDirectory。");
+            backendWorkingDirectory = RuntimePathHelper.ResolveBackendWorkingDirectory();
+        }
+        else
+        {
+            backendWorkingDirectory = Path.GetFullPath(backendWorkingDirectory);
+        }
+
+        var dataRoot = configuration["Runtime:DataRoot"];
+        if (string.IsNullOrWhiteSpace(dataRoot))
+        {
+            dataRoot = RuntimePathHelper.ResolveDataRoot();
+        }
+        else
+        {
+            dataRoot = Path.GetFullPath(dataRoot);
         }
 
         return new BackendLauncherOptions
@@ -245,6 +262,7 @@ public sealed class BackendLauncherService : IBackendLauncher
             PublishedExecutablePath = section["PublishedExecutablePath"] ?? "assets-library-system-backend.exe",
             PublishedArgumentsTemplate = section["PublishedArgumentsTemplate"] ?? "--host {host} --port {port}",
             BackendWorkingDirectory = backendWorkingDirectory,
+            DataRoot = dataRoot,
             Host = section["Host"] ?? "127.0.0.1",
             Port = section.GetValue<int?>("Port") ?? 8000,
             StartupTimeout = TimeSpan.FromSeconds(section.GetValue<double?>("StartupTimeoutSeconds") ?? 30),

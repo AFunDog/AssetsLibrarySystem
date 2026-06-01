@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import os
 from typing import Any
 
 import yaml
+
+from app.core.config import get_settings
 
 
 @dataclass(slots=True)
@@ -44,7 +45,11 @@ class ProviderConfigManager:
 
     def _load_shared_api_key(self) -> str:
         api_key = str(self._raw.get("api_key") or "").strip()
-        return api_key
+        if api_key:
+            return api_key
+
+        settings = get_settings()
+        return str(getattr(settings, "dashscope_api_key", "") or "").strip()
 
     def get(self, slot: str) -> ProviderConfig:
         item = self._raw.get(slot)
@@ -56,8 +61,6 @@ class ProviderConfigManager:
         model = str(item.get("model") or "").strip()
         if not api_key:
             api_key = self._shared_api_key
-        if not api_key:
-            api_key = os.getenv("DASHSCOPE_API_KEY", "") if provider == "dashscope" else ""
 
         return ProviderConfig(
             provider=provider,

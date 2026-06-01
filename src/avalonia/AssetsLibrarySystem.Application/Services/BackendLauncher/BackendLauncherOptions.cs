@@ -14,6 +14,8 @@ public sealed class BackendLauncherOptions
 
     public required string BackendWorkingDirectory { get; init; }
 
+    public required string DataRoot { get; init; }
+
     public string Host { get; init; } = "127.0.0.1";
 
     public int Port { get; init; } = 8000;

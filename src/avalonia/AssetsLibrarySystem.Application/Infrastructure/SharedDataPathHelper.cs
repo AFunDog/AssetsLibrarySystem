@@ -42,7 +42,7 @@ internal static class SharedDataPathHelper
 
     private static string GetDataDirectory()
     {
-        var dataDirectory = Path.Combine(GetRepositoryRoot(), "data");
+        var dataDirectory = RuntimePathHelper.ResolveDataRoot();
         Directory.CreateDirectory(dataDirectory);
         return dataDirectory;
     }

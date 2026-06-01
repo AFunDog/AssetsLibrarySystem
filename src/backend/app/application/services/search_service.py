@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import os
 
 import numpy as np
 
+from app.core.config import get_settings
 from app.core.paths import ensure_shared_data_dir
 from app.infrastructure.search.hnsw_index_manager import HnswIndexManager
 from app.infrastructure.search.sqlite_vector_repository import (
@@ -127,27 +127,17 @@ class SearchService:
         vector_repository: SqliteVectorRepository | None = None,
         vector_index_manager: HnswIndexManager | None = None,
     ) -> None:
+        settings = get_settings()
         data_dir = ensure_shared_data_dir()
-        cache_folder = os.getenv("ALS_SEARCH_CACHE_DIR")
-        if cache_folder is None or not cache_folder.strip():
-            cache_folder = str(data_dir / "huggingface")
-
-        vector_database_path = os.getenv("ALS_DESCRIPTION_VECTOR_DATABASE_PATH")
-        if vector_database_path is None or not vector_database_path.strip():
-            vector_database_path = str(data_dir / "asset_descriptions.db")
-
-        vector_index_path = os.getenv("ALS_SEARCH_VECTOR_INDEX_PATH")
-        if vector_index_path is None or not vector_index_path.strip():
-            vector_index_path = str(data_dir / "asset_search_vectors.hnsw")
-
-        vector_metadata_path = os.getenv("ALS_SEARCH_VECTOR_METADATA_PATH")
-        if vector_metadata_path is None or not vector_metadata_path.strip():
-            vector_metadata_path = str(data_dir / "asset_search_vectors.meta.json")
+        cache_folder = settings.search_cache_dir or str(data_dir / "huggingface")
+        vector_database_path = settings.description_vector_database_path or str(data_dir / "asset_descriptions.db")
+        vector_index_path = settings.search_vector_index_path or str(data_dir / "asset_search_vectors.hnsw")
+        vector_metadata_path = settings.search_vector_metadata_path or str(data_dir / "asset_search_vectors.meta.json")
 
         self._model_bundle = model_bundle or LocalSearchModelBundle(
             SearchModelConfig(
-                embedding_model=os.getenv("ALS_SEARCH_EMBED_MODEL", DEFAULT_EMBED_MODEL_NAME),
-                rerank_model=os.getenv("ALS_SEARCH_RERANK_MODEL", DEFAULT_RERANK_MODEL_NAME),
+                embedding_model=settings.search_embed_model or DEFAULT_EMBED_MODEL_NAME,
+                rerank_model=settings.search_rerank_model or DEFAULT_RERANK_MODEL_NAME,
                 cache_folder=cache_folder,
             )
         )

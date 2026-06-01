@@ -29,29 +29,67 @@ public static class ServiceBootstrapper
     private static IConfiguration CreateConfiguration()
     {
         var baseDir = AppContext.BaseDirectory;
-        var repositoryRoot = SharedDataPathHelper.GetRepositoryRoot();
-        var backendDir = Path.Combine(repositoryRoot, "src", "backend");
         var appsettingsPath = Path.Combine(baseDir, "appsettings.json");
+        var environmentName = ResolveEnvironmentName();
+        var environmentAppsettingsPath = Path.Combine(baseDir, $"appsettings.{environmentName}.json");
 
         var configuration = new ConfigurationBuilder()
             .SetBasePath(baseDir)
             .AddJsonFile(appsettingsPath, optional: true, reloadOnChange: false)
+            .AddJsonFile(environmentAppsettingsPath, optional: true, reloadOnChange: false)
             .AddEnvironmentVariables(prefix: "ALS_")
             .Build();
 
-        if (!string.IsNullOrWhiteSpace(configuration["BackendLauncher:BackendWorkingDirectory"]))
+        var runtimeDataRoot = configuration["Runtime:DataRoot"];
+        if (string.IsNullOrWhiteSpace(runtimeDataRoot))
         {
-            return configuration;
+            runtimeDataRoot = RuntimePathHelper.ResolveDataRoot();
+        }
+        else
+        {
+            runtimeDataRoot = Path.GetFullPath(runtimeDataRoot);
+        }
+
+        var backendWorkingDirectory = configuration["BackendLauncher:BackendWorkingDirectory"];
+        if (string.IsNullOrWhiteSpace(backendWorkingDirectory))
+        {
+            backendWorkingDirectory = RuntimePathHelper.ResolveBackendWorkingDirectory();
+        }
+        else
+        {
+            backendWorkingDirectory = Path.GetFullPath(backendWorkingDirectory);
         }
 
         var fallbackValues = new[]
         {
-            new KeyValuePair<string, string?>("BackendLauncher:BackendWorkingDirectory", backendDir),
+            new KeyValuePair<string, string?>("Runtime:DataRoot", runtimeDataRoot),
+            new KeyValuePair<string, string?>("BackendLauncher:BackendWorkingDirectory", backendWorkingDirectory),
         };
 
-        return new ConfigurationBuilder()
+        var finalConfiguration = new ConfigurationBuilder()
             .AddConfiguration(configuration)
             .AddInMemoryCollection(fallbackValues)
             .Build();
+
+        RuntimePathHelper.ApplyEnvironmentOverrides(finalConfiguration["Runtime:DataRoot"] ?? runtimeDataRoot);
+        return finalConfiguration;
+    }
+
+    private static string ResolveEnvironmentName()
+    {
+        var environmentName =
+            Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
+        if (!string.IsNullOrWhiteSpace(environmentName))
+        {
+            return environmentName.Trim();
+        }
+
+#if DEBUG
+        return "Development";
+#else
+        return "Production";
+#endif
     }
 }

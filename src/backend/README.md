@@ -16,6 +16,29 @@
 - 素材元数据管理
 - 本地目录浏览
 
+## 配置方式
+
+后端使用 `.env` 和环境变量加载配置，推荐本地开发时放一份 `src/backend/.env`，并用 `.env.example` 作为模板。
+
+常用字段：
+
+- `APP_ENV`：`dev` 或 `prod`
+- `DATA_ROOT`：共享 `data` 目录，留空时按环境推导默认值
+- `DATABASE_URL`：保留给后续数据库接入
+- `LOG_LEVEL`：日志级别
+- `HOST`：服务监听地址
+- `PORT`：服务监听端口
+
+规则：
+
+1. 环境变量优先于 `.env`
+2. 如果 `DATA_ROOT` 为空
+   - `APP_ENV=dev` 时，默认使用仓库根目录下的 `data/`
+   - 其他环境下，如果是打包后的可执行文件，则默认使用程序目录下的 `data/`
+   - 否则回退到后端源码目录下的 `data/`
+
+桌面端启动后端时，会把 `APP_ENV` 和 `DATA_ROOT` 传给子进程，保证 Avalonia 和 Python 后端看到的是同一个数据目录。
+
 ## 当前接口
 
 - `GET /health`
@@ -55,7 +78,7 @@
 
 `POST /api/v1/search/reindex` 会直接读取 Avalonia 已写入的 `asset_descriptions.db` 中的 `asset_description_vectors` 表，重新构建本地 HNSW 索引文件，不再维护第二份向量 SQLite。
 
-`api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取环境变量 `DASHSCOPE_API_KEY`。
+`api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取 `DASHSCOPE_API_KEY`。
 
 当前 DashScope 传参方式如下：
 
@@ -68,6 +91,7 @@
 
 ```powershell
 cd src/backend
+copy .env.example .env
 copy configs\providers.example.yaml configs\providers.yaml
 pip install -e .
 uvicorn app.main:app --reload
