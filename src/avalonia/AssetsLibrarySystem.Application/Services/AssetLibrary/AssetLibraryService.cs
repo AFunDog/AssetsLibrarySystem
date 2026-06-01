@@ -104,12 +104,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
     {
         ct.ThrowIfCancellationRequested();
 
-        var files = EnumerateSupportedFiles(library.RootPath)
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .Select(path => BuildAssetRecord(library, path))
-            .ToList();
-
-        return Task.FromResult<IReadOnlyList<ManagedAssetRecord>>(files);
+        return Task.FromResult<IReadOnlyList<ManagedAssetRecord>>(BuildRecordsForDirectory(library.RootPath, library));
     }
 
     private ManagedAssetRecord BuildAssetRecord(LibraryWorkspace library, string fullPath)
@@ -131,6 +126,14 @@ public sealed class AssetLibraryService : IAssetLibraryService
             "已扫描",
             "未提交模型",
             new[] { assetType, extension });
+    }
+
+    private List<ManagedAssetRecord> BuildRecordsForDirectory(string rootPath, LibraryWorkspace library)
+    {
+        return EnumerateSupportedFiles(rootPath)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .Select(path => BuildAssetRecord(library, path))
+            .ToList();
     }
 
     private IEnumerable<string> EnumerateSupportedFiles(string rootPath)

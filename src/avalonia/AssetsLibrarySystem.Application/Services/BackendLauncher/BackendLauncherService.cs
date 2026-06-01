@@ -13,7 +13,7 @@ public sealed class BackendLauncherService : IBackendLauncher
 {
     private BackendLauncherOptions Options { get; }
     private Process? BackendProcess { get; set; }
-    private HttpClient Http { get; } = new() { Timeout = TimeSpan.FromSeconds(1) };
+    private HttpClient Http { get; } = new() { Timeout = TimeSpan.FromSeconds(5) };
     private CancellationTokenSource? HeartbeatCts { get; set; }
 
     public BackendLauncherService(IConfiguration configuration)
@@ -112,6 +112,10 @@ public sealed class BackendLauncherService : IBackendLauncher
             }
             catch (HttpRequestException)
             {
+            }
+            catch (TaskCanceledException)
+            {
+                // 单次健康检查超时不代表后端启动失败，继续等到总超时。
             }
 
             await Task.Delay(Options.HealthCheckInterval, ct);

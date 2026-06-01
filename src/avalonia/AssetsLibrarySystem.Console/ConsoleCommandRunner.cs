@@ -143,37 +143,45 @@ public sealed class ConsoleCommandRunner
 
     private async Task<int> ScanLibraryAsync(string[] args)
     {
-        var libraryKey = args.FirstOrDefault(item => !item.StartsWith('-'))
+        var targetPath = args.FirstOrDefault(item => !item.StartsWith('-'))
             ?? GetOptionValue(args, "--library")
             ?? GetOptionValue(args, "-l");
 
-        if (string.IsNullOrWhiteSpace(libraryKey))
+        if (string.IsNullOrWhiteSpace(targetPath))
         {
-            Console.Error.WriteLine("缺少素材库标识。");
+            Console.Error.WriteLine("缺少扫描目标。");
             PrintLibraryHelp();
             return 1;
         }
 
-        var library = await ResolveLibraryAsync(libraryKey);
-        if (library is null)
+        var library = await ResolveLibraryAsync(targetPath);
+        if (library is not null)
         {
-            Console.Error.WriteLine($"未找到素材库：{libraryKey}");
+            var assets = await LibraryService.ScanLibraryAsync(library);
+            return await PrintScanResultAsync($"{library.Name} ({library.RootPath})", assets);
+        }
+
+        if (Directory.Exists(targetPath))
+        {
+            var pseudoLibrary = new LibraryWorkspace(
+                id: $"path:{Path.GetFullPath(targetPath)}",
+                name: Path.GetFileName(Path.GetFullPath(targetPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+                rootPath: Path.GetFullPath(targetPath),
+                summary: "单目录扫描",
+                syncMode: "已扫描",
+                assetCount: 0);
+            var assets = await LibraryService.ScanLibraryAsync(pseudoLibrary);
+            return await PrintScanResultAsync(targetPath, assets);
+        }
+
+        if (File.Exists(targetPath))
+        {
+            Console.Error.WriteLine("libraries scan 只接受目录路径或已登记素材库，不接受单个文件。");
             return 1;
         }
 
-        var assets = await LibraryService.ScanLibraryAsync(library);
-        Console.WriteLine($"素材库：{library.Name}");
-        Console.WriteLine($"路径：{library.RootPath}");
-        Console.WriteLine($"素材数量：{assets.Count}");
-
-        foreach (var asset in assets)
-        {
-            var description = await DescriptionStore.TryGetAsync(asset.Id);
-            var descriptionState = description is null ? "未描述" : $"已描述({description.Mode})";
-            Console.WriteLine($"- {asset.RelativePath} | {asset.AssetType} | {asset.Stage} | {asset.AiState} | {descriptionState}");
-        }
-
-        return 0;
+        Console.Error.WriteLine($"未找到扫描目标：{targetPath}");
+        return 1;
     }
 
     private async Task<int> DescribeAssetAsync(string[] args)
@@ -293,7 +301,7 @@ public sealed class ConsoleCommandRunner
             libraries 命令:
               libraries list
               libraries add <folderPath>
-              libraries scan <libraryId|libraryName|rootPath>
+              libraries scan <libraryId|libraryName|rootPath|directoryPath>
             """);
     }
 
@@ -315,5 +323,20 @@ public sealed class ConsoleCommandRunner
     {
         PrintAssetHelp();
         return 1;
+    }
+
+    private async Task<int> PrintScanResultAsync(string targetLabel, IReadOnlyList<ManagedAssetRecord> assets)
+    {
+        Console.WriteLine($"扫描目标：{targetLabel}");
+        Console.WriteLine($"素材数量：{assets.Count}");
+
+        foreach (var asset in assets)
+        {
+            var description = await DescriptionStore.TryGetAsync(asset.Id);
+            var descriptionState = description is null ? "未描述" : $"已描述({description.Mode})";
+            Console.WriteLine($"- {asset.RelativePath} | {asset.AssetType} | {asset.Stage} | {asset.AiState} | {descriptionState}");
+        }
+
+        return 0;
     }
 }
