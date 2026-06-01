@@ -49,4 +49,16 @@ public partial class LibraryPage : UserControl
 
         viewModel.RevealInFileExplorerCommand.Execute(node);
     }
+
+    private void RevealSearchResult_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button ||
+            button.CommandParameter is not AssetSearchDocument result ||
+            DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.RevealSearchResultInExplorerCommand.Execute(result);
+    }
 }

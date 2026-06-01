@@ -482,6 +482,139 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
+
+                                    <Border Classes="soft-surface">
+                                        <StackPanel Spacing="12">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Classes="eyebrow" Text="Search" />
+                                                <TextBlock Classes="section-title"
+                                                           FontSize="18"
+                                                           Text="自然语言检索" />
+                                                <TextBlock Classes="section-subtitle"
+                                                           Text="输入一句话描述需要的素材，桌面端会调用 Python 后端做向量召回与重排序。" />
+                                            </StackPanel>
+
+                                            <TextBox Text="{Binding SearchQuery, Mode=TwoWay}"
+                                                     PlaceholderText="例如：紧张氛围的音乐、蓝色天空下的河岸风景"
+                                                     MinHeight="36" />
+
+                                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                                                <TextBox Text="{Binding SearchCandidateTopKText, Mode=TwoWay}"
+                                                         PlaceholderText="候选数"
+                                                         MinHeight="36" />
+                                                <TextBox Grid.Column="1"
+                                                         Text="{Binding SearchFinalTopKText, Mode=TwoWay}"
+                                                         PlaceholderText="返回数"
+                                                         MinHeight="36" />
+                                                <TextBox Grid.Column="2"
+                                                         Text="{Binding SearchAssetFormat, Mode=TwoWay}"
+                                                         PlaceholderText="可选：图片 / 视频 / 音频 / 文本"
+                                                         MinHeight="36" />
+                                            </Grid>
+
+                                            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                                <Button Classes="primary"
+                                                        Command="{Binding ExecuteSearchCommand}"
+                                                        Content="执行检索" />
+                                                <Button Grid.Column="1"
+                                                        Classes="secondary"
+                                                        Command="{Binding RebuildSearchIndexCommand}"
+                                                        Content="重建向量索引" />
+                                            </Grid>
+
+                                            <Border Classes="soft-surface">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Classes="eyebrow" Text="Status" />
+                                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                               TextWrapping="Wrap"
+                                                               Text="{Binding SearchStatus}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Classes="soft-surface">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Classes="eyebrow" Text="Index" />
+                                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                               TextWrapping="Wrap"
+                                                               Text="{Binding SearchIndexSummary}" />
+                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               TextWrapping="Wrap"
+                                                               Text="{Binding SearchIndexDetail}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Classes="soft-surface">
+                                        <StackPanel Spacing="12">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Classes="eyebrow" Text="Search Results" />
+                                                <TextBlock Classes="section-title"
+                                                           FontSize="18"
+                                                           Text="检索结果" />
+                                                <TextBlock Classes="section-subtitle"
+                                                           Text="结果按重排分数排序，可直接在资源管理器中定位对应素材。" />
+                                            </StackPanel>
+
+                                            <ItemsControl ItemsSource="{Binding SearchResults}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Spacing="10" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="models:AssetSearchDocument">
+                                                        <Border Classes="soft-surface">
+                                                            <StackPanel Spacing="10">
+                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                                    <StackPanel Spacing="4">
+                                                                        <TextBlock FontSize="14"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Foreground="{DynamicResource AppTextBrush}"
+                                                                                   Text="{Binding AssetName}" />
+                                                                        <TextBlock FontSize="11"
+                                                                                   Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                                   Text="{Binding AssetType}" />
+                                                                    </StackPanel>
+                                                                    <Border Background="{DynamicResource AppAccentSurfaceBrush}"
+                                                                            CornerRadius="999"
+                                                                            Padding="10,4"
+                                                                            VerticalAlignment="Top">
+                                                                        <StackPanel Spacing="0">
+                                                                            <TextBlock FontSize="11"
+                                                                                       Foreground="{DynamicResource AppAccentBrush}"
+                                                                                       Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
+                                                                            <TextBlock FontSize="11"
+                                                                                       Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                                       Text="{Binding EmbeddingSimilarity, StringFormat=sim {0:0.0000}}" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </Grid>
+
+                                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                           TextWrapping="Wrap"
+                                                                           Text="{Binding AssetPath}" />
+                                                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                           TextWrapping="Wrap"
+                                                                           Text="{Binding Description}" />
+
+                                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                                                    <Button Classes="secondary"
+                                                                            Click="RevealSearchResult_Click"
+                                                                            CommandParameter="{Binding}"
+                                                                            Content="在资源管理器中显示" />
+                                                                    <TextBlock Grid.Column="1"
+                                                                               VerticalAlignment="Center"
+                                                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                                                               Text="{Binding SourceStorePath, TargetNullValue=SQLite 中无来源路径}" />
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
                             </Border>
 
@@ -490,7 +623,7 @@
                                     <TextBlock Classes="eyebrow" Text="Actions" />
                                     <TextBlock Classes="section-title" FontSize="18" Text="素材操作" />
                                     <TextBlock Classes="section-subtitle"
-                                               Text="保留当前占位交互，后续再接真实目录扫描、描述任务和索引流水线。" />
+                                               Text="这里保留手动编排入口，描述、索引和检索都可以直接从桌面端触发。" />
                                     <Button Classes="primary"
                                             Command="{Binding QueueDescriptionCommand}"
                                             Content="排入描述任务" />

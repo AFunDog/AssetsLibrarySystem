@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
+using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -20,11 +21,12 @@ public partial class MainWindowViewModel : ObservableObject
     private IBackendLauncher? BackendLauncher { get; }
     private IAssetDescriptionService? AssetDescriptionService { get; }
     private IAssetDescriptionStore? AssetDescriptionStore { get; }
+    private IAssetSearchService? AssetSearchService { get; }
     private List<ManagedAssetRecord> AllAssets { get; } = [];
     private bool SuppressLibrarySelectionLoad { get; set; }
     private bool IsLibraryScanRunning { get; set; }
 
-    public MainWindowViewModel() : this(null, null, null, null)
+    public MainWindowViewModel() : this(null, null, null, null, null)
     {
     }
 
@@ -32,12 +34,14 @@ public partial class MainWindowViewModel : ObservableObject
         IBackendLauncher? backendLauncher,
         IAssetLibraryService? assetLibraryService,
         IAssetDescriptionService? assetDescriptionService,
-        IAssetDescriptionStore? assetDescriptionStore)
+        IAssetDescriptionStore? assetDescriptionStore,
+        IAssetSearchService? assetSearchService)
     {
         BackendLauncher = backendLauncher;
         AssetLibraryService = assetLibraryService;
         AssetDescriptionService = assetDescriptionService;
         AssetDescriptionStore = assetDescriptionStore;
+        AssetSearchService = assetSearchService;
 
         Metrics = new ObservableCollection<DashboardMetric>();
         AssetTreeRoots = [];
@@ -46,6 +50,7 @@ public partial class MainWindowViewModel : ObservableObject
         AiCapabilities = new ObservableCollection<AiCapabilityRecord>();
         SelectedAssetTags = new ObservableCollection<string>();
         ActivityFeed = new ObservableCollection<string>();
+        SearchResults = new ObservableCollection<AssetSearchDocument>();
 
         BackendStatusTitle = "Python 模型服务待连接";
         BackendStatusDetail = "桌面端承担素材目录、元数据和工作流编排；Python 只负责 HTTP 模型能力。";
@@ -62,6 +67,13 @@ public partial class MainWindowViewModel : ObservableObject
         SelectedAssetStage = "待选择";
         SelectedAssetAiState = "未排队";
         SelectedAssetDetail = "右侧详情区域会展示当前素材的路径、类型和扫描结果。";
+        SearchQuery = "紧张氛围的音乐";
+        SearchCandidateTopKText = "20";
+        SearchFinalTopKText = "5";
+        SearchAssetFormat = string.Empty;
+        SearchStatus = "尚未执行素材检索。";
+        SearchIndexSummary = "尚未重建索引。";
+        SearchIndexDetail = "点击“重建向量索引”后，Python 后端会根据 asset_descriptions.db 重新构建 HNSW。";
 
         SeedStaticData();
         RebuildMetrics();
@@ -76,6 +88,7 @@ public partial class MainWindowViewModel : ObservableObject
     public ObservableCollection<AiCapabilityRecord> AiCapabilities { get; }
     public ObservableCollection<string> SelectedAssetTags { get; }
     public ObservableCollection<string> ActivityFeed { get; }
+    public ObservableCollection<AssetSearchDocument> SearchResults { get; }
 
     [ObservableProperty]
     public partial LibraryWorkspace? SelectedLibrary { get; set; }
@@ -157,6 +170,27 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     public partial AssetLibraryTreeNode? SelectedAssetTreeNode { get; set; }
+
+    [ObservableProperty]
+    public partial string SearchQuery { get; set; }
+
+    [ObservableProperty]
+    public partial string SearchCandidateTopKText { get; set; }
+
+    [ObservableProperty]
+    public partial string SearchFinalTopKText { get; set; }
+
+    [ObservableProperty]
+    public partial string SearchAssetFormat { get; set; }
+
+    [ObservableProperty]
+    public partial string SearchStatus { get; set; }
+
+    [ObservableProperty]
+    public partial string SearchIndexSummary { get; set; }
+
+    [ObservableProperty]
+    public partial string SearchIndexDetail { get; set; }
 
     public async Task InitializeAsync()
     {
@@ -376,6 +410,119 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task ExecuteSearchAsync()
+    {
+        if (BackendLauncher?.IsRunning != true)
+        {
+            OperatorNotice = "Python 模型服务尚未就绪，请先等待后端启动完成。";
+            SearchStatus = "后端未就绪，无法执行检索。";
+            return;
+        }
+
+        if (AssetSearchService is null)
+        {
+            OperatorNotice = "检索服务未注册，当前无法调用后端。";
+            SearchStatus = "检索服务未注册。";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(SearchQuery))
+        {
+            OperatorNotice = "请输入要检索的文本描述。";
+            SearchStatus = "请输入查询文本。";
+            return;
+        }
+
+        if (!TryParsePositiveInt(SearchCandidateTopKText, out var candidateTopK))
+        {
+            OperatorNotice = "候选数量必须是大于 0 的整数。";
+            SearchStatus = "候选数量格式错误。";
+            return;
+        }
+
+        if (!TryParsePositiveInt(SearchFinalTopKText, out var finalTopK))
+        {
+            OperatorNotice = "返回数量必须是大于 0 的整数。";
+            SearchStatus = "返回数量格式错误。";
+            return;
+        }
+
+        SearchStatus = "正在执行向量召回与重排序...";
+        OperatorNotice = $"正在检索：“{SearchQuery}”";
+        ActivityFeed.Insert(0, $"开始检索：{SearchQuery}");
+
+        try
+        {
+            var response = await AssetSearchService.SearchAsync(
+                BackendLauncher.BaseUrl,
+                SearchQuery,
+                candidateTopK,
+                finalTopK,
+                string.IsNullOrWhiteSpace(SearchAssetFormat) ? null : SearchAssetFormat);
+
+            SearchResults.Clear();
+            foreach (var item in response.Results)
+            {
+                SearchResults.Add(item);
+            }
+
+            SearchStatus = $"检索完成：候选 {response.CandidateTopK} 条，返回 {response.Results.Length} 条。";
+            OperatorNotice = SearchStatus;
+            ActivityFeed.Insert(0, $"检索完成：{SearchQuery} -> {response.Results.Length} 条结果");
+        }
+        catch (Exception ex)
+        {
+            SearchStatus = $"检索失败：{ex.Message}";
+            OperatorNotice = SearchStatus;
+            ActivityFeed.Insert(0, $"检索失败：{SearchQuery} -> {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task RebuildSearchIndexAsync()
+    {
+        if (BackendLauncher is null)
+        {
+            SearchIndexSummary = "后端启动器未注册，无法重建索引。";
+            OperatorNotice = SearchIndexSummary;
+            return;
+        }
+
+        if (AssetSearchService is null)
+        {
+            SearchIndexSummary = "检索服务未注册，无法重建索引。";
+            OperatorNotice = SearchIndexSummary;
+            return;
+        }
+
+        SearchIndexSummary = "正在重建向量索引...";
+        SearchIndexDetail = "后端会从 asset_descriptions.db 读取向量并重建 HNSW。";
+        OperatorNotice = SearchIndexSummary;
+        ActivityFeed.Insert(0, "开始重建向量索引。");
+
+        try
+        {
+            if (BackendLauncher.IsRunning != true)
+            {
+                await BackendLauncher.StartAsync();
+            }
+
+            var response = await AssetSearchService.ReindexAsync(BackendLauncher.BaseUrl);
+            SearchIndexSummary = $"索引已重建：{response.DocumentCount} 条，{response.VectorDim} 维。";
+            SearchIndexDetail = $"数据库：{response.DatabasePath}\n索引：{response.IndexPath}\n元数据：{response.MetadataPath}\n模型：{string.Join(", ", response.EmbeddingModels)}";
+            OperatorNotice = SearchIndexSummary;
+            ActivityFeed.Insert(0, $"索引重建完成：{response.DocumentCount} 条素材描述。");
+        }
+        catch (Exception ex)
+        {
+            SearchIndexSummary = $"索引重建失败：{ex.Message}";
+            SearchIndexDetail = ex.Message;
+            OperatorNotice = SearchIndexSummary;
+            ActivityFeed.Insert(0, $"索引重建失败：{ex.Message}");
+        }
+    }
+
+    [RelayCommand]
     private void RevealInFileExplorer(AssetLibraryTreeNode? node)
     {
         if (node is null || string.IsNullOrWhiteSpace(node.FullPath))
@@ -403,6 +550,28 @@ public partial class MainWindowViewModel : ObservableObject
         Process.Start(startInfo);
         OperatorNotice = $"已在文件资源管理器中显示：{path}";
         ActivityFeed.Insert(0, $"资源管理器定位：{node.DisplayName}");
+    }
+
+    [RelayCommand]
+    private void RevealSearchResultInExplorer(AssetSearchDocument? result)
+    {
+        if (result is null || string.IsNullOrWhiteSpace(result.AssetPath))
+        {
+            OperatorNotice = "当前搜索结果没有可打开的本地路径。";
+            return;
+        }
+
+        var path = Path.GetFullPath(result.AssetPath);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            UseShellExecute = true,
+            Arguments = $"/select,\"{path}\"",
+        };
+
+        Process.Start(startInfo);
+        OperatorNotice = $"已在文件资源管理器中显示：{path}";
+        ActivityFeed.Insert(0, $"搜索结果定位：{result.AssetName}");
     }
 
     [RelayCommand]
@@ -802,11 +971,13 @@ public partial class MainWindowViewModel : ObservableObject
         AiCapabilities.Add(new AiCapabilityRecord("健康检查", "/health", "供桌面端确认 Python 模型服务是否可达。"));
         AiCapabilities.Add(new AiCapabilityRecord("能力清单", "/api/v1/model/capabilities", "返回当前模型网关的槽位、模式和占位能力。"));
         AiCapabilities.Add(new AiCapabilityRecord("文本生成", "/api/v1/model/generate", "只负责提示词转发与模型输出，不管理素材目录。"));
+        AiCapabilities.Add(new AiCapabilityRecord("向量检索", "/api/v1/search/explore", "输入自然语言后，先召回再重排返回最符合的素材。"));
+        AiCapabilities.Add(new AiCapabilityRecord("索引重建", "/api/v1/search/reindex", "从 asset_descriptions.db 重新构建本地 HNSW 索引。"));
 
         ActivityFeed.Clear();
         ActivityFeed.Add("桌面端作为素材管理主入口，先固定本地工作流边界。");
-        ActivityFeed.Add("本地素材库目录会持久化为 JSON，素材描述会统一写入 SQLite 并由 .NET 负责读取展示。");
-        ActivityFeed.Add("Python 进程仅暴露 HTTP 模型能力，避免再次把素材管理逻辑塞回后端。");
+        ActivityFeed.Add("本地素材库目录会持久化为 JSON，素材描述与向量会写入 SQLite，并由 .NET 负责读取展示。");
+        ActivityFeed.Add("Python 进程仅暴露 HTTP 模型能力，包括描述向量化、召回搜索和索引重建。");
     }
 
     private void SetEmptyWorkspaceState()
@@ -912,6 +1083,17 @@ public partial class MainWindowViewModel : ObservableObject
         SelectedAssetDescriptionPrompt = "尚未生成 prompt。";
         SelectedAssetDescriptionSystemPrompt = "尚未生成 system prompt。";
         SelectedAssetDescriptionText = "当前素材还没有可显示的 AI 描述。";
+    }
+
+    private static bool TryParsePositiveInt(string? value, out int result)
+    {
+        if (int.TryParse(value, out result) && result > 0)
+        {
+            return true;
+        }
+
+        result = 0;
+        return false;
     }
 
     private static string FormatTokenUsage(AssetDescriptionTokenUsage usage)
