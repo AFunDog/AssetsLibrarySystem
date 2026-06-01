@@ -24,6 +24,19 @@ class IndexedAssetVectorRecord:
 
 
 @dataclass(slots=True)
+class AssetVectorInput:
+    asset_id: str
+    asset_name: str
+    asset_format: str
+    asset_path: str
+    description: str
+    source_store_path: str | None
+    generated_at: datetime | None
+    embedding_model: str
+    vector: np.ndarray
+
+
+@dataclass(slots=True)
 class IndexState:
     document_count: int
     latest_updated_at: str
@@ -100,6 +113,74 @@ class SqliteVectorRepository:
             if row is None:
                 raise RuntimeError("素材向量入库失败。")
             return int(row[0]), now
+
+    def replace_documents(self, documents: list[AssetVectorInput]) -> list[IndexedAssetVectorRecord]:
+        if not documents:
+            raise ValueError("没有可写入的向量数据。")
+
+        records: list[IndexedAssetVectorRecord] = []
+        with self._connect() as connection:
+            connection.execute("DELETE FROM asset_vectors")
+            connection.execute("DELETE FROM sqlite_sequence WHERE name = 'asset_vectors'")
+
+            for document in documents:
+                serialized_vector = np.asarray(document.vector, dtype=np.float32).tobytes()
+                vector_dim = int(document.vector.shape[0])
+                now = datetime.now(timezone.utc)
+
+                cursor = connection.execute(
+                    """
+                    INSERT INTO asset_vectors (
+                        asset_id,
+                        asset_name,
+                        asset_format,
+                        asset_path,
+                        description,
+                        source_store_path,
+                        generated_at,
+                        embedding_model,
+                        vector_dim,
+                        vector_blob,
+                        updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    RETURNING doc_id
+                    """,
+                    (
+                        document.asset_id,
+                        document.asset_name,
+                        document.asset_format,
+                        document.asset_path,
+                        document.description,
+                        document.source_store_path,
+                        document.generated_at.isoformat() if document.generated_at is not None else None,
+                        document.embedding_model,
+                        vector_dim,
+                        sqlite3.Binary(serialized_vector),
+                        now.isoformat(),
+                    ),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    raise RuntimeError("素材向量重建失败。")
+
+                records.append(
+                    IndexedAssetVectorRecord(
+                        doc_id=int(row[0]),
+                        asset_id=document.asset_id,
+                        asset_name=document.asset_name,
+                        asset_format=document.asset_format,
+                        asset_path=document.asset_path,
+                        description=document.description,
+                        source_store_path=document.source_store_path,
+                        generated_at=document.generated_at,
+                        embedding_model=document.embedding_model,
+                        vector=np.asarray(document.vector, dtype=np.float32).copy(),
+                        updated_at=now,
+                    )
+                )
+
+        return records
 
     def list_documents(self) -> list[IndexedAssetVectorRecord]:
         with self._connect() as connection:

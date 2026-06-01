@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 import os
 
 import numpy as np
 
 from app.core.paths import ensure_shared_data_dir
+from app.infrastructure.search.hnsw_index_manager import HnswIndexManager
+from app.infrastructure.search.sqlite_vector_repository import (
+    AssetVectorInput,
+    SqliteVectorRepository,
+)
 from app.schemas.search import (
     SearchIndexRequest,
     SearchIndexResponse,
+    SearchReindexResponse,
     SearchQueryRequest,
     SearchQueryResponse,
     SearchQueryResultItem,
@@ -107,11 +112,25 @@ class SearchService:
     def __init__(
         self,
         model_bundle: LocalSearchModelBundle | None = None,
+        vector_repository: SqliteVectorRepository | None = None,
+        vector_index_manager: HnswIndexManager | None = None,
     ) -> None:
         data_dir = ensure_shared_data_dir()
         cache_folder = os.getenv("ALS_SEARCH_CACHE_DIR")
         if cache_folder is None or not cache_folder.strip():
             cache_folder = str(data_dir / "huggingface")
+
+        vector_database_path = os.getenv("ALS_SEARCH_VECTOR_DATABASE_PATH")
+        if vector_database_path is None or not vector_database_path.strip():
+            vector_database_path = str(data_dir / "asset_search_vectors.db")
+
+        vector_index_path = os.getenv("ALS_SEARCH_VECTOR_INDEX_PATH")
+        if vector_index_path is None or not vector_index_path.strip():
+            vector_index_path = str(data_dir / "asset_search_vectors.hnsw")
+
+        vector_metadata_path = os.getenv("ALS_SEARCH_VECTOR_METADATA_PATH")
+        if vector_metadata_path is None or not vector_metadata_path.strip():
+            vector_metadata_path = str(data_dir / "asset_search_vectors.meta.json")
 
         self._model_bundle = model_bundle or LocalSearchModelBundle(
             SearchModelConfig(
@@ -120,6 +139,11 @@ class SearchService:
                 cache_folder=cache_folder,
             )
         )
+        self._vector_repository = vector_repository
+        self._vector_index_manager = vector_index_manager
+        self._vector_database_path = vector_database_path
+        self._vector_index_path = vector_index_path
+        self._vector_metadata_path = vector_metadata_path
 
     def vectorize(self, payload: SearchIndexRequest) -> SearchIndexResponse:
         vector = self._model_bundle.encode_documents([payload.description])[0]
@@ -132,6 +156,38 @@ class SearchService:
             vector=[float(item) for item in vector.tolist()],
             vector_dim=int(vector.shape[0]),
             embedding_model=self._model_bundle.embedding_model_name,
+        )
+
+    def rebuild_index(self, documents: list[AssetVectorInput]) -> SearchReindexResponse:
+        if not documents:
+            raise ValueError("没有可重建索引的向量数据。")
+
+        vector_dim: int | None = None
+        embedding_models: list[str] = []
+
+        for document in documents:
+            current_dim = int(document.vector.shape[0])
+            if vector_dim is None:
+                vector_dim = current_dim
+            elif current_dim != vector_dim:
+                raise ValueError("所有向量的维度必须一致。")
+
+            embedding_models.append(document.embedding_model)
+
+        vector_repository = self._get_vector_repository()
+        vector_index_manager = self._get_vector_index_manager()
+
+        records = vector_repository.replace_documents(documents)
+        state = vector_repository.get_state()
+        vector_index_manager.rebuild(records, state)
+
+        return SearchReindexResponse(
+            document_count=state.document_count,
+            vector_dim=vector_dim or 0,
+            database_path=str(vector_repository.database_path),
+            index_path=str(vector_index_manager.index_path),
+            metadata_path=str(vector_index_manager.metadata_path),
+            embedding_models=sorted(set(embedding_models)),
         )
 
     def rerank(self, payload: SearchQueryRequest) -> SearchQueryResponse:
@@ -163,3 +219,16 @@ class SearchService:
             rerank_model=self._model_bundle.rerank_model_name,
             results=ranked_items[: payload.final_top_k],
         )
+
+    def _get_vector_repository(self) -> SqliteVectorRepository:
+        if self._vector_repository is None:
+            self._vector_repository = SqliteVectorRepository(self._vector_database_path)
+        return self._vector_repository
+
+    def _get_vector_index_manager(self) -> HnswIndexManager:
+        if self._vector_index_manager is None:
+            self._vector_index_manager = HnswIndexManager(
+                self._vector_index_path,
+                self._vector_metadata_path,
+            )
+        return self._vector_index_manager

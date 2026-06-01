@@ -72,5 +72,32 @@ class SearchQueryResponse(BaseModel):
     results: list[SearchQueryResultItem]
 
 
+class SearchReindexDocument(BaseModel):
+    asset_id: str = Field(min_length=1, description="素材唯一标识")
+    asset_name: str = Field(min_length=1, description="素材名称")
+    asset_format: AssetFormat = Field(description="素材类型")
+    asset_path: str = Field(min_length=1, description="素材绝对路径")
+    description: str = Field(min_length=1, description="可检索的素材描述")
+    source_store_path: str | None = Field(default=None, description="来源描述存储路径")
+    generated_at: datetime | None = Field(default=None, description="描述生成时间")
+    embedding_model: str = Field(min_length=1, description="向量模型名称")
+
+    @field_validator("asset_path")
+    @classmethod
+    def validate_asset_path(cls, value: str) -> str:
+        if not Path(value).is_absolute():
+            raise ValueError("asset_path 必须是绝对路径")
+        return value
+
+
+class SearchReindexResponse(BaseModel):
+    document_count: int = Field(ge=1)
+    vector_dim: int = Field(ge=1)
+    database_path: str
+    index_path: str
+    metadata_path: str
+    embedding_models: list[str]
+
+
 SearchQueryRequest.model_rebuild()
 SearchQueryResultItem.model_rebuild()

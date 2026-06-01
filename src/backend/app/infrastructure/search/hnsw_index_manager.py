@@ -29,6 +29,14 @@ class HnswIndexManager:
         self._build(records)
         self._save(state)
 
+    def rebuild(self, records: list[IndexedAssetVectorRecord], state: IndexState) -> None:
+        if not records:
+            raise ValueError("当前没有可检索的素材描述。")
+
+        self._reset_files()
+        self._build(records)
+        self._save(state)
+
     def search(self, query_vector: np.ndarray, top_k: int) -> list[tuple[int, float]]:
         if self._index is None:
             raise RuntimeError("向量索引尚未加载。")
@@ -84,6 +92,13 @@ class HnswIndexManager:
 
         self._dim = dim
         self._index = index
+
+    def _reset_files(self) -> None:
+        self._index = None
+        self._dim = None
+        for path in (self.index_path, self.metadata_path):
+            if path.exists():
+                path.unlink()
 
     def _is_current(self, state: IndexState) -> bool:
         if not self.index_path.exists() or not self.metadata_path.exists():
