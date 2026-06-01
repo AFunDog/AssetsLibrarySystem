@@ -1,6 +1,8 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              x:Class="AssetsLibrarySystem.Avalonia.App"
+             x:DataType="vm:DesktopShellViewModel"
              RequestedThemeVariant="Dark">
     <Application.Styles>
         <FluentTheme />
@@ -36,4 +38,35 @@
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
+
+    <TrayIcon.Icons>
+        <TrayIcons>
+            <TrayIcon Icon="/Assets/avalonia-logo.ico"
+                      ToolTipText="{Binding TrayTitle}"
+                      Command="{Binding ToggleQuickSearchWindowCommand}">
+                <TrayIcon.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="{Binding TrayTitle}"
+                                        IsEnabled="False" />
+                        <NativeMenuItem Header="{Binding TrayStatusTitle}"
+                                        IsEnabled="False" />
+                        <NativeMenuItem Header="{Binding TrayStatusDetail}"
+                                        IsEnabled="False" />
+                        <NativeMenuItem Header="{Binding TrayHotkeyHint}"
+                                        IsEnabled="False" />
+                        <NativeMenuItem Header="{Binding TrayActionHint}"
+                                        IsEnabled="False" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="打开快速检索"
+                                        Command="{Binding ShowQuickSearchWindowCommand}" />
+                        <NativeMenuItem Header="打开主窗口"
+                                        Command="{Binding ShowMainWindowCommand}" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="退出"
+                                        Command="{Binding ExitApplicationCommand}" />
+                    </NativeMenu>
+                </TrayIcon.Menu>
+            </TrayIcon>
+        </TrayIcons>
+    </TrayIcon.Icons>
 </Application>

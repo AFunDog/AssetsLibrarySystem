@@ -1,0 +1,85 @@
+using System.Collections.ObjectModel;
+using System.Threading.Tasks;
+using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
+using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace AssetsLibrarySystem.Avalonia.ViewModels;
+
+public partial class QuickSearchViewModel : ObservableObject
+{
+    private IAssetSearchService? AssetSearchService { get; }
+    private IBackendLauncher? BackendLauncher { get; }
+
+    public QuickSearchViewModel()
+        : this(null, null)
+    {
+    }
+
+    public QuickSearchViewModel(IBackendLauncher? backendLauncher, IAssetSearchService? assetSearchService)
+    {
+        BackendLauncher = backendLauncher;
+        AssetSearchService = assetSearchService;
+        SearchResults = new ObservableCollection<AssetSearchDocument>();
+        SearchStatus = "输入素材描述并按回车检索。";
+        SearchQuery = string.Empty;
+    }
+
+    public ObservableCollection<AssetSearchDocument> SearchResults { get; }
+
+    [ObservableProperty]
+    public partial string SearchQuery { get; set; }
+
+    [ObservableProperty]
+    public partial string SearchStatus { get; set; }
+
+    [RelayCommand]
+    private async Task ExecuteSearchAsync()
+    {
+        if (AssetSearchService is null)
+        {
+            SearchStatus = "检索服务未注册，无法调用后端。";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(SearchQuery))
+        {
+            SearchStatus = "请输入要检索的文本描述。";
+            return;
+        }
+
+        try
+        {
+            if (BackendLauncher is not null && BackendLauncher.IsRunning != true)
+            {
+                SearchStatus = "正在启动 Python 模型服务...";
+                await BackendLauncher.StartAsync();
+            }
+
+            SearchStatus = "正在检索...";
+
+            var response = await AssetSearchService.SearchAsync(
+                BackendLauncher?.BaseUrl ?? "http://127.0.0.1:8000",
+                SearchQuery,
+                20,
+                5,
+                null);
+
+            SearchResults.Clear();
+            foreach (var item in response.Results)
+            {
+                SearchResults.Add(item);
+            }
+
+            SearchStatus = response.Results.Length == 0
+                ? "没有找到匹配的素材。"
+                : $"已返回 {response.Results.Length} 条素材。";
+        }
+        catch (System.Exception ex)
+        {
+            SearchStatus = $"检索失败：{ex.Message}";
+        }
+    }
+}
