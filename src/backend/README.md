@@ -7,6 +7,7 @@
 - 暴露大模型 HTTP 接口
 - 提供健康检查与能力清单
 - 作为 Avalonia/.NET 桌面端的模型调用出口
+- 提供文本向量化和候选集重排序能力
 
 当前后端不再承担：
 
@@ -20,6 +21,8 @@
 - `GET /health`
 - `GET /api/v1/model/capabilities`
 - `POST /api/v1/model/generate`
+- `POST /api/v1/search/index`
+- `POST /api/v1/search/query`
 
 `POST /api/v1/model/generate` 现在接收的是素材打标请求，而不是对话消息流。请求体的核心字段是：
 
@@ -34,6 +37,19 @@
 接口返回会同时带上 token 用量统计 `token_usage`，其字段与百炼官方 `usage` 保持一致，核心包括 `input_tokens`、`output_tokens`、`total_tokens`，并尽量透传 `input_tokens_details`、`output_tokens_details`、`prompt_tokens_details` 等细分信息。如果是 mock 模式或底层响应未提供 usage，则该字段为空。
 
 `configs/providers.yaml` 也已经按素材类型分组，分别为 `文本`、`图片`、`视频`、`音频` 配置独立模型。后端会优先读取与 `asset_format` 同名的槽位，再按兼容顺序回退到 `llm_gateway`、`asset_describer` 或第一个可用槽位。
+
+`POST /api/v1/search/index` 只负责把传入文本转换成向量，不会写入数据库。调用方拿到向量后，可以自己写入 Avalonia 侧管理的 SQLite。向量化与重排序默认使用本地小模型：
+
+- embedding：`Qwen/Qwen3-Embedding-0.6B`
+- rerank：`Qwen/Qwen3-Reranker-0.6B`
+
+如果需要改模型名或 HuggingFace 缓存目录，可以分别设置：
+
+- `ALS_SEARCH_EMBED_MODEL`
+- `ALS_SEARCH_RERANK_MODEL`
+- `ALS_SEARCH_CACHE_DIR`
+
+`POST /api/v1/search/query` 只对调用方传入的候选文本做本地 rerank，不负责数据库读取或写入。
 
 `api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取环境变量 `DASHSCOPE_API_KEY`。
 

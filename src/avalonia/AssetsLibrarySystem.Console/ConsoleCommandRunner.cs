@@ -15,17 +15,23 @@ public sealed class ConsoleCommandRunner
     private IAssetLibraryService LibraryService { get; }
     private IAssetDescriptionService DescriptionService { get; }
     private IAssetDescriptionStore DescriptionStore { get; }
+    private IAssetDescriptionVectorStore VectorStore { get; }
+    private IAssetTextVectorizationService TextVectorizationService { get; }
     private IBackendLauncher BackendLauncher { get; }
 
     public ConsoleCommandRunner(
         IAssetLibraryService libraryService,
         IAssetDescriptionService descriptionService,
         IAssetDescriptionStore descriptionStore,
+        IAssetDescriptionVectorStore vectorStore,
+        IAssetTextVectorizationService textVectorizationService,
         IBackendLauncher backendLauncher)
     {
         LibraryService = libraryService;
         DescriptionService = descriptionService;
         DescriptionStore = descriptionStore;
+        VectorStore = vectorStore;
+        TextVectorizationService = textVectorizationService;
         BackendLauncher = backendLauncher;
     }
 
@@ -100,6 +106,7 @@ public sealed class ConsoleCommandRunner
         {
             "describe" => await DescribeAssetAsync(args.Skip(1).ToArray()),
             "describe-dir" => await DescribeDirectoryAsync(args.Skip(1).ToArray()),
+            "vectorize-missing" => await VectorizeMissingDescriptionsAsync(args.Skip(1).ToArray()),
             _ => PrintAssetHelpAndFail()
         };
     }
@@ -327,6 +334,97 @@ public sealed class ConsoleCommandRunner
         return failureCount == 0 ? 0 : 1;
     }
 
+    private async Task<int> VectorizeMissingDescriptionsAsync(string[] args)
+    {
+        var libraryKey = GetOptionValue(args, "--library")
+            ?? GetOptionValue(args, "-l");
+        var libraries = string.IsNullOrWhiteSpace(libraryKey)
+            ? await LibraryService.GetLibrariesAsync()
+            : new List<LibraryWorkspace?>
+            {
+                await ResolveLibraryAsync(libraryKey)
+            }.Where(library => library is not null).Cast<LibraryWorkspace>().ToList();
+
+        if (libraries.Count == 0)
+        {
+            if (!string.IsNullOrWhiteSpace(libraryKey))
+            {
+                Console.Error.WriteLine($"未找到素材库：{libraryKey}");
+            }
+            else
+            {
+                Console.Error.WriteLine("当前没有登记的素材库。");
+            }
+            return 1;
+        }
+
+        var pending = new List<(LibraryWorkspace Library, ManagedAssetRecord Asset, AssetDescriptionDocument Description)>();
+
+        foreach (var library in libraries)
+        {
+            var assets = await LibraryService.ScanLibraryAsync(library);
+            foreach (var asset in assets)
+            {
+                var description = await DescriptionStore.TryGetAsync(asset.Id);
+                if (description is null)
+                {
+                    continue;
+                }
+
+                if (await VectorStore.TryGetAsync(asset.Id) is not null)
+                {
+                    continue;
+                }
+
+                pending.Add((library, asset, description));
+            }
+        }
+
+        Console.WriteLine($"素材库数量：{libraries.Count}");
+        Console.WriteLine($"可向量化描述：{pending.Count}");
+
+        if (pending.Count == 0)
+        {
+            Console.WriteLine("没有找到未向量化的描述数据。");
+            return 0;
+        }
+
+        var successCount = 0;
+        var failureCount = 0;
+
+        await BackendLauncher.StartAsync();
+        try
+        {
+            for (var index = 0; index < pending.Count; index++)
+            {
+                var (library, asset, description) = pending[index];
+                Console.WriteLine($"[{index + 1}/{pending.Count}] 开始向量化：{library.Name} / {asset.RelativePath}");
+
+                try
+                {
+                    var vectorDocument = await TextVectorizationService.VectorizeAsync(
+                        description,
+                        BackendLauncher.BaseUrl);
+                    await VectorStore.SaveAsync(vectorDocument);
+                    successCount++;
+                    Console.WriteLine($"[{index + 1}/{pending.Count}] 完成：{library.Name} / {asset.RelativePath}");
+                }
+                catch (Exception ex)
+                {
+                    failureCount++;
+                    Console.Error.WriteLine($"[{index + 1}/{pending.Count}] 失败：{library.Name} / {asset.RelativePath} | {ex.Message}");
+                }
+            }
+        }
+        finally
+        {
+            await BackendLauncher.StopAsync();
+        }
+
+        Console.WriteLine($"向量化结束：成功 {successCount}，失败 {failureCount}");
+        return failureCount == 0 ? 0 : 1;
+    }
+
     private async Task<LibraryWorkspace?> ResolveLibraryAsync(string key)
     {
         var libraries = await LibraryService.GetLibrariesAsync();
@@ -420,19 +518,21 @@ public sealed class ConsoleCommandRunner
 
     private static void PrintHelp()
     {
-        Console.WriteLine("""
+            Console.WriteLine("""
             用法:
               libraries list
               libraries add <folderPath>
               libraries scan <libraryId|libraryName|rootPath>
               assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>]
               assets describe-dir --library <libraryId|libraryName|rootPath> --folder <relativeFolderPath> [--prompt <prompt>] [--system-prompt <prompt>]
+              assets vectorize-missing --library <libraryId|libraryName|rootPath>
 
             示例:
               libraries add D:\Data\WebGal
               libraries scan 我的素材库
               assets describe --library 我的素材库 --asset background.png
               assets describe-dir --library 我的素材库 --folder background\bg
+              assets vectorize-missing --library 我的素材库
             """);
     }
 
@@ -452,6 +552,7 @@ public sealed class ConsoleCommandRunner
             assets 命令:
               assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>]
               assets describe-dir --library <libraryId|libraryName|rootPath> --folder <relativeFolderPath> [--prompt <prompt>] [--system-prompt <prompt>]
+              assets vectorize-missing [--library <libraryId|libraryName|rootPath>]
             """);
     }
 

@@ -17,7 +17,9 @@ public static class ServiceBootstrapper
         builder.RegisterInstance(CreateConfiguration()).As<IConfiguration>().SingleInstance();
         builder.RegisterType<AssetLibraryService>().As<IAssetLibraryService>().SingleInstance();
         builder.RegisterType<AssetDescriptionStore>().As<IAssetDescriptionStore>().SingleInstance();
+        builder.RegisterType<AssetDescriptionVectorStore>().As<IAssetDescriptionVectorStore>().SingleInstance();
         builder.RegisterType<AssetDescriptionService>().As<IAssetDescriptionService>().SingleInstance();
+        builder.RegisterType<AssetTextVectorizationService>().As<IAssetTextVectorizationService>().SingleInstance();
         builder.RegisterType<BackendLauncherService>().As<IBackendLauncher>().SingleInstance();
         return builder;
     }
