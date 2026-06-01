@@ -12,3 +12,5 @@ src/backend/data/
 bin/
 obj/
 data/
+logs/
+tmp/
