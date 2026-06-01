@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import asyncio
 import importlib.util
 from pathlib import Path
 from typing import Any
@@ -77,12 +78,13 @@ class ModelService:
                 mode="mock",
                 output_text=self._build_mock_output(payload.asset_format, payload.asset_path, prompt),
                 system_prompt=system_prompt,
+                token_usage=None,
             )
 
         if provider_context.provider.lower() != "dashscope":
             raise ValueError(f"当前仅实现 dashscope live 调用，实际 provider 为: {provider_context.provider}")
 
-        output_text = await self._call_dashscope(
+        output_text, usage = await self._call_dashscope(
             provider_context,
             system_prompt,
             prompt,
@@ -97,6 +99,7 @@ class ModelService:
             mode="live",
             output_text=output_text,
             system_prompt=system_prompt,
+            token_usage=usage,
         )
 
     def _resolve_provider_context(self, provider_slot: str) -> ModelRuntimeContext:
@@ -193,11 +196,11 @@ class ModelService:
         asset_format: str,
         asset_path: str,
         model_name: str,
-    ) -> str:
+    ) -> tuple[str, ModelGenerateResponse.TokenUsage | None]:
         provider_manager = ProviderConfigManager(self._providers_path)
         provider_config = provider_manager.get(context.config_slot)
         if asset_format == "文本":
-            return await __import__("asyncio").to_thread(
+            response = await asyncio.to_thread(
                 self._call_generation_sync,
                 provider_config,
                 model_name,
@@ -205,15 +208,17 @@ class ModelService:
                 self._build_text_user_prompt(prompt, asset_path),
                 self._read_text_asset(asset_path),
             )
+            return self._extract_response_text(response), self._extract_token_usage(response)
 
         multimodal_content = self._build_multimodal_content(asset_format, asset_path, prompt)
-        return await __import__("asyncio").to_thread(
+        response = await asyncio.to_thread(
             self._call_multimodal_sync,
             provider_config,
             model_name,
             system_prompt,
             multimodal_content,
         )
+        return self._extract_response_text(response), self._extract_token_usage(response)
 
     def _supports_live_call(self, provider: ProviderConfig) -> bool:
         if not provider.api_key:
@@ -227,7 +232,7 @@ class ModelService:
         system_prompt: str,
         user_prompt: str,
         text_content: str,
-    ) -> str:
+    ) -> Any:
         try:
             from dashscope import Generation
         except ImportError as exc:
@@ -247,7 +252,7 @@ class ModelService:
             result_format="message",
         )
 
-        return self._extract_response_text(response)
+        return response
 
     def _call_multimodal_sync(
         self,
@@ -255,7 +260,7 @@ class ModelService:
         model_name: str,
         system_prompt: str,
         multimodal_content: list[dict[str, Any]],
-    ) -> str:
+    ) -> Any:
         try:
             from dashscope import MultiModalConversation
         except ImportError as exc:
@@ -271,7 +276,7 @@ class ModelService:
             model=model_name,
             messages=messages,
         )
-        return self._extract_response_text(response)
+        return response
 
     def _extract_response_text(self, response: Any) -> str:
         output = getattr(response, "output", None)
@@ -302,6 +307,88 @@ class ModelService:
             return "\n".join(parts).strip()
 
         raise RuntimeError(f"无法解析模型输出文本: {response}")
+
+    def _extract_token_usage(self, response: Any) -> ModelGenerateResponse.TokenUsage | None:
+        usage = getattr(response, "usage", None)
+        if usage is None and isinstance(response, dict):
+            usage = response.get("usage")
+
+        if usage is None:
+            return None
+
+        input_tokens = self._read_usage_value(usage, ("input_tokens", "prompt_tokens"))
+        output_tokens = self._read_usage_value(usage, ("output_tokens", "completion_tokens"))
+        total_tokens = self._read_usage_value(usage, ("total_tokens",))
+        image_tokens = self._read_usage_value(usage, ("image_tokens",))
+        video_tokens = self._read_usage_value(usage, ("video_tokens",))
+        audio_tokens = self._read_usage_value(usage, ("audio_tokens",))
+
+        if (
+            input_tokens is None
+            and output_tokens is None
+            and total_tokens is None
+            and image_tokens is None
+            and video_tokens is None
+            and audio_tokens is None
+        ):
+            return None
+
+        return ModelGenerateResponse.TokenUsage(
+            input_tokens=input_tokens or 0,
+            output_tokens=output_tokens or 0,
+            total_tokens=total_tokens or (input_tokens or 0) + (output_tokens or 0),
+            image_tokens=image_tokens,
+            video_tokens=video_tokens,
+            audio_tokens=audio_tokens,
+            input_tokens_details=self._read_usage_details(usage, ("input_tokens_details",)),
+            output_tokens_details=self._read_usage_details(usage, ("output_tokens_details",)),
+            prompt_tokens_details=self._read_usage_details(usage, ("prompt_tokens_details",)),
+        )
+
+    def _read_usage_value(self, usage: Any, keys: tuple[str, ...]) -> int | None:
+        for key in keys:
+            value = self._read_usage_field(usage, key)
+            if value is not None:
+                return value
+
+        models = self._read_usage_field(usage, "models")
+        if isinstance(models, list):
+            total = 0
+            found = False
+            for item in models:
+                if not isinstance(item, dict):
+                    continue
+                for key in keys:
+                    value = item.get(key)
+                    if value is not None:
+                        try:
+                            total += int(value)
+                            found = True
+                        except (TypeError, ValueError):
+                            continue
+                        break
+            if found:
+                return total
+
+        return None
+
+    def _read_usage_details(self, usage: Any, keys: tuple[str, ...]) -> dict[str, Any] | None:
+        for key in keys:
+            value = self._read_usage_field(usage, key)
+            if isinstance(value, dict):
+                return value
+            if value is not None:
+                return {"value": value}
+        return None
+
+    def _read_usage_field(self, usage: Any, key: str) -> Any:
+        try:
+            value = getattr(usage, key, None)
+        except KeyError:
+            value = None
+        if value is None and isinstance(usage, dict):
+            value = usage.get(key)
+        return value
 
     def _build_text_user_prompt(self, prompt: str, asset_path: str) -> str:
         parts: list[str] = [f"素材绝对路径：{asset_path}"]

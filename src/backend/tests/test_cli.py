@@ -18,6 +18,11 @@ class CliTestCase(unittest.TestCase):
             mode="mock",
             output_text="标签：日常对话；主题：说明文本",
             system_prompt="你是 Assets Library System 的文本素材打标助手。",
+            token_usage=ModelGenerateResponse.TokenUsage(
+                input_tokens=12,
+                output_tokens=34,
+                total_tokens=46,
+            ),
         )
 
         with patch("app.cli.ModelService") as mock_service_cls:
@@ -39,6 +44,7 @@ class CliTestCase(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         output = buffer.getvalue()
         self.assertIn("模式: mock", output)
+        self.assertIn("Token: input=12, output=34, total=46", output)
         self.assertIn("输出:", output)
         self.assertIn("标签：日常对话", output)
 

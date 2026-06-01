@@ -88,6 +88,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"模式: {response.mode}")
     print(f"提供商: {response.provider}")
     print(f"模型: {response.model}")
+    if response.token_usage is not None:
+        print(
+            "Token: "
+            f"input={response.token_usage.input_tokens}, "
+            f"output={response.token_usage.output_tokens}, "
+            f"total={response.token_usage.total_tokens}"
+        )
     print(f"输出:\n{response.output_text}")
     return 0
 

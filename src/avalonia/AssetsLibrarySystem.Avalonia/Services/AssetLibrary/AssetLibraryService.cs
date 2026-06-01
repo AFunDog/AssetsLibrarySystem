@@ -13,7 +13,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
 {
     private static readonly HashSet<string> TextExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".txt", ".md", ".json", ".yaml", ".yml", ".csv", ".log", ".xml"
+        ".txt", ".md", ".yaml", ".yml", ".csv", ".log", ".xml"
     };
 
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)

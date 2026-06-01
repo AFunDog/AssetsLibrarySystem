@@ -1,10 +1,12 @@
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -16,18 +18,26 @@ public partial class MainWindowViewModel : ObservableObject
 {
     private IAssetLibraryService? AssetLibraryService { get; }
     private IBackendLauncher? BackendLauncher { get; }
+    private IAssetDescriptionService? AssetDescriptionService { get; }
+    private IAssetDescriptionStore? AssetDescriptionStore { get; }
     private List<ManagedAssetRecord> AllAssets { get; } = [];
     private bool SuppressLibrarySelectionLoad { get; set; }
     private bool IsLibraryScanRunning { get; set; }
 
-    public MainWindowViewModel() : this(null, null)
+    public MainWindowViewModel() : this(null, null, null, null)
     {
     }
 
-    public MainWindowViewModel(IBackendLauncher? backendLauncher, IAssetLibraryService? assetLibraryService)
+    public MainWindowViewModel(
+        IBackendLauncher? backendLauncher,
+        IAssetLibraryService? assetLibraryService,
+        IAssetDescriptionService? assetDescriptionService,
+        IAssetDescriptionStore? assetDescriptionStore)
     {
         BackendLauncher = backendLauncher;
         AssetLibraryService = assetLibraryService;
+        AssetDescriptionService = assetDescriptionService;
+        AssetDescriptionStore = assetDescriptionStore;
 
         Metrics = new ObservableCollection<DashboardMetric>();
         AssetTreeRoots = [];
@@ -44,7 +54,7 @@ public partial class MainWindowViewModel : ObservableObject
         WorkspaceSummary = "先登记素材库目录，再扫描本地文件，桌面端负责目录和元数据展示。";
         AssetSummary = "当前还没有扫描结果。选择一个素材库后，点击“扫描当前素材库”加载文件。";
         OperatorNotice = "先在桌面端选择一个文件夹并登记为素材库目录，再触发扫描。";
-        PromptDraft = "请基于当前素材生成一段适合检索与人工校对的中文描述。";
+        PromptDraft = "请基于当前素材生成一段准确、简洁、全面的中文描述。";
         SelectedAssetName = "尚未选择素材";
         SelectedAssetLibrary = "请先添加并扫描一个素材库";
         SelectedAssetPath = "当前未加载本地文件路径";
@@ -56,6 +66,7 @@ public partial class MainWindowViewModel : ObservableObject
         SeedStaticData();
         RebuildMetrics();
         SetEmptyWorkspaceState();
+        ResetSelectedAssetDescription();
     }
 
     public ObservableCollection<DashboardMetric> Metrics { get; }
@@ -116,6 +127,33 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string SelectedAssetDetail { get; set; }
+
+    [ObservableProperty]
+    public partial AssetDescriptionDocument? SelectedAssetDescription { get; set; }
+
+    [ObservableProperty]
+    public partial string SelectedAssetDescriptionState { get; set; }
+
+    [ObservableProperty]
+    public partial string SelectedAssetDescriptionStorePath { get; set; }
+
+    [ObservableProperty]
+    public partial string SelectedAssetDescriptionGeneratedAt { get; set; }
+
+    [ObservableProperty]
+    public partial string SelectedAssetDescriptionMode { get; set; }
+
+    [ObservableProperty]
+    public partial string SelectedAssetDescriptionTokenUsage { get; set; }
+
+    [ObservableProperty]
+    public partial string SelectedAssetDescriptionPrompt { get; set; }
+
+    [ObservableProperty]
+    public partial string SelectedAssetDescriptionSystemPrompt { get; set; }
+
+    [ObservableProperty]
+    public partial string SelectedAssetDescriptionText { get; set; }
 
     [ObservableProperty]
     public partial AssetLibraryTreeNode? SelectedAssetTreeNode { get; set; }
@@ -189,6 +227,7 @@ public partial class MainWindowViewModel : ObservableObject
     partial void OnSelectedAssetChanged(ManagedAssetRecord? value)
     {
         UpdateSelectedAssetDetails(value);
+        _ = LoadSelectedAssetDescriptionAsync(value);
     }
 
     partial void OnSelectedAssetTreeNodeChanged(AssetLibraryTreeNode? value)
@@ -205,10 +244,11 @@ public partial class MainWindowViewModel : ObservableObject
             SelectedAssetName = "尚未选择素材";
             SelectedAssetLibrary = "请先扫描一个素材库";
             SelectedAssetPath = "当前未加载本地文件路径";
-            SelectedAssetType = "未选择";
-            SelectedAssetStage = "待选择";
-            SelectedAssetAiState = "未排队";
-            SelectedAssetDetail = "右侧详情区域会展示当前素材的路径、类型和扫描结果。";
+        SelectedAssetType = "未选择";
+        SelectedAssetStage = "待选择";
+        SelectedAssetAiState = "未排队";
+        SelectedAssetDetail = "右侧详情区域会展示当前素材的路径、类型和扫描结果。";
+        ResetSelectedAssetDescription();
             return;
         }
 
@@ -224,7 +264,8 @@ public partial class MainWindowViewModel : ObservableObject
             SelectedAssetTags.Add(tag);
         }
 
-        PromptDraft = $"请围绕素材“{value.Name}”输出更适合检索的中文描述和标签建议。";
+        PromptDraft = $"请围绕素材“{value.Name}”输出一段准确、简洁、全面的中文描述。";
+        ResetSelectedAssetDescription();
     }
 
     [RelayCommand]
@@ -252,7 +293,7 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void QueueDescription()
+    private async Task QueueDescription()
     {
         if (SelectedAsset is null)
         {
@@ -260,11 +301,46 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        SelectedAsset.Stage = "待模型描述";
-        SelectedAsset.AiState = "待发送到 HTTP 服务";
+        if (BackendLauncher?.IsRunning != true)
+        {
+            OperatorNotice = "Python 模型服务尚未就绪，请先等待后端启动完成。";
+            return;
+        }
+
+        if (AssetDescriptionService is null)
+        {
+            OperatorNotice = "描述服务未注册，当前无法调用后端。";
+            return;
+        }
+
+        SelectedAsset.Stage = "描述中";
+        SelectedAsset.AiState = "已发送到 Python HTTP 服务";
         SyncSelectedAssetFields();
-        OperatorNotice = $"已为 {SelectedAsset.Name} 排入描述任务，后续由 Python HTTP 服务处理提示词。";
+        OperatorNotice = $"已为 {SelectedAsset.Name} 排入描述任务，正在调用后端服务。";
         ActivityFeed.Insert(0, $"描述任务排队：{SelectedAsset.Name}");
+
+        try
+        {
+            var document = await AssetDescriptionService.DescribeAsync(
+                SelectedAsset,
+                BackendLauncher.BaseUrl,
+                prompt: null,
+                systemPrompt: null);
+
+            SelectedAsset.Stage = document.Mode == "live" ? "已描述" : "已描述（占位）";
+            ApplySelectedAssetDescription(document);
+            SyncSelectedAssetFields();
+            OperatorNotice = $"描述已写入 SQLite：{document.StorePath}";
+            ActivityFeed.Insert(0, $"描述完成：{SelectedAsset.Name} -> {document.StorePath}");
+        }
+        catch (Exception ex)
+        {
+            SelectedAsset.Stage = "描述失败";
+            SelectedAsset.AiState = "调用后端失败";
+            SyncSelectedAssetFields();
+            OperatorNotice = $"描述任务失败：{ex.Message}";
+            ActivityFeed.Insert(0, $"描述失败：{SelectedAsset.Name} -> {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -297,6 +373,36 @@ public partial class MainWindowViewModel : ObservableObject
         SyncSelectedAssetFields();
         OperatorNotice = $"{SelectedAsset.Name} 已切换到 .NET 素材管理视图。";
         ActivityFeed.Insert(0, $"状态更新：{SelectedAsset.Name} -> 桌面端已接管");
+    }
+
+    [RelayCommand]
+    private void RevealInFileExplorer(AssetLibraryTreeNode? node)
+    {
+        if (node is null || string.IsNullOrWhiteSpace(node.FullPath))
+        {
+            OperatorNotice = "当前节点没有可打开的本地路径。";
+            return;
+        }
+
+        var path = Path.GetFullPath(node.FullPath);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            UseShellExecute = true,
+        };
+
+        if (node.Kind == AssetLibraryTreeNodeKind.File)
+        {
+            startInfo.Arguments = $"/select,\"{path}\"";
+        }
+        else
+        {
+            startInfo.Arguments = $"\"{path}\"";
+        }
+
+        Process.Start(startInfo);
+        OperatorNotice = $"已在文件资源管理器中显示：{path}";
+        ActivityFeed.Insert(0, $"资源管理器定位：{node.DisplayName}");
     }
 
     [RelayCommand]
@@ -699,7 +805,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         ActivityFeed.Clear();
         ActivityFeed.Add("桌面端作为素材管理主入口，先固定本地工作流边界。");
-        ActivityFeed.Add("本地素材库目录会持久化为 JSON，并由 .NET 负责目录扫描与文件展示。");
+        ActivityFeed.Add("本地素材库目录会持久化为 JSON，素材描述会统一写入 SQLite 并由 .NET 负责读取展示。");
         ActivityFeed.Add("Python 进程仅暴露 HTTP 模型能力，避免再次把素材管理逻辑塞回后端。");
     }
 
@@ -722,5 +828,97 @@ public partial class MainWindowViewModel : ObservableObject
         SelectedAssetAiState = SelectedAsset.AiState;
         RebuildAssetTree();
         SelectedAssetTreeNode = FindAssetTreeNode(SelectedAsset.Id);
+    }
+
+    private async Task LoadSelectedAssetDescriptionAsync(ManagedAssetRecord? asset)
+    {
+        if (asset is null)
+        {
+            ResetSelectedAssetDescription();
+            return;
+        }
+
+        if (AssetDescriptionStore is null)
+        {
+            ResetSelectedAssetDescription();
+            SelectedAssetDescriptionState = "描述存储未注册";
+            SelectedAssetDescriptionStorePath = "SQLite 存储未就绪";
+            SelectedAssetDescriptionText = "当前环境尚未注入描述 SQLite 存储。";
+            return;
+        }
+
+        try
+        {
+            var document = await AssetDescriptionStore.TryGetAsync(asset.Id);
+
+            if (document is null)
+            {
+                ResetSelectedAssetDescription();
+                SelectedAssetDescriptionState = "当前素材尚未生成 AI 描述";
+                SelectedAssetDescriptionStorePath = AssetDescriptionStore.DatabasePath;
+                SelectedAssetDescriptionText = "点击“排入描述任务”后，这里会展示 AI 返回的中文描述。";
+                return;
+            }
+
+            ApplySelectedAssetDescription(document);
+        }
+        catch (Exception ex)
+        {
+            ResetSelectedAssetDescription();
+            SelectedAssetDescriptionState = "描述记录读取失败";
+            SelectedAssetDescriptionStorePath = AssetDescriptionStore.DatabasePath;
+            SelectedAssetDescriptionText = ex.Message;
+        }
+    }
+
+    private void ApplySelectedAssetDescription(AssetDescriptionDocument? document)
+    {
+        SelectedAssetDescription = document;
+
+        if (document is null)
+        {
+            ResetSelectedAssetDescription();
+            return;
+        }
+
+        var tokenUsage = document.TokenUsage is null
+            ? "未返回 token 用量"
+            : FormatTokenUsage(document.TokenUsage);
+
+        SelectedAssetDescriptionState = document.Mode == "live" ? "已生成" : "已生成（占位）";
+        SelectedAssetDescriptionStorePath = document.StorePath;
+        SelectedAssetDescriptionGeneratedAt = document.GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+        SelectedAssetDescriptionMode = document.Mode;
+        SelectedAssetDescriptionTokenUsage = tokenUsage;
+        SelectedAssetDescriptionPrompt = string.IsNullOrWhiteSpace(document.Prompt)
+            ? "使用配置中的默认 prompt。"
+            : document.Prompt;
+        SelectedAssetDescriptionSystemPrompt = string.IsNullOrWhiteSpace(document.SystemPrompt)
+            ? "使用配置中的默认 system prompt。"
+            : document.SystemPrompt;
+        SelectedAssetDescriptionText = document.Description;
+        SelectedAssetAiState = $"SQLite 已保存 · {tokenUsage}";
+        SelectedAssetDetail = document.Description;
+    }
+
+    private void ResetSelectedAssetDescription()
+    {
+        SelectedAssetDescription = null;
+        SelectedAssetDescriptionState = "未生成 AI 描述";
+        SelectedAssetDescriptionStorePath = "尚未生成描述记录";
+        SelectedAssetDescriptionGeneratedAt = "未生成";
+        SelectedAssetDescriptionMode = "未生成";
+        SelectedAssetDescriptionTokenUsage = "未返回 token 用量";
+        SelectedAssetDescriptionPrompt = "尚未生成 prompt。";
+        SelectedAssetDescriptionSystemPrompt = "尚未生成 system prompt。";
+        SelectedAssetDescriptionText = "当前素材还没有可显示的 AI 描述。";
+    }
+
+    private static string FormatTokenUsage(AssetDescriptionTokenUsage usage)
+    {
+        var baseText = $"input={usage.InputTokens}, output={usage.OutputTokens}, total={usage.TotalTokens}";
+        return usage.ImageTokens is null && usage.VideoTokens is null && usage.AudioTokens is null
+            ? baseText
+            : $"{baseText}; image={usage.ImageTokens ?? 0}, video={usage.VideoTokens ?? 0}, audio={usage.AudioTokens ?? 0}";
     }
 }

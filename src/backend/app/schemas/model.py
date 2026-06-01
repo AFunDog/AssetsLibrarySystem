@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -25,12 +26,27 @@ class ModelGenerateRequest(BaseModel):
 
 
 class ModelGenerateResponse(BaseModel):
+    class TokenUsage(BaseModel):
+        input_tokens: int = Field(ge=0)
+        output_tokens: int = Field(ge=0)
+        total_tokens: int = Field(ge=0)
+        image_tokens: int | None = Field(default=None, ge=0)
+        video_tokens: int | None = Field(default=None, ge=0)
+        audio_tokens: int | None = Field(default=None, ge=0)
+        input_tokens_details: dict[str, Any] | None = Field(default=None)
+        output_tokens_details: dict[str, Any] | None = Field(default=None)
+        prompt_tokens_details: dict[str, Any] | None = Field(default=None)
+
     provider_slot: str
     provider: str
     model: str
     mode: Literal["mock", "live"]
     output_text: str
     system_prompt: str
+    token_usage: TokenUsage | None = Field(
+        default=None,
+        description="本次调用消耗的 token 统计；mock 模式下通常为空。",
+    )
 
 
 class ModelCapabilitiesResponse(BaseModel):

@@ -31,6 +31,8 @@
 
 如果 `prompt` 和 `system_prompt` 都不传，后端会根据 `asset_format` 自动读取 `configs/prompts.yaml` 中对应的系统提示词和默认提示词。当前默认提示词配置为空，后端会把素材格式和绝对路径一并带入实际请求上下文。
 
+接口返回会同时带上 token 用量统计 `token_usage`，其字段与百炼官方 `usage` 保持一致，核心包括 `input_tokens`、`output_tokens`、`total_tokens`，并尽量透传 `input_tokens_details`、`output_tokens_details`、`prompt_tokens_details` 等细分信息。如果是 mock 模式或底层响应未提供 usage，则该字段为空。
+
 `configs/providers.yaml` 也已经按素材类型分组，分别为 `文本`、`图片`、`视频`、`音频` 配置独立模型。后端会优先读取与 `asset_format` 同名的槽位，再按兼容顺序回退到 `llm_gateway`、`asset_describer` 或第一个可用槽位。
 
 `api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取环境变量 `DASHSCOPE_API_KEY`。

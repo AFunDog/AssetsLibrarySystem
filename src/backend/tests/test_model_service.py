@@ -157,6 +157,72 @@ class ModelServiceTestCase(unittest.TestCase):
         self.assertEqual(text_config.api_key, "sk-shared")
         self.assertEqual(text_config.api_key, image_config.api_key)
 
+    def test_extract_token_usage_reads_dashscope_response(self) -> None:
+        service = ModelService()
+        response = {
+            "usage": {
+                "input_tokens": 11,
+                "output_tokens": 7,
+                "total_tokens": 18,
+                "input_tokens_details": {
+                    "cached_tokens": 3,
+                },
+                "output_tokens_details": {
+                    "reasoning_tokens": 2,
+                },
+                "prompt_tokens_details": {
+                    "cached_tokens": 3,
+                },
+            }
+        }
+
+        usage = service._extract_token_usage(response)
+
+        self.assertIsNotNone(usage)
+        self.assertEqual(usage.input_tokens, 11)
+        self.assertEqual(usage.output_tokens, 7)
+        self.assertEqual(usage.total_tokens, 18)
+        self.assertEqual(usage.input_tokens_details, {"cached_tokens": 3})
+        self.assertEqual(usage.output_tokens_details, {"reasoning_tokens": 2})
+        self.assertEqual(usage.prompt_tokens_details, {"cached_tokens": 3})
+
+    def test_extract_token_usage_reads_dashscope_input_output_schema(self) -> None:
+        service = ModelService()
+        response = {
+            "usage": {
+                "input_tokens": 22,
+                "output_tokens": 17,
+            }
+        }
+
+        usage = service._extract_token_usage(response)
+
+        self.assertIsNotNone(usage)
+        self.assertEqual(usage.input_tokens, 22)
+        self.assertEqual(usage.output_tokens, 17)
+        self.assertEqual(usage.total_tokens, 39)
+
+    def test_extract_token_usage_reads_dashscope_models_schema(self) -> None:
+        service = ModelService()
+        response = {
+            "usage": {
+                "models": [
+                    {
+                        "model_id": "qwen-plus",
+                        "input_tokens": 75,
+                        "output_tokens": 36,
+                    }
+                ]
+            }
+        }
+
+        usage = service._extract_token_usage(response)
+
+        self.assertIsNotNone(usage)
+        self.assertEqual(usage.input_tokens, 75)
+        self.assertEqual(usage.output_tokens, 36)
+        self.assertEqual(usage.total_tokens, 111)
+
     def _build_fake_provider_manager(
         self,
         *,

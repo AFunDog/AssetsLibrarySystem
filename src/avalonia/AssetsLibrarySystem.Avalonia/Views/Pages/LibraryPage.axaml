@@ -306,6 +306,13 @@
                                 <TreeDataTemplate x:DataType="models:AssetLibraryTreeNode"
                                                   ItemsSource="{Binding Children}">
                                     <Border Classes="tree-node-surface">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="在文件资源管理器中显示"
+                                                          Click="RevealInExplorer_Click"
+                                                          CommandParameter="{Binding}" />
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
                                         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
                                             <Border Width="22"
                                                     Height="22"
@@ -396,6 +403,68 @@
                                         <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
                                                    TextWrapping="Wrap"
                                                    Text="{Binding SelectedAssetDetail}" />
+                                    </Border>
+
+                                    <Border Classes="soft-surface">
+                                        <StackPanel Spacing="12">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Classes="eyebrow" Text="AI Description" />
+                                                <TextBlock Classes="section-title"
+                                                           FontSize="18"
+                                                           Text="{Binding SelectedAssetDescriptionState}" />
+                                                <TextBlock Classes="section-subtitle"
+                                                           Text="{Binding SelectedAssetDescriptionGeneratedAt, StringFormat=生成时间：{0}}" />
+                                            </StackPanel>
+
+                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                       TextWrapping="Wrap"
+                                                       Text="{Binding SelectedAssetDescriptionText}" />
+
+                                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                                                <Border Classes="soft-surface">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock Classes="eyebrow" Text="SQLite" />
+                                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="{Binding SelectedAssetDescriptionStorePath}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border Grid.Column="1" Classes="soft-surface">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock Classes="eyebrow" Text="Mode" />
+                                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                   Text="{Binding SelectedAssetDescriptionMode}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border Grid.Row="1" Classes="soft-surface" Grid.ColumnSpan="2">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock Classes="eyebrow" Text="Token Usage" />
+                                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="{Binding SelectedAssetDescriptionTokenUsage}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border Grid.Row="2" Classes="soft-surface" Grid.ColumnSpan="2">
+                                                    <StackPanel Spacing="8">
+                                                        <StackPanel Spacing="4">
+                                                            <TextBlock Classes="eyebrow" Text="Prompt" />
+                                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                       TextWrapping="Wrap"
+                                                                       Text="{Binding SelectedAssetDescriptionPrompt}" />
+                                                        </StackPanel>
+                                                        <StackPanel Spacing="4">
+                                                            <TextBlock Classes="eyebrow" Text="System Prompt" />
+                                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                       TextWrapping="Wrap"
+                                                                       Text="{Binding SelectedAssetDescriptionSystemPrompt}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+                                        </StackPanel>
                                     </Border>
 
                                     <ItemsControl ItemsSource="{Binding SelectedAssetTags}">

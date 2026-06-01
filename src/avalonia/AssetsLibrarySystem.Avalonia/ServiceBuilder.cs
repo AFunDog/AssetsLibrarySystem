@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Autofac;
+using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.ViewModels;
@@ -32,6 +33,8 @@ public static class ServiceBuilder
         builder.RegisterInstance(CreateConfiguration()).As<IConfiguration>().SingleInstance();
         builder.RegisterModule<BackendLauncherModule>();
         builder.RegisterType<AssetLibraryService>().As<IAssetLibraryService>().SingleInstance();
+        builder.RegisterType<AssetDescriptionStore>().As<IAssetDescriptionStore>().SingleInstance();
+        builder.RegisterType<AssetDescriptionService>().As<IAssetDescriptionService>().SingleInstance();
 
         // 注册 ViewModels（自动注入构造函数参数）
         builder.RegisterType<MainWindowViewModel>().AsSelf().InstancePerDependency();
