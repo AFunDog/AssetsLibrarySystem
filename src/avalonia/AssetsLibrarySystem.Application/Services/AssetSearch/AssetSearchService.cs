@@ -62,16 +62,18 @@ public sealed class AssetSearchService : IAssetSearchService
             EmbeddingModel: backendResponse.EmbeddingModel,
             RerankModel: backendResponse.RerankModel,
             Results: backendResponse.Results.Select(item =>
-                new AssetSearchDocument(
-                    AssetId: item.AssetId,
-                    AssetName: item.AssetName,
-                    AssetType: item.AssetFormat,
-                    AssetPath: item.AssetPath,
-                    Description: item.Description,
-                    SourceStorePath: item.SourceStorePath,
-                    GeneratedAt: item.GeneratedAt,
-                    EmbeddingSimilarity: item.EmbeddingSimilarity,
-                    RerankScore: item.RerankScore)).ToArray());
+                new AssetSearchDocument
+                {
+                    AssetId = item.AssetId,
+                    AssetName = item.AssetName,
+                    AssetType = item.AssetFormat,
+                    AssetPath = item.AssetPath,
+                    Description = item.Description,
+                    SourceStorePath = item.SourceStorePath,
+                    GeneratedAt = item.GeneratedAt,
+                    EmbeddingSimilarity = item.EmbeddingSimilarity,
+                    RerankScore = item.RerankScore,
+                }).ToArray());
     }
 
     public async Task<AssetReindexResponseDocument> ReindexAsync(

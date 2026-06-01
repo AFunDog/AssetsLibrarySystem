@@ -2,16 +2,44 @@ using System;
 
 namespace AssetsLibrarySystem.Avalonia.Models;
 
-public sealed record AssetSearchDocument(
-    string AssetId,
-    string AssetName,
-    string AssetType,
-    string AssetPath,
-    string Description,
-    string? SourceStorePath,
-    DateTimeOffset? GeneratedAt,
-    float EmbeddingSimilarity,
-    float RerankScore);
+public sealed class AssetSearchDocument
+{
+    public AssetSearchDocument()
+    {
+    }
+
+    public AssetSearchDocument(
+        string assetId,
+        string assetName,
+        string assetType,
+        string assetPath,
+        string description,
+        string? sourceStorePath,
+        DateTimeOffset? generatedAt,
+        float embeddingSimilarity,
+        float rerankScore)
+    {
+        AssetId = assetId;
+        AssetName = assetName;
+        AssetType = assetType;
+        AssetPath = assetPath;
+        Description = description;
+        SourceStorePath = sourceStorePath;
+        GeneratedAt = generatedAt;
+        EmbeddingSimilarity = embeddingSimilarity;
+        RerankScore = rerankScore;
+    }
+
+    public string AssetId { get; set; } = string.Empty;
+    public string AssetName { get; set; } = string.Empty;
+    public string AssetType { get; set; } = string.Empty;
+    public string AssetPath { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string? SourceStorePath { get; set; }
+    public DateTimeOffset? GeneratedAt { get; set; }
+    public float EmbeddingSimilarity { get; set; }
+    public float RerankScore { get; set; }
+}
 
 public sealed record AssetSearchResponseDocument(
     string Query,

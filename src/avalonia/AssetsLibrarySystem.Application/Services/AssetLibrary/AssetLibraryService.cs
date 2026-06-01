@@ -104,7 +104,9 @@ public sealed class AssetLibraryService : IAssetLibraryService
     {
         ct.ThrowIfCancellationRequested();
 
-        return Task.FromResult<IReadOnlyList<ManagedAssetRecord>>(BuildRecordsForDirectory(library.RootPath, library));
+        return Task.Run<IReadOnlyList<ManagedAssetRecord>>(
+            () => BuildRecordsForDirectory(library.RootPath, library),
+            ct);
     }
 
     private ManagedAssetRecord BuildAssetRecord(LibraryWorkspace library, string fullPath)

@@ -201,7 +201,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
         else
         {
-            await InitializeBackendAsync();
+            _ = InitializeBackendAsync();
         }
 
         await LoadLibrariesAsync();
@@ -658,8 +658,18 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        SelectedLibrary = Libraries[0];
-        SelectedAssetTreeNode = FindLibraryTreeNode(Libraries[0].Id);
+        var firstLibrary = Libraries[0];
+        SuppressLibrarySelectionLoad = true;
+        SelectedLibrary = firstLibrary;
+        SuppressLibrarySelectionLoad = false;
+
+        WorkspaceTitle = firstLibrary.Name;
+        WorkspaceSummary = firstLibrary.RootPath;
+        AssetSummary = "素材库目录已载入，素材文件正在后台异步加载。";
+        OperatorNotice = "素材库列表已加载完成，文件数据正在后台同步。";
+        SelectedAssetTreeNode = FindLibraryTreeNode(firstLibrary.Id);
+
+        _ = LoadAllLibraryDataAsync();
     }
 
     private async Task LoadSelectedLibraryAsync(LibraryWorkspace? library)
@@ -678,13 +688,59 @@ public partial class MainWindowViewModel : ObservableObject
             ? $"当前素材库已加载 {library.AssetCount} 个支持的素材文件。"
             : library.Summary;
 
-        if (!AllAssets.Any(asset => asset.LibraryName == library.Name))
+        RebuildVisibleAssets(library);
+    }
+
+    private async Task LoadAllLibraryDataAsync()
+    {
+        if (AssetLibraryService is null || Libraries.Count == 0)
         {
-            await ScanLibraryCoreAsync(library);
             return;
         }
 
-        RebuildVisibleAssets(library);
+        try
+        {
+            OperatorNotice = "正在后台异步加载全部素材库文件数据...";
+
+            foreach (var library in Libraries.ToList())
+            {
+                var assets = await AssetLibraryService.ScanLibraryAsync(library);
+
+                AllAssets.RemoveAll(asset => asset.LibraryName == library.Name);
+                AllAssets.AddRange(assets);
+
+                library.AssetCount = assets.Count;
+                library.SyncMode = "已加载";
+                library.Summary = assets.Count == 0
+                    ? "目录中没有找到受支持的文本、图片、视频或音频文件。"
+                    : $"已加载 {assets.Count} 个素材文件，可在右侧列表查看。";
+
+                RebuildAssetTree();
+                RebuildMetrics();
+
+                if (SelectedLibrary?.Id == library.Id)
+                {
+                    RebuildVisibleAssets(library);
+                    WorkspaceTitle = library.Name;
+                    WorkspaceSummary = library.RootPath;
+                    AssetSummary = library.Summary;
+                }
+
+                ActivityFeed.Insert(0, $"素材库数据已加载：{library.Name}，共 {assets.Count} 个素材文件。");
+            }
+
+            if (SelectedLibrary is not null)
+            {
+                RebuildVisibleAssets(SelectedLibrary);
+            }
+
+            OperatorNotice = "全部素材库文件数据已加载完成。";
+        }
+        catch (Exception ex)
+        {
+            OperatorNotice = $"素材库数据加载失败：{ex.Message}";
+            ActivityFeed.Insert(0, $"素材库数据加载失败：{ex.Message}");
+        }
     }
 
     private async Task ScanLibraryCoreAsync(LibraryWorkspace library)
