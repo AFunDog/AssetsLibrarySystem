@@ -99,6 +99,7 @@ public sealed class ConsoleCommandRunner
         return args[0].ToLowerInvariant() switch
         {
             "describe" => await DescribeAssetAsync(args.Skip(1).ToArray()),
+            "describe-dir" => await DescribeDirectoryAsync(args.Skip(1).ToArray()),
             _ => PrintAssetHelpAndFail()
         };
     }
@@ -218,18 +219,8 @@ public sealed class ConsoleCommandRunner
         await BackendLauncher.StartAsync();
         try
         {
-            var document = await DescriptionService.DescribeAsync(
-                asset,
-                BackendLauncher.BaseUrl,
-                prompt,
-                systemPrompt);
-
-            Console.WriteLine("描述生成完成。");
-            Console.WriteLine($"- 素材: {document.AssetName}");
-            Console.WriteLine($"- 存储: {document.StorePath}");
-            Console.WriteLine($"- 模式: {document.Mode}");
-            Console.WriteLine($"- 时间: {document.GeneratedAt:yyyy-MM-dd HH:mm:ss}");
-            Console.WriteLine($"- 文本: {document.Description}");
+            var document = await DescribeSingleAssetAsync(asset, prompt, systemPrompt);
+            PrintDescriptionResult(document);
         }
         finally
         {
@@ -239,6 +230,103 @@ public sealed class ConsoleCommandRunner
         return 0;
     }
 
+    private async Task<int> DescribeDirectoryAsync(string[] args)
+    {
+        var libraryKey = GetOptionValue(args, "--library")
+            ?? GetOptionValue(args, "-l")
+            ?? args.FirstOrDefault(item => !item.StartsWith('-'));
+        var folderKey = GetOptionValue(args, "--folder")
+            ?? GetOptionValue(args, "-f");
+        var prompt = GetOptionValue(args, "--prompt");
+        var systemPrompt = GetOptionValue(args, "--system-prompt") ?? GetOptionValue(args, "--systemprompt");
+
+        if (string.IsNullOrWhiteSpace(libraryKey) || string.IsNullOrWhiteSpace(folderKey))
+        {
+            Console.Error.WriteLine("需要同时提供 --library 和 --folder。");
+            PrintAssetHelp();
+            return 1;
+        }
+
+        var library = await ResolveLibraryAsync(libraryKey);
+        if (library is null)
+        {
+            Console.Error.WriteLine($"未找到素材库：{libraryKey}");
+            return 1;
+        }
+
+        var folderPath = Path.IsPathRooted(folderKey)
+            ? Path.GetFullPath(folderKey)
+            : Path.GetFullPath(Path.Combine(library.RootPath, folderKey));
+
+        if (!Directory.Exists(folderPath))
+        {
+            Console.Error.WriteLine($"未找到文件夹：{folderKey}");
+            return 1;
+        }
+
+        if (!IsSubPathOf(folderPath, library.RootPath))
+        {
+            Console.Error.WriteLine("指定文件夹必须位于该素材库目录内。");
+            return 1;
+        }
+
+        var folderRelativePath = Path.GetRelativePath(library.RootPath, folderPath);
+        if (string.Equals(folderRelativePath, ".", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Error.WriteLine("请指定素材库中的子文件夹，不要直接指定素材库根目录。");
+            return 1;
+        }
+
+        var assets = await LibraryService.ScanLibraryAsync(library);
+        var targetAssets = assets
+            .Where(asset => IsAssetUnderFolder(library.RootPath, folderPath, asset.RelativePath))
+            .ToList();
+        var targetLabel = $"{library.Name} / {folderRelativePath}";
+
+        if (targetAssets.Count == 0)
+        {
+            Console.WriteLine($"描述目标：{targetLabel}");
+            Console.WriteLine("该文件夹下没有可描述的素材。");
+            return 0;
+        }
+
+        Console.WriteLine($"描述目标：{targetLabel}");
+        Console.WriteLine($"素材数量：{targetAssets.Count}");
+
+        var successCount = 0;
+        var failureCount = 0;
+
+        await BackendLauncher.StartAsync();
+        try
+        {
+            for (var index = 0; index < targetAssets.Count; index++)
+            {
+                var asset = targetAssets[index];
+                Console.WriteLine($"[{index + 1}/{targetAssets.Count}] 开始描述：{asset.RelativePath}");
+
+                try
+                {
+                    var document = await DescribeSingleAssetAsync(asset, prompt, systemPrompt);
+                    successCount++;
+                    Console.WriteLine($"[{index + 1}/{targetAssets.Count}] 完成：{asset.RelativePath}");
+                    PrintDescriptionResult(document);
+                }
+                catch (Exception ex)
+                {
+                    failureCount++;
+                    Console.Error.WriteLine($"[{index + 1}/{targetAssets.Count}] 失败：{asset.RelativePath} | {ex.Message}");
+                }
+            }
+        }
+        finally
+        {
+            await BackendLauncher.StopAsync();
+        }
+
+        Console.WriteLine($"批量描述结束：成功 {successCount}，失败 {failureCount}");
+        return failureCount == 0 ? 0 : 1;
+    }
+
     private async Task<LibraryWorkspace?> ResolveLibraryAsync(string key)
     {
         var libraries = await LibraryService.GetLibrariesAsync();
@@ -246,6 +334,35 @@ public sealed class ConsoleCommandRunner
             string.Equals(library.Id, key, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(library.Name, key, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(library.RootPath, key, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsSubPathOf(string candidatePath, string rootPath)
+    {
+        var normalizedCandidate = EnsureTrailingSeparator(Path.GetFullPath(candidatePath));
+        var normalizedRoot = EnsureTrailingSeparator(Path.GetFullPath(rootPath));
+        return normalizedCandidate.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAssetUnderFolder(string libraryRootPath, string folderPath, string assetRelativePath)
+    {
+        var normalizedFolderPath = Path.GetRelativePath(libraryRootPath, folderPath)
+            .Replace('\\', '/')
+            .TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(normalizedFolderPath) || normalizedFolderPath == ".")
+        {
+            return false;
+        }
+
+        var normalizedAssetPath = assetRelativePath.Replace('\\', '/').TrimStart('/');
+        return normalizedAssetPath.Equals(normalizedFolderPath, StringComparison.OrdinalIgnoreCase) ||
+               normalizedAssetPath.StartsWith(normalizedFolderPath + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string EnsureTrailingSeparator(string path)
+    {
+        return path.EndsWith(Path.DirectorySeparatorChar)
+            ? path
+            : path + Path.DirectorySeparatorChar;
     }
 
     private static ManagedAssetRecord? ResolveAsset(IEnumerable<ManagedAssetRecord> assets, string key)
@@ -272,6 +389,28 @@ public sealed class ConsoleCommandRunner
         return null;
     }
 
+    private async Task<AssetDescriptionDocument> DescribeSingleAssetAsync(
+        ManagedAssetRecord asset,
+        string? prompt,
+        string? systemPrompt)
+    {
+        return await DescriptionService.DescribeAsync(
+            asset,
+            BackendLauncher.BaseUrl,
+            prompt,
+            systemPrompt);
+    }
+
+    private static void PrintDescriptionResult(AssetDescriptionDocument document)
+    {
+        Console.WriteLine("描述生成完成。");
+        Console.WriteLine($"- 素材: {document.AssetName}");
+        Console.WriteLine($"- 存储: {document.StorePath}");
+        Console.WriteLine($"- 模式: {document.Mode}");
+        Console.WriteLine($"- 时间: {document.GeneratedAt:yyyy-MM-dd HH:mm:ss}");
+        Console.WriteLine($"- 文本: {document.Description}");
+    }
+
     private static bool IsHelp(string arg)
     {
         return string.Equals(arg, "--help", StringComparison.OrdinalIgnoreCase) ||
@@ -287,11 +426,13 @@ public sealed class ConsoleCommandRunner
               libraries add <folderPath>
               libraries scan <libraryId|libraryName|rootPath>
               assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>]
+              assets describe-dir --library <libraryId|libraryName|rootPath> --folder <relativeFolderPath> [--prompt <prompt>] [--system-prompt <prompt>]
 
             示例:
               libraries add D:\Data\WebGal
               libraries scan 我的素材库
               assets describe --library 我的素材库 --asset background.png
+              assets describe-dir --library 我的素材库 --folder background\bg
             """);
     }
 
@@ -310,6 +451,7 @@ public sealed class ConsoleCommandRunner
         Console.WriteLine("""
             assets 命令:
               assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>]
+              assets describe-dir --library <libraryId|libraryName|rootPath> --folder <relativeFolderPath> [--prompt <prompt>] [--system-prompt <prompt>]
             """);
     }
 
