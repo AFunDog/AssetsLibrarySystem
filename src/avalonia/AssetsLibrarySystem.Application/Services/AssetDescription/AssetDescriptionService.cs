@@ -126,5 +126,4 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         [property: JsonPropertyName("input_tokens_details")] JsonElement? InputTokensDetails,
         [property: JsonPropertyName("output_tokens_details")] JsonElement? OutputTokensDetails,
         [property: JsonPropertyName("prompt_tokens_details")] JsonElement? PromptTokensDetails);
-
 }

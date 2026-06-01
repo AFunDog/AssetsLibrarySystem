@@ -4,10 +4,12 @@
 
 当前阶段已经把职责重新收敛为两部分：
 
-- `Avalonia/.NET` 负责素材管理主流程
+- `Avalonia/.NET` 负责图形界面工作台
+- `Console/.NET` 负责无界面命令行操作
+- `Application/.NET` 负责共享服务、模型和本地存储
 - `Python FastAPI` 只负责大模型 HTTP 服务
 
-也就是说，素材库、目录、元数据和桌面工作流由本地桌面端承担；Python 后端不再包含素材管理功能。
+也就是说，素材库、目录、元数据和工作流由本地 .NET 侧承担；Python 后端不再包含素材管理功能。
 当前桌面端会把素材描述结果集中保存到本地 SQLite，避免把描述文件分散写到每个素材目录下。
 
 ## 目标
@@ -23,7 +25,9 @@ docs/
   architecture.md          # 方案说明与演进路线
 src/
   avalonia/
+    AssetsLibrarySystem.Application/ # 共享服务、模型、本地存储与后端启动器
     AssetsLibrarySystem.Avalonia/ # 桌面端主入口，承担素材管理工作台
+    AssetsLibrarySystem.Console/   # 命令行入口，支持库管理、扫描、描述
   backend/
     app/                   # Python 模型网关
       api/                 # HTTP 路由层

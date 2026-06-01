@@ -11,3 +11,4 @@ src/backend/data/
 .idea/
 bin/
 obj/
+data/

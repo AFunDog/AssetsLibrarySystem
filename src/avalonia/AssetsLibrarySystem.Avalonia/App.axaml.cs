@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using AssetsLibrarySystem.Avalonia.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.ViewModels;
 using AssetsLibrarySystem.Avalonia.Views;
@@ -12,6 +13,8 @@ namespace AssetsLibrarySystem.Avalonia;
 
 public partial class App : Application
 {
+    private ILifetimeScope? Container { get; set; }
+
     public override void Initialize()
     {
         Log.Information("初始化 Avalonia XAML");
@@ -25,8 +28,14 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var viewModel = ServiceBuilder.Services.Resolve<MainWindowViewModel>();
-            var backendLauncher = ServiceBuilder.Services.ResolveOptional<IBackendLauncher>();
+            var builder = ServiceBootstrapper.CreateBuilder();
+            builder.RegisterType<MainWindowViewModel>()
+                .AsSelf()
+                .InstancePerDependency();
+            Container = builder.Build();
+
+            var viewModel = Container.Resolve<MainWindowViewModel>();
+            var backendLauncher = Container.ResolveOptional<IBackendLauncher>();
 
             desktop.MainWindow = new MainWindow
             {
@@ -37,6 +46,7 @@ public partial class App : Application
             {
                 if (backendLauncher is null)
                 {
+                    Container?.Dispose();
                     return;
                 }
 
@@ -49,6 +59,10 @@ public partial class App : Application
                 catch (Exception ex)
                 {
                     Log.Error(ex, "桌面端退出时清理 Python 后端失败");
+                }
+                finally
+                {
+                    Container?.Dispose();
                 }
             };
 

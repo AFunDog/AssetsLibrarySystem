@@ -9,9 +9,6 @@ using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 
-/// <summary>
-/// 通过命令行启动 Python 后端（uvicorn），并轮询 /health 等待就绪。
-/// </summary>
 public sealed class BackendLauncherService : IBackendLauncher
 {
     private BackendLauncherOptions Options { get; }
@@ -49,7 +46,6 @@ public sealed class BackendLauncherService : IBackendLauncher
 
         Log.Information("后端进程已启动，pid={Pid}", BackendProcess.Id);
 
-        // 后台吞掉 stdout/stderr 防止管道阻塞
         _ = BackendProcess.StandardOutput.ReadToEndAsync(ct);
         _ = BackendProcess.StandardError.ReadToEndAsync(ct);
 
@@ -71,7 +67,6 @@ public sealed class BackendLauncherService : IBackendLauncher
         Log.Information("准备停止后端进程，pid={Pid}", BackendProcess.Id);
         BackendProcess.Kill(entireProcessTree: true);
 
-        // 等待进程退出，最多 5 秒
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
         try
@@ -80,7 +75,6 @@ public sealed class BackendLauncherService : IBackendLauncher
         }
         catch (OperationCanceledException)
         {
-            // 超时，忽略
         }
 
         BackendProcess.Dispose();
@@ -94,9 +88,6 @@ public sealed class BackendLauncherService : IBackendLauncher
         Http.Dispose();
     }
 
-    /// <summary>
-    /// 轮询 /health 直到返回 200，或超时。
-    /// </summary>
     private async Task WaitForHealthAsync(CancellationToken ct)
     {
         var healthUrl = $"{BaseUrl}/health";
@@ -121,7 +112,6 @@ public sealed class BackendLauncherService : IBackendLauncher
             }
             catch (HttpRequestException)
             {
-                // 服务还没起来，继续等
             }
 
             await Task.Delay(Options.HealthCheckInterval, ct);

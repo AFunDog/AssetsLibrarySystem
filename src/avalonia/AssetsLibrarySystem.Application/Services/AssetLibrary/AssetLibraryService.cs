@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using AssetsLibrarySystem.Avalonia.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Models;
 
 namespace AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
@@ -41,10 +42,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     public AssetLibraryService()
     {
-        // 素材库登记信息只保存在程序工作目录下的 data 目录。
-        var dataDirectory = Path.Combine(Directory.GetCurrentDirectory(), "data");
-        Directory.CreateDirectory(dataDirectory);
-        StorePath = Path.Combine(dataDirectory, "libraries.json");
+        StorePath = SharedDataPathHelper.GetDataFilePath("libraries.json");
     }
 
     public async Task<IReadOnlyList<LibraryWorkspace>> GetLibrariesAsync(CancellationToken ct = default)
@@ -106,7 +104,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
     {
         ct.ThrowIfCancellationRequested();
 
-        // 只扫描当前支持的文件类型，其他文件保持忽略。
         var files = EnumerateSupportedFiles(library.RootPath)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .Select(path => BuildAssetRecord(library, path))
@@ -143,7 +140,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
             yield break;
         }
 
-        // 使用显式栈遍历，避免递归过深导致的栈溢出。
         var pending = new Stack<string>();
         pending.Push(rootPath);
 
@@ -217,7 +213,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
     private static bool TryClassifyAssetType(string path, out string type)
     {
         var extension = Path.GetExtension(path);
-        // 后续如果扩展素材类型，只需要维护这几组扩展名集合。
         if (TextExtensions.Contains(extension))
         {
             type = "文本";

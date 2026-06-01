@@ -1,8 +1,10 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using AssetsLibrarySystem.Avalonia.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Models;
 using Microsoft.Data.Sqlite;
 
@@ -14,14 +16,14 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     public string DatabasePath { get; }
 
     public AssetDescriptionStore()
     {
-        DatabasePath = AssetDescriptionPathHelper.BuildDatabasePath();
+        DatabasePath = SharedDataPathHelper.GetDataFilePath("asset_descriptions.db");
     }
 
     public async Task SaveAsync(AssetDescriptionDocument document, CancellationToken ct = default)
