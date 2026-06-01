@@ -10,156 +10,90 @@
         d:DesignWidth="1440"
         d:DesignHeight="860"
         Icon="/Assets/avalonia-logo.ico"
-        Title="Assets Library System">
+        Title="Assets Library System"
+        WindowDecorations="BorderOnly"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="30"
+        Background="{DynamicResource AppWindowBackgroundBrush}"
+        Foreground="{DynamicResource AppTextBrush}">
 
     <Design.DataContext>
         <vm:MainWindowViewModel />
     </Design.DataContext>
 
-    <Window.Styles>
-        <Style Selector="Window">
-            <Setter Property="WindowDecorations" Value="BorderOnly" />
-            <Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
-            <Setter Property="ExtendClientAreaTitleBarHeightHint" Value="34" />
-            <Setter Property="Background" Value="{DynamicResource AppWindowBackgroundBrush}" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-        </Style>
-        <Style Selector="Border.shell-header">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="0" />
-            <Setter Property="Padding" Value="0" />
-        </Style>
-        <Style Selector="Border.nav-icon">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="999" />
-            <Setter Property="Width" Value="30" />
-            <Setter Property="Height" Value="30" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="HorizontalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="LucideIcon.shell-glyph">
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0" />
-        </Style>
-        <Style Selector="TextBlock.nav-title">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-        </Style>
-        <Style Selector="TextBlock.nav-subtitle">
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
-        </Style>
-        <Style Selector="Button.window-control">
-            <Setter Property="Width" Value="28" />
-            <Setter Property="Height" Value="28" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="0" />
-        </Style>
-        <Style Selector="Button.window-control:pointerover">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-        </Style>
-        <Style Selector="Button.window-control:pressed">
-            <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
-        </Style>
-        <Style Selector="TabControl.shell-tabs">
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="TabControl.shell-tabs > TabStrip">
-            <Setter Property="Width" Value="280" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="0,8,0,0" />
-        </Style>
-        <Style Selector="TabControl.shell-tabs > ContentPresenter">
-            <Setter Property="Padding" Value="0" />
-        </Style>
-        <Style Selector="TabItem.nav-item">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="{DynamicResource AppMutedTextBrush}" />
-            <Setter Property="MinHeight" Value="56" />
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="Margin" Value="0,0,0,8" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-        <Style Selector="TabItem.nav-item /template/ Border#PART_Border">
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
-            <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
-        <Style Selector="TabItem.nav-item:selected /template/ Border#PART_Border">
-            <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
-        </Style>
-        <Style Selector="TabItem.nav-item:pointerover /template/ Border#PART_Border">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-        </Style>
-        <Style Selector="TabItem.nav-item:selected Border.nav-icon">
-            <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
-        </Style>
-    </Window.Styles>
-
-    <Border Margin="8">
-        <Grid RowDefinitions="Auto,*" RowSpacing="16">
-            <Border Classes="shell-header">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+    <Border Margin="4">
+        <Grid RowDefinitions="Auto,*" RowSpacing="8">
+            <Border Background="Transparent"
+                    BorderThickness="0"
+                    CornerRadius="0"
+                    Padding="0">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
                     <Border WindowDecorationProperties.ElementRole="TitleBar"
                             Background="Transparent"
                             CornerRadius="0"
-                            Padding="0">
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            Padding="12">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <Border Background="{DynamicResource AppAccentSurfaceBrush}"
                                     BorderBrush="{DynamicResource AppAccentBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="8"
-                                    Width="20"
-                                    Height="20"
-                                    Padding="0">
-                                <LucideIcon Classes="shell-glyph" Kind="LibraryBig" Size="12" />
+                                    CornerRadius="4"
+                                    Padding="4">
+                                <LucideIcon HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Margin="0"
+                                            Kind="LibraryBig"
+                                            />
                             </Border>
-                            <StackPanel Spacing="0" VerticalAlignment="Center">
-                                <TextBlock FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource AppTextBrush}"
-                                           Text="Assets Library System" />
-                            </StackPanel>
+                            <TextBlock FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       FontSize="20"
+                                       Foreground="{DynamicResource AppTextBrush}"
+                                       Text="Assets Library System" />
                         </StackPanel>
                     </Border>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <StackPanel.Styles>
+                            <Style Selector="Button.window-control">
+                                <Setter Property="Width" Value="24" />
+                                <Setter Property="Height" Value="24" />
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="CornerRadius" Value="4" />
+                                <Setter Property="Padding" Value="0" />
+                            </Style>
+                            <Style Selector="Button.window-control:pointerover">
+                                <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+                            </Style>
+                            <Style Selector="Button.window-control:pressed">
+                                <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
+                            </Style>
+                        </StackPanel.Styles>
+
                         <Border Background="Transparent"
                                 BorderThickness="0"
                                 CornerRadius="0"
                                 Padding="0">
-                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                 <Border Background="{DynamicResource AppAccentSurfaceBrush}"
                                         BorderBrush="{DynamicResource AppAccentBrush}"
                                         BorderThickness="1"
-                                        CornerRadius="999"
-                                        Width="20"
-                                        Height="20">
-                                    <LucideIcon Classes="shell-glyph" Kind="Bot" Size="12" />
+                                        CornerRadius="4"
+                                        Width="18"
+                                        Height="18">
+                                    <LucideIcon HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Margin="0"
+                                                Kind="Bot"
+                                                Size="10" />
                                 </Border>
                                 <StackPanel Spacing="1">
-                                    <TextBlock FontSize="11"
-                                               FontWeight="SemiBold"
+                                    <TextBlock FontWeight="SemiBold"
                                                Text="{Binding BackendStatusTitle}" />
-                                    <TextBlock FontSize="10"
-                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                Text="{Binding BackendStatusStage}" />
-                                    <TextBlock FontSize="10"
-                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                Text="{Binding BackendEndpoint}" />
                                 </StackPanel>
                             </StackPanel>
@@ -168,31 +102,109 @@
                         <Button WindowDecorationProperties.ElementRole="MinimizeButton"
                                 Classes="window-control"
                                 Click="MinimizeWindow_Click">
-                            <LucideIcon Classes="shell-glyph" Kind="Minus" Size="12" />
+                            <LucideIcon HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Margin="0"
+                                        Kind="Minus"
+                                        Size="12" />
                         </Button>
                         <Button WindowDecorationProperties.ElementRole="MaximizeButton"
                                 Classes="window-control"
                                 Click="ToggleMaximizeWindow_Click">
-                            <LucideIcon Classes="shell-glyph" Kind="Square" Size="12" />
+                            <LucideIcon HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Margin="0"
+                                        Kind="Square"
+                                        Size="12" />
                         </Button>
                         <Button WindowDecorationProperties.ElementRole="CloseButton"
                                 Classes="window-control"
                                 Click="CloseWindow_Click">
-                            <LucideIcon Classes="shell-glyph" Kind="X" Size="12" />
+                            <LucideIcon HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Margin="0"
+                                        Kind="X"
+                                        Size="12" />
                         </Button>
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <TabControl Grid.Row="1" Classes="shell-tabs" TabStripPlacement="Left">
+            <TabControl Grid.Row="1"
+                        Classes="shell-tabs"
+                        Background="Transparent"
+                        TabStripPlacement="Left">
+                <TabControl.Styles>
+                    <Style Selector="TabControl.shell-tabs">
+                        <Setter Property="Background" Value="Transparent" />
+                    </Style>
+                    <Style Selector="TabControl.shell-tabs > TabStrip">
+                        <Setter Property="Width" Value="240" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Padding" Value="0,4,0,0" />
+                    </Style>
+                    <Style Selector="TabControl.shell-tabs > ContentPresenter">
+                        <Setter Property="Padding" Value="0" />
+                    </Style>
+                    <Style Selector="TabItem.nav-item">
+                        <Setter Property="Foreground" Value="{DynamicResource AppMutedTextBrush}" />
+                        <Setter Property="MinHeight" Value="44" />
+                        <Setter Property="Padding" Value="8,6" />
+                        <Setter Property="Margin" Value="0,0,0,4" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="VerticalContentAlignment" Value="Center" />
+                    </Style>
+                    <Style Selector="TabItem.nav-item /template/ Border#PART_Border">
+                        <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+                        <Setter Property="CornerRadius" Value="8" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+                        <Setter Property="BorderThickness" Value="1" />
+                    </Style>
+                    <Style Selector="TabItem.nav-item:selected /template/ Border#PART_Border">
+                        <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+                    </Style>
+                    <Style Selector="TabItem.nav-item:pointerover /template/ Border#PART_Border">
+                        <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+                    </Style>
+                    <Style Selector="TabItem.nav-item:selected Border.nav-icon">
+                        <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+                    </Style>
+                    <Style Selector="Border.nav-icon">
+                        <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+                        <Setter Property="BorderThickness" Value="1" />
+                        <Setter Property="CornerRadius" Value="4" />
+                        <Setter Property="Padding" Value="4" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                        <Setter Property="HorizontalAlignment" Value="Center" />
+                    </Style>
+                    <Style Selector="LucideIcon.nav-icon">
+                        <Setter Property="Margin" Value="4"></Setter>
+                    </Style>
+                    <Style Selector="TabItem.nav-item TextBlock.nav-title">
+                        <Setter Property="FontSize" Value="16"></Setter>
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+                    </Style>
+                    <Style Selector="TabItem.nav-item TextBlock.nav-subtitle">
+                        <Setter Property="FontSize" Value="12"></Setter>
+                        <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+                    </Style>
+                </TabControl.Styles>
+
                 <TabItem Classes="nav-item">
                     <TabItem.Header>
-                        <Grid ColumnDefinitions="36,*" ColumnSpacing="10" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
                             <Border Classes="nav-icon">
-                                <LucideIcon Classes="shell-glyph" Kind="House" />
+                                <LucideIcon  HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Kind="House"
+                                             />
                             </Border>
-                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Classes="nav-title" Text="概览" />
+                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                <TextBlock Classes="nav-title" Text="概览"  />
                                 <TextBlock Classes="nav-subtitle" Text="工作台总览" />
                             </StackPanel>
                         </Grid>
@@ -202,11 +214,14 @@
 
                 <TabItem Classes="nav-item">
                     <TabItem.Header>
-                        <Grid ColumnDefinitions="36,*" ColumnSpacing="10" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
                             <Border Classes="nav-icon">
-                                <LucideIcon Classes="shell-glyph" Kind="LibraryBig" />
+                                <LucideIcon HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Kind="LibraryBig"
+                                             />
                             </Border>
-                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                                 <TextBlock Classes="nav-title" Text="素材库" />
                                 <TextBlock Classes="nav-subtitle" Text="目录与队列" />
                             </StackPanel>
@@ -217,11 +232,14 @@
 
                 <TabItem Classes="nav-item">
                     <TabItem.Header>
-                        <Grid ColumnDefinitions="36,*" ColumnSpacing="10" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
                             <Border Classes="nav-icon">
-                                <LucideIcon Classes="shell-glyph" Kind="Settings2" />
+                                <LucideIcon HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Kind="Settings2"
+                                             />
                             </Border>
-                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                                 <TextBlock Classes="nav-title" Text="设置" />
                                 <TextBlock Classes="nav-subtitle" Text="模型与日志" />
                             </StackPanel>

@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
@@ -23,7 +25,7 @@ public partial class QuickSearchViewModel : ObservableObject
         BackendLauncher = backendLauncher;
         AssetSearchService = assetSearchService;
         SearchResults = new ObservableCollection<AssetSearchDocument>();
-        SearchStatus = "输入素材描述并按回车检索。";
+        SearchStatus = "输入素材描述并按回车检索，点击卡片可定位到素材文件。";
         SearchQuery = string.Empty;
     }
 
@@ -80,6 +82,42 @@ public partial class QuickSearchViewModel : ObservableObject
         catch (System.Exception ex)
         {
             SearchStatus = $"检索失败：{ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void RevealSearchResultInExplorer(AssetSearchDocument? result)
+    {
+        if (result is null || string.IsNullOrWhiteSpace(result.AssetPath))
+        {
+            SearchStatus = "当前搜索结果没有可打开的本地路径。";
+            return;
+        }
+
+        try
+        {
+            var path = Path.GetFullPath(result.AssetPath);
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                UseShellExecute = true,
+            };
+
+            if (File.Exists(path))
+            {
+                startInfo.Arguments = $"/select,\"{path}\"";
+            }
+            else
+            {
+                startInfo.Arguments = $"\"{path}\"";
+            }
+
+            Process.Start(startInfo);
+            SearchStatus = $"已在文件资源管理器中定位：{result.AssetName}";
+        }
+        catch (System.Exception ex)
+        {
+            SearchStatus = $"定位失败：{ex.Message}";
         }
     }
 }

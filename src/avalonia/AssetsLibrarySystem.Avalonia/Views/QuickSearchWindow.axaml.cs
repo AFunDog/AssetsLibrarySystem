@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using AssetsLibrarySystem.Avalonia;
+using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.ViewModels;
 using CommunityToolkit.Mvvm.Input;
 
@@ -55,5 +56,17 @@ public partial class QuickSearchWindow : Window
             _ = command.ExecuteAsync(null);
             e.Handled = true;
         }
+    }
+
+    private void RevealSearchResult_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button ||
+            button.CommandParameter is not AssetSearchDocument result ||
+            DataContext is not QuickSearchViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.RevealSearchResultInExplorerCommand.Execute(result);
     }
 }

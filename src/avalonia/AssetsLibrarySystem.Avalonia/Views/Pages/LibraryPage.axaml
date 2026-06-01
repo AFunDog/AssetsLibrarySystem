@@ -5,23 +5,22 @@
              xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.LibraryPage"
              x:DataType="vm:MainWindowViewModel">
-
     <Design.DataContext>
-        <vm:MainWindowViewModel BackendStatusTitle="已连接"
+        <vm:MainWindowViewModel BackendStatusTitle="Python 模型服务已连接"
                                 BackendStatusStage="模型加载完毕 [2/2]"
-                                BackendStatusDetail="暗色亮橙工作台，检索和索引入口集中在素材页。"
+                                BackendStatusDetail="后端仅承担模型网关职责。"
+                                BackendEndpoint="http://127.0.0.1:8000"
                                 WorkspaceTitle="music / DDLC_PLUS"
                                 WorkspaceSummary="D:\Data\全资源\music\DDLC\DDLC_PLUS"
-                                AssetSummary="当前页采用紧凑、符号化的工作台布局。"
-                                OperatorNotice="页面内同时提供描述、检索和索引重建入口。"
-                                PromptDraft="请围绕当前素材生成更适合检索的中文描述。"
+                                AssetSummary="当前页面采用紧凑式三栏工作台布局。"
+                                OperatorNotice="可直接添加目录、扫描当前素材库、执行检索并定位结果。"
                                 SearchQuery="紧张氛围的音乐"
                                 SearchCandidateTopKText="20"
                                 SearchFinalTopKText="5"
                                 SearchAssetFormat="音频"
                                 SearchStatus="已准备执行检索。"
                                 SearchIndexSummary="索引已就绪。"
-                                SearchIndexDetail="示例状态，仅供设计时预览。"
+                                SearchIndexDetail="点击重建索引可刷新本地 HNSW 数据。"
                                 SelectedAssetName="1.wav"
                                 SelectedAssetLibrary="music"
                                 SelectedAssetPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
@@ -36,7 +35,37 @@
                                 SelectedAssetDescriptionTokenUsage="input=128, output=64, total=192"
                                 SelectedAssetDescriptionPrompt="请围绕素材输出一段适合检索的描述。"
                                 SelectedAssetDescriptionSystemPrompt="你是一个素材描述助手。"
-                                SelectedAssetDescriptionText="一段适合检索的音频描述。">
+                                SelectedAssetDescriptionText="偏紧张和压抑氛围的音频，适合剧情推进。">
+            <vm:MainWindowViewModel.Metrics>
+                <models:DashboardMetric>
+                    <x:Arguments>
+                        <x:String>素材库</x:String>
+                        <x:String>02</x:String>
+                        <x:String>Avalonia 侧维护目录登记</x:String>
+                    </x:Arguments>
+                </models:DashboardMetric>
+                <models:DashboardMetric>
+                    <x:Arguments>
+                        <x:String>已扫描素材</x:String>
+                        <x:String>863</x:String>
+                        <x:String>文本 / 图片 / 视频 / 音频</x:String>
+                    </x:Arguments>
+                </models:DashboardMetric>
+                <models:DashboardMetric>
+                    <x:Arguments>
+                        <x:String>待模型处理</x:String>
+                        <x:String>18</x:String>
+                        <x:String>描述与检索流水线待处理</x:String>
+                    </x:Arguments>
+                </models:DashboardMetric>
+                <models:DashboardMetric>
+                    <x:Arguments>
+                        <x:String>素材类型</x:String>
+                        <x:String>04</x:String>
+                        <x:String>当前已识别的文件类型数量</x:String>
+                    </x:Arguments>
+                </models:DashboardMetric>
+            </vm:MainWindowViewModel.Metrics>
             <vm:MainWindowViewModel.Libraries>
                 <models:LibraryWorkspace Id="lib-music"
                                          Name="music"
@@ -76,29 +105,6 @@
                     </models:ManagedAssetRecord.Tags>
                 </models:ManagedAssetRecord>
             </vm:MainWindowViewModel.SelectedAsset>
-            <vm:MainWindowViewModel.SelectedAssetTreeNode>
-                <models:AssetLibraryTreeNode DisplayName="1.wav"
-                                             MetaLabel="音频"
-                                             CategorySummary="已扫描"
-                                             TypeLabel="音频"
-                                             StatusLabel="已扫描"
-                                             PathLabel="DDLC\DDLC_PLUS\1.wav"
-                                             Summary="音频文件 · 2.1 MB · 修改于 2026-05-13 09:15"
-                                             FullPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
-                                             Kind="File">
-                    <models:AssetLibraryTreeNode.Asset>
-                        <models:ManagedAssetRecord Id="asset-002"
-                                                   Name="1.wav"
-                                                   LibraryName="music"
-                                                   AssetType="音频"
-                                                   RelativePath="DDLC\DDLC_PLUS\1.wav"
-                                                   LocalPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
-                                                   Summary="音频文件 · 2.1 MB · 修改于 2026-05-13 09:15"
-                                                   Stage="已扫描"
-                                                   AiState="已标注" />
-                    </models:AssetLibraryTreeNode.Asset>
-                </models:AssetLibraryTreeNode>
-            </vm:MainWindowViewModel.SelectedAssetTreeNode>
             <vm:MainWindowViewModel.AssetTreeRoots>
                 <models:AssetLibraryTreeNode DisplayName="music"
                                              MetaLabel="615 项"
@@ -145,16 +151,30 @@
                         </models:AssetLibraryTreeNode>
                     </models:AssetLibraryTreeNode.Children>
                 </models:AssetLibraryTreeNode>
-                <models:AssetLibraryTreeNode DisplayName="illustration"
-                                             MetaLabel="248 项"
-                                             CategorySummary="图片 / 视频"
-                                             TypeLabel="素材库"
-                                             StatusLabel="已扫描"
-                                             PathLabel="D:\Assets\Illustrations"
-                                             Summary="已扫描 248 个插画与参考图像。"
-                                             FullPath="D:\Assets\Illustrations"
-                                             Kind="Library" />
             </vm:MainWindowViewModel.AssetTreeRoots>
+            <vm:MainWindowViewModel.SelectedAssetTreeNode>
+                <models:AssetLibraryTreeNode DisplayName="1.wav"
+                                             MetaLabel="音频"
+                                             CategorySummary="已扫描"
+                                             TypeLabel="音频"
+                                             StatusLabel="已扫描"
+                                             PathLabel="DDLC\DDLC_PLUS\1.wav"
+                                             Summary="音频文件 · 2.1 MB · 修改于 2026-05-13 09:15"
+                                             FullPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
+                                             Kind="File">
+                    <models:AssetLibraryTreeNode.Asset>
+                        <models:ManagedAssetRecord Id="asset-002"
+                                                   Name="1.wav"
+                                                   LibraryName="music"
+                                                   AssetType="音频"
+                                                   RelativePath="DDLC\DDLC_PLUS\1.wav"
+                                                   LocalPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav"
+                                                   Summary="音频文件 · 2.1 MB · 修改于 2026-05-13 09:15"
+                                                   Stage="已扫描"
+                                                   AiState="已标注" />
+                    </models:AssetLibraryTreeNode.Asset>
+                </models:AssetLibraryTreeNode>
+            </vm:MainWindowViewModel.SelectedAssetTreeNode>
             <vm:MainWindowViewModel.SearchResults>
                 <models:AssetSearchDocument AssetId="asset-002"
                                             AssetName="1.wav"
@@ -165,6 +185,15 @@
                                             GeneratedAt="2026-06-01T18:00:00+08:00"
                                             EmbeddingSimilarity="0.8845"
                                             RerankScore="0.9421" />
+                <models:AssetSearchDocument AssetId="asset-003"
+                                            AssetName="opening_theme.wav"
+                                            AssetType="音频"
+                                            AssetPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\opening_theme.wav"
+                                            Description="适合开场和菜单场景的氛围音乐。"
+                                            SourceStorePath="D:\GitRepository\AssetsLibrarySystem\data\asset_descriptions.db"
+                                            GeneratedAt="2026-06-01T18:00:00+08:00"
+                                            EmbeddingSimilarity="0.7602"
+                                            RerankScore="0.8241" />
             </vm:MainWindowViewModel.SearchResults>
             <vm:MainWindowViewModel.ActivityFeed>
                 <x:String>桌面端作为素材管理主入口，先固定本地工作流边界。</x:String>
@@ -175,32 +204,46 @@
     </Design.DataContext>
 
     <UserControl.Styles>
-        <Style Selector="Border.shell-panel">
+        <Style Selector="Border.page-card">
             <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Padding" Value="14" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12" />
         </Style>
-        <Style Selector="Border.shell-panel-strong">
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="16" />
-            <Setter Property="Padding" Value="16" />
-        </Style>
-        <Style Selector="Border.shell-soft">
+        <Style Selector="Border.sub-card">
             <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="12" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8" />
         </Style>
-        <Style Selector="Border.compact-chip">
-            <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
-            <Setter Property="CornerRadius" Value="999" />
-            <Setter Property="Padding" Value="10,4" />
-            <Setter Property="Margin" Value="0,0,8,8" />
+        <Style Selector="Button.primary-action">
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
+        <Style Selector="Button.secondary-action">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
+        <Style Selector="Button.result-action">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
         </Style>
         <Style Selector="TextBlock.eyebrow">
             <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
@@ -209,9 +252,9 @@
             <Setter Property="LetterSpacing" Value="1.2" />
         </Style>
         <Style Selector="TextBlock.section-title">
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
         </Style>
         <Style Selector="TextBlock.section-subtitle">
             <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
@@ -221,421 +264,359 @@
             <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Padding" Value="10,8" />
-            <Setter Property="MinHeight" Value="34" />
-        </Style>
-        <Style Selector="Button.primary-action">
-            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="12,8" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="Button.secondary-action">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="12,8" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
-        <Style Selector="TreeView.shell-tree">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0" />
-        </Style>
-        <Style Selector="TreeView.shell-tree TreeViewItem /template/ Border#PART_LayoutRoot">
-            <Setter Property="Background" Value="{x:Null}" />
-        </Style>
-        <Style Selector="Border.tree-chip">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="10,8" />
-        </Style>
-        <Style Selector="Border.tree-chip:selected">
-            <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="MinHeight" Value="32" />
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,*" RowSpacing="12">
-        <Border Classes="shell-panel-strong">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
-                <StackPanel Spacing="4">
-                    <TextBlock FontSize="18"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource AppTextBrush}"
-                               Text="紧凑式素材工作台" />
-                    <TextBlock Classes="section-subtitle"
-                               Text="检索、索引、描述和目录管理集中在同一页。"/>
-                </StackPanel>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid RowDefinitions="Auto,*" RowSpacing="8">
+            <Border Classes="page-card">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <StackPanel Spacing="4">
+                        <TextBlock Classes="eyebrow" Text="素材库" />
+                        <TextBlock Classes="section-title" Text="目录、检索与定位" />
+                        <TextBlock Classes="section-subtitle"
+                                   Text="左侧浏览目录树，中间执行检索，右侧查看当前素材与描述结果。" />
+                    </StackPanel>
 
-                <Border Grid.Column="1" Classes="compact-chip" VerticalAlignment="Center">
-                    <StackPanel Spacing="1">
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                         <TextBlock Classes="eyebrow" Text="后端状态" />
                         <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                   FontWeight="SemiBold"
                                    Text="{Binding BackendStatusTitle}" />
                         <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   FontSize="10"
                                    Text="{Binding BackendStatusStage}" />
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   FontSize="10"
-                                   Text="{Binding BackendEndpoint}" />
                     </StackPanel>
-                </Border>
-            </Grid>
-        </Border>
+                </Grid>
+            </Border>
 
-        <Grid Grid.Row="1" ColumnDefinitions="280,*,330" ColumnSpacing="12" VerticalAlignment="Stretch">
-            <Grid RowDefinitions="Auto,*" RowSpacing="12">
-                <Border Classes="shell-panel">
-                    <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="10">
-                        <StackPanel Spacing="6">
+            <Grid Grid.Row="1" ColumnDefinitions="300,*,320" ColumnSpacing="8">
+                <StackPanel Spacing="8">
+                    <Border Classes="page-card">
+                        <StackPanel Spacing="8">
                             <TextBlock Classes="eyebrow" Text="素材库" />
-                            <TextBlock Classes="section-subtitle" Text="登记目录，选择库，触发扫描。" />
-                        </StackPanel>
-                        <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
-                            <Button Classes="primary-action"
-                                    Click="AddLibraryFolder_Click"
-                                    Content="添加目录" />
-                            <Button Grid.Column="1"
-                                    Classes="secondary-action"
-                                    Command="{Binding ScanSelectedLibraryCommand}"
-                                    Content="扫描当前" />
-                        </Grid>
-                        <Border Grid.Row="2" Classes="shell-soft">
-                            <StackPanel Spacing="4">
-                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                           FontWeight="SemiBold"
-                                           Text="{Binding SelectedLibrary.Name, FallbackValue=未选择}" />
-                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                           Text="{Binding SelectedLibrary.Summary, FallbackValue=尚未加载目录。}" />
-                            </StackPanel>
-                        </Border>
-                        <ScrollViewer Grid.Row="3"
-                                      VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Auto">
-                            <TreeView Classes="shell-tree"
-                                      AutoScrollToSelectedItem="True"
-                                      ItemsSource="{Binding AssetTreeRoots}"
-                                      SelectedItem="{Binding SelectedAssetTreeNode, Mode=TwoWay}">
-                                <TreeView.ItemTemplate>
-                                    <TreeDataTemplate x:DataType="models:AssetLibraryTreeNode"
-                                                      ItemsSource="{Binding Children}">
-                                        <Border Classes="tree-chip">
-                                            <Border.ContextMenu>
-                                                <ContextMenu>
-                                                    <MenuItem Header="在文件资源管理器中显示"
-                                                              Click="RevealInExplorer_Click"
-                                                              CommandParameter="{Binding}" />
-                                                </ContextMenu>
-                                            </Border.ContextMenu>
-                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                                                <Border Width="20" Height="20" Background="{DynamicResource AppAccentSurfaceBrush}" CornerRadius="999">
-                                                    <lucide:LucideIcon HorizontalAlignment="Center"
-                                                                       VerticalAlignment="Center"
-                                                                       Size="12"
-                                                                       Kind="FolderTree" />
-                                                </Border>
-                                                <StackPanel Grid.Column="1" Spacing="0">
-                                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               Text="{Binding DisplayName}" />
-                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                               FontSize="10"
-                                                               Text="{Binding PathLabel}" />
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="2"
-                                                           Foreground="{DynamicResource AppAccentBrush}"
-                                                           FontSize="10"
-                                                           VerticalAlignment="Center"
-                                                           Text="{Binding MetaLabel}" />
-                                            </Grid>
-                                        </Border>
-                                    </TreeDataTemplate>
-                                </TreeView.ItemTemplate>
-                            </TreeView>
-                        </ScrollViewer>
-                    </Grid>
-                </Border>
-            </Grid>
-
-            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12" VerticalAlignment="Stretch">
-                <Border Classes="shell-panel-strong">
-                    <StackPanel Spacing="10">
-                        <TextBlock Classes="eyebrow" Text="检索" />
-                        <TextBlock Classes="section-title" Text="自然语言检索" />
-                        <TextBlock Classes="section-subtitle" Text="输入需要的素材描述，后端先召回再重排。" />
-                        <TextBox Classes="compact-input"
-                                 Text="{Binding SearchQuery, Mode=TwoWay}"
-                                 PlaceholderText="例如：紧张氛围的音乐、蓝色天空下的河岸风景" />
-                        <Grid ColumnDefinitions="120,120,*" ColumnSpacing="8">
-                            <TextBox Classes="compact-input"
-                                     Text="{Binding SearchCandidateTopKText, Mode=TwoWay}"
-                                     PlaceholderText="候选数" />
-                            <TextBox Grid.Column="1"
-                                     Classes="compact-input"
-                                     Text="{Binding SearchFinalTopKText, Mode=TwoWay}"
-                                     PlaceholderText="返回数" />
-                            <TextBox Grid.Column="2"
-                                     Classes="compact-input"
-                                     Text="{Binding SearchAssetFormat, Mode=TwoWay}"
-                                     PlaceholderText="可选：图片 / 视频 / 音频 / 文本" />
-                        </Grid>
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                            <Button Classes="primary-action"
-                                    Command="{Binding ExecuteSearchCommand}"
-                                    Content="执行检索" />
-                            <Button Grid.Column="1"
-                                    Classes="secondary-action"
-                                    Command="{Binding RebuildSearchIndexCommand}"
-                                    Content="重建索引" />
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12">
-                    <Border Classes="shell-soft">
-                        <StackPanel Spacing="4">
-                            <TextBlock Classes="eyebrow" Text="状态" />
-                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                       TextWrapping="Wrap"
-                                       Text="{Binding SearchStatus}" />
+                            <TextBlock Classes="section-title" Text="{Binding SelectedLibrary.Name, FallbackValue=未选择}" />
+                            <TextBlock Classes="section-subtitle"
+                                       Text="{Binding SelectedLibrary.Summary, FallbackValue=尚未加载素材库。}" />
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
+                                <Button Classes="primary-action"
+                                        Click="AddLibraryFolder_Click"
+                                        Content="添加目录" />
+                                <Button Grid.Column="1"
+                                        Classes="secondary-action"
+                                        Command="{Binding ScanSelectedLibraryCommand}"
+                                        Content="扫描当前" />
+                            </Grid>
                         </StackPanel>
                     </Border>
-                    <Border Grid.Column="1" Classes="shell-soft">
-                        <StackPanel Spacing="4">
-                            <TextBlock Classes="eyebrow" Text="索引" />
-                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                       TextWrapping="Wrap"
-                                       Text="{Binding SearchIndexSummary}" />
+
+                    <Border Classes="page-card">
+                        <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="eyebrow" Text="目录树" />
+                                <TextBlock Classes="section-title" Text="当前素材库结构" />
+                            </StackPanel>
+
+                            <ScrollViewer Grid.Row="1"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Auto">
+                                <TreeView Classes="tree-root"
+                                          AutoScrollToSelectedItem="True"
+                                          ItemsSource="{Binding AssetTreeRoots}"
+                                          SelectedItem="{Binding SelectedAssetTreeNode, Mode=TwoWay}">
+                                    <TreeView.Styles>
+                                        <Style Selector="TreeView.tree-root">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Padding" Value="0" />
+                                        </Style>
+                                        <Style Selector="Border.tree-item">
+                                            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Setter Property="CornerRadius" Value="4" />
+                                            <Setter Property="Padding" Value="8" />
+                                        </Style>
+                                    </TreeView.Styles>
+                                    <TreeView.ItemTemplate>
+                                        <TreeDataTemplate x:DataType="models:AssetLibraryTreeNode"
+                                                          ItemsSource="{Binding Children}">
+                                            <Border Classes="tree-item">
+                                                <Border.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="在文件资源管理器中显示"
+                                                                  Click="RevealInExplorer_Click"
+                                                                  CommandParameter="{Binding}" />
+                                                    </ContextMenu>
+                                                </Border.ContextMenu>
+                                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                                    <Border Background="{DynamicResource AppAccentSurfaceBrush}"
+                                                            BorderBrush="{DynamicResource AppAccentBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="4"
+                                                            Width="20"
+                                                            Height="20">
+                                                        <lucide:LucideIcon Kind="Folder" Size="12" />
+                                                    </Border>
+                                                        <StackPanel Grid.Column="1" Spacing="2">
+                                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                       FontWeight="SemiBold"
+                                                                       Text="{Binding DisplayName}" />
+                                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                       Text="{Binding PathLabel}" />
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2"
+                                                                   Foreground="{DynamicResource AppAccentBrush}"
+                                                                   VerticalAlignment="Center"
+                                                                   Text="{Binding MetaLabel}" />
+                                                </Grid>
+                                            </Border>
+                                        </TreeDataTemplate>
+                                    </TreeView.ItemTemplate>
+                                </TreeView>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+                    <Border Classes="page-card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="eyebrow" Text="检索" />
+                            <TextBlock Classes="section-title" Text="自然语言检索" />
+                            <TextBlock Classes="section-subtitle" Text="输入文本后，后端先召回再重排。" />
+
+                            <TextBox Classes="compact-input"
+                                     Text="{Binding SearchQuery, Mode=TwoWay}"
+                                     PlaceholderText="例如：紧张氛围的音乐" />
+                            <Grid ColumnDefinitions="120,120,*" ColumnSpacing="4">
+                                <TextBox Classes="compact-input"
+                                         Text="{Binding SearchCandidateTopKText, Mode=TwoWay}"
+                                         PlaceholderText="候选数" />
+                                <TextBox Grid.Column="1"
+                                         Classes="compact-input"
+                                         Text="{Binding SearchFinalTopKText, Mode=TwoWay}"
+                                         PlaceholderText="返回数" />
+                                <TextBox Grid.Column="2"
+                                         Classes="compact-input"
+                                         Text="{Binding SearchAssetFormat, Mode=TwoWay}"
+                                         PlaceholderText="可选：图片 / 视频 / 音频 / 文本" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
+                                <Button Classes="primary-action"
+                                        Command="{Binding ExecuteSearchCommand}"
+                                        Content="执行检索" />
+                                <Button Grid.Column="1"
+                                        Classes="secondary-action"
+                                        Command="{Binding RebuildSearchIndexCommand}"
+                                        Content="重建索引" />
+                            </Grid>
                         </StackPanel>
+                    </Border>
+
+                    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Border Classes="sub-card">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="eyebrow" Text="状态" />
+                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding SearchStatus}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1" Classes="sub-card">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="eyebrow" Text="索引" />
+                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding SearchIndexSummary}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Border Grid.Row="2" Classes="page-card">
+                        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="eyebrow" Text="结果" />
+                                <TextBlock Classes="section-title" Text="检索结果" />
+                                <TextBlock Classes="section-subtitle"
+                                           Text="按重排分数排序，点击卡片即可在资源管理器中定位。" />
+                            </StackPanel>
+
+                            <Border Grid.Row="1" Classes="sub-card">
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding SearchIndexDetail}" />
+                            </Border>
+
+                            <ScrollViewer Grid.Row="2"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding SearchResults}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="4" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:AssetSearchDocument">
+                                            <Button Classes="result-action"
+                                                    Click="RevealSearchResult_Click"
+                                                    CommandParameter="{Binding}">
+                                                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                        <StackPanel Spacing="2">
+                                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Text="{Binding AssetName}" />
+                                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                       Text="{Binding AssetType}" />
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Foreground="{DynamicResource AppAccentBrush}"
+                                                                   VerticalAlignment="Center"
+                                                                   Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
+                                                    </Grid>
+                                                    <TextBlock Grid.Row="1"
+                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding AssetPath}" />
+                                                    <TextBlock Grid.Row="2"
+                                                               Foreground="{DynamicResource AppTextBrush}"
+                                                               TextWrapping="Wrap"
+                                                               Text="{Binding Description}" />
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="3" Classes="page-card">
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding SearchIndexDetail}" />
                     </Border>
                 </Grid>
 
-                <Border Grid.Row="2" Classes="shell-panel">
-                    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
-                        <StackPanel Spacing="4">
-                            <TextBlock Classes="eyebrow" Text="结果" />
-                            <TextBlock Classes="section-title" Text="检索结果" />
-                            <TextBlock Classes="section-subtitle" Text="按重排分数排序，支持直接定位到资源管理器。" />
-                        </StackPanel>
+                <Grid Grid.Column="2" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                    <Border Classes="page-card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="eyebrow" Text="已选素材" />
+                            <TextBlock Classes="section-title" Text="{Binding SelectedAssetName}" />
+                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                       Text="{Binding SelectedAssetLibrary}" />
+                            <TextBlock Classes="section-subtitle" Text="{Binding SelectedAssetPath}" />
 
-                        <Border Grid.Row="1" Classes="shell-soft">
-                            <StackPanel Spacing="4">
-                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                           Text="这里会显示向量召回 + 重排序后的结果。" />
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="4" RowDefinitions="Auto,Auto" RowSpacing="4">
+                                <Border Classes="sub-card">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Classes="eyebrow" Text="类型" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetType}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1" Classes="sub-card">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Classes="eyebrow" Text="阶段" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetStage}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="1" Grid.ColumnSpan="2" Classes="sub-card">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Classes="eyebrow" Text="状态" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetAiState}" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <Border Classes="sub-card">
                                 <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                            TextWrapping="Wrap"
-                                           Text="先输入查询词，再点击“执行检索”。如果需要重建本地 HNSW 索引，可以直接使用“重建索引”。" />
-                            </StackPanel>
-                        </Border>
-
-                        <ScrollViewer Grid.Row="2"
-                                      VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding SearchResults}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Spacing="12" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="models:AssetSearchDocument">
-                                        <Border Classes="shell-soft" Padding="16">
-                                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
-                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                                    <StackPanel Spacing="2">
-                                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                                   FontSize="14"
-                                                                   FontWeight="SemiBold"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   Text="{Binding AssetName}" />
-                                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                                   FontSize="10"
-                                                                   Text="{Binding AssetType}" />
-                                                    </StackPanel>
-                                                </Grid>
-                                                <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
-                                                    <Border Classes="compact-chip">
-                                                        <TextBlock Foreground="{DynamicResource AppAccentBrush}"
-                                                                   FontSize="10"
-                                                                   Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
-                                                    </Border>
-                                                    <Border Grid.Column="1" Classes="compact-chip">
-                                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                                   FontSize="10"
-                                                                   Text="{Binding EmbeddingSimilarity, StringFormat=sim {0:0.0000}}" />
-                                                    </Border>
-                                                </Grid>
-                                                <TextBlock Grid.Row="2"
-                                                           Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                           FontSize="11"
-                                                           TextWrapping="Wrap"
-                                                           Text="{Binding AssetPath}" />
-                                                <TextBlock Grid.Row="3"
-                                                           Foreground="{DynamicResource AppTextBrush}"
-                                                           FontSize="11"
-                                                           TextWrapping="Wrap"
-                                                           Text="{Binding Description}" />
-                                                <Grid Grid.Row="4" ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                                                    <Button Classes="secondary-action"
-                                                            Click="RevealSearchResult_Click"
-                                                            CommandParameter="{Binding}"
-                                                            Content="显示位置" />
-                                                    <TextBlock Grid.Column="1"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                               FontSize="10"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               Text="{Binding SourceStorePath, TargetNullValue=SQLite 中无来源路径}" />
-                                                </Grid>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Grid>
-                </Border>
-
-                <Border Grid.Row="3" Classes="shell-panel">
-                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                               TextWrapping="Wrap"
-                               Text="{Binding SearchIndexDetail}" />
-                </Border>
-            </Grid>
-
-            <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12" VerticalAlignment="Stretch">
-                <Border Classes="shell-panel">
-                    <StackPanel Spacing="10">
-                        <TextBlock Classes="eyebrow" Text="已选素材" />
-                        <StackPanel Spacing="2">
-                            <TextBlock FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource AppTextBrush}"
-                                       Text="{Binding SelectedAssetName}" />
-                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" Text="{Binding SelectedAssetLibrary}" />
+                                           Text="{Binding SelectedAssetDetail}" />
+                            </Border>
                         </StackPanel>
-                        <TextBlock Classes="section-subtitle" Text="{Binding SelectedAssetPath}" />
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8" RowDefinitions="Auto,Auto" RowSpacing="8">
-                            <Border Classes="shell-soft">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Classes="eyebrow" Text="类型" />
-                                    <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetType}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Column="1" Classes="shell-soft">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Classes="eyebrow" Text="阶段" />
-                                    <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetStage}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Row="1" Grid.ColumnSpan="2" Classes="shell-soft">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Classes="eyebrow" Text="AI 状态" />
-                                    <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetAiState}" />
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                        <Border Classes="shell-soft">
-                            <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
+                    </Border>
+
+                    <Border Grid.Row="1" Classes="page-card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="eyebrow" Text="描述详情" />
+                            <TextBlock Classes="section-title" Text="本地 SQLite 中的描述记录" />
+                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                        TextWrapping="Wrap"
-                                       Text="{Binding SelectedAssetDetail}" />
-                        </Border>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Row="1" Classes="shell-panel">
-                    <StackPanel Spacing="10">
-                        <TextBlock Classes="section-title" Text="描述详情" />
-                        <TextBlock Classes="section-subtitle"
-                                   Text="描述、Prompt 和 token 用量都保存在本地 SQLite。" />
-                        <TextBlock FontSize="13"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource AppTextBrush}"
-                                   Text="{Binding SelectedAssetDescriptionState}" />
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   TextWrapping="Wrap"
-                                   Text="{Binding SelectedAssetDescriptionGeneratedAt, StringFormat=生成时间：{0}}" />
-                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                   TextWrapping="Wrap"
-                                   Text="{Binding SelectedAssetDescriptionText}" />
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                            <Border Classes="shell-soft">
+                                       Text="{Binding SelectedAssetDescriptionState}" />
+                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding SelectedAssetDescriptionGeneratedAt, StringFormat=生成时间：{0}}" />
+                            <Border Classes="sub-card">
+                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding SelectedAssetDescriptionText}" />
+                            </Border>
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
+                                <Border Classes="sub-card">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Classes="eyebrow" Text="存储" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Text="{Binding SelectedAssetDescriptionStorePath}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1" Classes="sub-card">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Classes="eyebrow" Text="模式" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetDescriptionMode}" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                            <Border Classes="sub-card">
                                 <StackPanel Spacing="2">
-                                    <TextBlock Classes="eyebrow" Text="存储" />
+                                    <TextBlock Classes="eyebrow" Text="Token 用量" />
                                     <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                               FontSize="10"
                                                TextWrapping="Wrap"
-                                               Text="{Binding SelectedAssetDescriptionStorePath}" />
+                                               Text="{Binding SelectedAssetDescriptionTokenUsage}" />
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="1" Classes="shell-soft">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Classes="eyebrow" Text="模式" />
-                                    <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetDescriptionMode}" />
+                            <Border Classes="sub-card">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="eyebrow" Text="提示词" />
+                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SelectedAssetDescriptionPrompt}" />
+                                    <TextBlock Classes="eyebrow" Text="系统提示词" />
+                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SelectedAssetDescriptionSystemPrompt}" />
                                 </StackPanel>
                             </Border>
-                        </Grid>
-                        <Border Classes="shell-soft">
-                            <StackPanel Spacing="2">
-                                <TextBlock Classes="eyebrow" Text="Token 用量" />
-                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding SelectedAssetDescriptionTokenUsage}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Classes="shell-soft">
-                            <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="提示词" />
-                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding SelectedAssetDescriptionPrompt}" />
-                                <TextBlock Classes="eyebrow" Text="系统提示词" />
-                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding SelectedAssetDescriptionSystemPrompt}" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </Border>
+                        </StackPanel>
+                    </Border>
 
-                <Border Grid.Row="2" Classes="shell-panel">
-                    <StackPanel Spacing="10" VerticalAlignment="Stretch">
-                        <TextBlock Classes="eyebrow" Text="动态" />
-                        <TextBlock Classes="section-title" Text="活动纪要" />
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding ActivityFeed}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Classes="shell-soft" Margin="0,0,0,8">
-                                            <TextBlock Foreground="{DynamicResource AppMutedTextBrush}"
-                                                       FontSize="11"
-                                                       TextWrapping="Wrap"
-                                                       Text="{Binding .}" />
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Row="3" Classes="shell-panel">
-                    <StackPanel Spacing="4">
-                        <TextBlock Classes="eyebrow" Text="操作提示" />
-                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                   TextWrapping="Wrap"
-                                   Text="{Binding OperatorNotice}" />
-                    </StackPanel>
-                </Border>
+                    <Border Grid.Row="2" Classes="page-card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Classes="eyebrow" Text="动态" />
+                            <TextBlock Classes="section-title" Text="活动纪要" />
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Height="240">
+                                <ItemsControl ItemsSource="{Binding ActivityFeed}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Classes="sub-card" Margin="0,0,0,4">
+                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                           TextWrapping="Wrap"
+                                                           Text="{Binding .}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </Grid>
         </Grid>
-    </Grid>
+    </ScrollViewer>
 </UserControl>

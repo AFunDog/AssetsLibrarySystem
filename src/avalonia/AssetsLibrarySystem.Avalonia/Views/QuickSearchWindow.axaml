@@ -52,8 +52,8 @@
 
     <Border MinWidth="720"
             Background="{DynamicResource SystemAltMediumHighColor}"
-            Margin="8">
-        <Grid RowDefinitions="Auto,*" RowSpacing="12">
+            Padding="8">
+        <Grid RowDefinitions="Auto,*" RowSpacing="4">
             <Border Grid.Row="0"
                     Background="{DynamicResource SystemAltLowColor}"
                     Padding="12,10">
@@ -101,50 +101,53 @@
                     <ItemsControl ItemsSource="{Binding SearchResults}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel />
+                                <StackPanel Spacing="8"/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="models:AssetSearchDocument">
-                                <Border Background="{DynamicResource AppSoftSurfaceBrush}"
-                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                <Button 
                                         BorderThickness="1"
-                                        CornerRadius="12"
-                                        Padding="10"
-                                        Margin="0,0,0,8">
-                                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                            <StackPanel Spacing="1">
-                                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                           FontSize="13"
-                                                           FontWeight="SemiBold"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           Text="{Binding AssetName}" />
-                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                           FontSize="10"
-                                                           Text="{Binding AssetType}" />
-                                            </StackPanel>
-                                            <Border Grid.Column="1" Background="{DynamicResource AppAccentSurfaceBrush}"
-                                                    BorderBrush="{DynamicResource AppAccentBrush}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="999"
-                                                    Padding="8,3">
-                                                <TextBlock Foreground="{DynamicResource AppAccentBrush}"
-                                                           FontSize="10"
-                                                           Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
-                                            </Border>
+                                        CornerRadius="4"
+                                        Padding="8"
+                                        HorizontalAlignment="Stretch"
+                                        Click="RevealSearchResult_Click"
+                                        CommandParameter="{Binding}"
+                                        ToolTip.Tip="点击定位到文件资源管理器">
+       
+                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                <StackPanel Spacing="1">
+                                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                               FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding AssetName}" />
+                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               FontSize="10"
+                                                               Text="{Binding AssetType}" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="{DynamicResource AppAccentSurfaceBrush}"
+                                                        BorderBrush="{DynamicResource AppAccentBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="999"
+                                                        Padding="8,3">
+                                                    <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                               FontSize="10"
+                                                               Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock Grid.Row="1"
+                                                       Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                       FontSize="10"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Text="{Binding AssetPath}" />
+                                            <TextBlock Grid.Row="2"
+                                                       Foreground="{DynamicResource AppTextBrush}"
+                                                       TextWrapping="Wrap"
+                                                       Text="{Binding Description}" />
                                         </Grid>
-                                        <TextBlock Grid.Row="1"
-                                                   Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                   FontSize="10"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Text="{Binding AssetPath}" />
-                                        <TextBlock Grid.Row="2"
-                                                   Foreground="{DynamicResource AppTextBrush}"
-                                                   TextWrapping="Wrap"
-                                                   Text="{Binding Description}" />
-                                    </Grid>
-                                </Border>
+                                </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
