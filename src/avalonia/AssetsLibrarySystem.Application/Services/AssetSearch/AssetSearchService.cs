@@ -74,6 +74,36 @@ public sealed class AssetSearchService : IAssetSearchService
                     RerankScore: item.RerankScore)).ToArray());
     }
 
+    public async Task<AssetReindexResponseDocument> ReindexAsync(
+        string backendBaseUrl,
+        CancellationToken ct = default)
+    {
+        var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/reindex";
+        using var content = new StringContent(
+            "{}",
+            Encoding.UTF8,
+            "application/json");
+
+        using var response = await Http.PostAsync(endpoint, content, ct);
+        var responseText = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            Log.Warning("素材索引重建请求失败: {StatusCode}, body={Body}", (int)response.StatusCode, responseText);
+            throw new InvalidOperationException($"后端索引重建失败：{responseText}");
+        }
+
+        var backendResponse = JsonSerializer.Deserialize<SearchReindexResponse>(responseText, JsonOptions)
+            ?? throw new InvalidOperationException("后端返回空重建响应。");
+
+        return new AssetReindexResponseDocument(
+            DocumentCount: backendResponse.DocumentCount,
+            VectorDim: backendResponse.VectorDim,
+            DatabasePath: backendResponse.DatabasePath,
+            IndexPath: backendResponse.IndexPath,
+            MetadataPath: backendResponse.MetadataPath,
+            EmbeddingModels: backendResponse.EmbeddingModels.ToArray());
+    }
+
     private sealed record SearchExploreRequest(
         [property: JsonPropertyName("query")] string Query,
         [property: JsonPropertyName("candidate_top_k")] int CandidateTopK,
@@ -99,4 +129,12 @@ public sealed class AssetSearchService : IAssetSearchService
         [property: JsonPropertyName("generated_at")] DateTimeOffset? GeneratedAt,
         [property: JsonPropertyName("embedding_similarity")] float EmbeddingSimilarity,
         [property: JsonPropertyName("rerank_score")] float RerankScore);
+
+    private sealed record SearchReindexResponse(
+        [property: JsonPropertyName("document_count")] int DocumentCount,
+        [property: JsonPropertyName("vector_dim")] int VectorDim,
+        [property: JsonPropertyName("database_path")] string DatabasePath,
+        [property: JsonPropertyName("index_path")] string IndexPath,
+        [property: JsonPropertyName("metadata_path")] string MetadataPath,
+        [property: JsonPropertyName("embedding_models")] string[] EmbeddingModels);
 }

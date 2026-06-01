@@ -42,14 +42,12 @@ class SqliteVectorRepository:
             rows = connection.execute(
                 """
                 SELECT
-                    rowid AS doc_id,
                     asset_id,
                     asset_name,
                     asset_type,
                     asset_path,
                     description,
                     description_store_path,
-                    generated_at,
                     embedding_model,
                     vector_dim,
                     vector_blob,
@@ -61,19 +59,18 @@ class SqliteVectorRepository:
 
         records: list[IndexedAssetVectorRecord] = []
         for row in rows:
-            generated_at = datetime.fromisoformat(row["generated_at"]) if row["generated_at"] else None
             updated_at = datetime.fromisoformat(row["vectorized_at"])
             vector = np.frombuffer(row["vector_blob"], dtype=np.float32, count=int(row["vector_dim"])).copy()
             records.append(
                 IndexedAssetVectorRecord(
-                    doc_id=int(row["doc_id"]),
+                    doc_id=len(records) + 1,
                     asset_id=str(row["asset_id"]),
                     asset_name=str(row["asset_name"]),
                     asset_format=str(row["asset_type"]),
                     asset_path=str(row["asset_path"]),
                     description=str(row["description"]),
                     source_store_path=row["description_store_path"],
-                    generated_at=generated_at,
+                    generated_at=None,
                     embedding_model=str(row["embedding_model"]),
                     vector=vector,
                     updated_at=updated_at,

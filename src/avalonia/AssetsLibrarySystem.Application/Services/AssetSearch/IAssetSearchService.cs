@@ -13,4 +13,8 @@ public interface IAssetSearchService
         int finalTopK = 5,
         string? assetFormat = null,
         CancellationToken ct = default);
+
+    Task<AssetReindexResponseDocument> ReindexAsync(
+        string backendBaseUrl,
+        CancellationToken ct = default);
 }

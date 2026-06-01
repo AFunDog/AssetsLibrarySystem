@@ -113,6 +113,7 @@ public sealed class ConsoleCommandRunner
             "vectorize-missing" => await VectorizeMissingDescriptionsAsync(args.Skip(1).ToArray()),
             "search" => await SearchAssetsAsync(args.Skip(1).ToArray()),
             "query" => await SearchAssetsAsync(args.Skip(1).ToArray()),
+            "reindex" => await ReindexSearchIndexAsync(args.Skip(1).ToArray()),
             _ => PrintAssetHelpAndFail()
         };
     }
@@ -471,6 +472,36 @@ public sealed class ConsoleCommandRunner
         return 0;
     }
 
+    private async Task<int> ReindexSearchIndexAsync(string[] args)
+    {
+        if (args.Length > 0 && IsHelp(args[0]))
+        {
+            PrintAssetHelp();
+            return 0;
+        }
+
+        // 先停掉可能残留的旧后端进程，再拉起当前代码对应的后端。
+        await BackendLauncher.StopAsync();
+        await BackendLauncher.StartAsync();
+        try
+        {
+            var response = await AssetSearchService.ReindexAsync(BackendLauncher.BaseUrl);
+            Console.WriteLine("向量索引重建完成。");
+            Console.WriteLine($"- 素材描述数: {response.DocumentCount}");
+            Console.WriteLine($"- 向量维度: {response.VectorDim}");
+            Console.WriteLine($"- 数据库: {response.DatabasePath}");
+            Console.WriteLine($"- 索引: {response.IndexPath}");
+            Console.WriteLine($"- 元数据: {response.MetadataPath}");
+            Console.WriteLine($"- 向量模型: {string.Join(", ", response.EmbeddingModels)}");
+        }
+        finally
+        {
+            await BackendLauncher.StopAsync();
+        }
+
+        return 0;
+    }
+
     private async Task<LibraryWorkspace?> ResolveLibraryAsync(string key)
     {
         var libraries = await LibraryService.GetLibrariesAsync();
@@ -624,6 +655,7 @@ public sealed class ConsoleCommandRunner
               libraries scan 我的素材库
               assets describe --library 我的素材库 --asset background.png
               assets describe-dir --library 我的素材库 --folder background\bg
+              assets reindex
               assets vectorize-missing --library 我的素材库
             """);
     }
@@ -645,6 +677,7 @@ public sealed class ConsoleCommandRunner
               assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>]
               assets describe-dir --library <libraryId|libraryName|rootPath> --folder <relativeFolderPath> [--prompt <prompt>] [--system-prompt <prompt>]
               assets search <query> [--candidate-top-k <n>] [--top-k <n>] [--format <assetFormat>]
+              assets reindex
               assets vectorize-missing [--library <libraryId|libraryName|rootPath>]
             """);
     }

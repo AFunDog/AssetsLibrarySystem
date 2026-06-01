@@ -21,3 +21,11 @@ public sealed record AssetSearchResponseDocument(
     string EmbeddingModel,
     string RerankModel,
     AssetSearchDocument[] Results);
+
+public sealed record AssetReindexResponseDocument(
+    int DocumentCount,
+    int VectorDim,
+    string DatabasePath,
+    string IndexPath,
+    string MetadataPath,
+    string[] EmbeddingModels);
