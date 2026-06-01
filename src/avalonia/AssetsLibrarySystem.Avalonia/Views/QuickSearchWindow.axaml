@@ -5,63 +5,28 @@
         xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
         x:Class="AssetsLibrarySystem.Avalonia.Views.QuickSearchWindow"
         x:DataType="vm:QuickSearchViewModel"
-        Width="760"
-        Height="460"
+
         CanResize="False"
         ShowInTaskbar="False"
         Topmost="True"
+        SizeToContent="WidthAndHeight"
         WindowStartupLocation="CenterScreen"
         Title="快速检索">
 
     <Window.Styles>
         <Style Selector="Window">
+            <Setter Property="Background" Value="{x:Null}" />
             <Setter Property="WindowDecorations" Value="BorderOnly" />
             <Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
-            <Setter Property="ExtendClientAreaTitleBarHeightHint" Value="34" />
-            <Setter Property="Background" Value="{DynamicResource AppWindowBackgroundBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-        </Style>
-        <Style Selector="Border.popup-shell">
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="18" />
-            <Setter Property="Padding" Value="14" />
-        </Style>
-        <Style Selector="Border.popup-result">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="10" />
-            <Setter Property="Margin" Value="0,0,0,8" />
-        </Style>
-        <Style Selector="Button.popup-icon">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Width" Value="30" />
-            <Setter Property="Height" Value="30" />
-        </Style>
-        <Style Selector="Button.popup-icon:pointerover">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-        </Style>
-        <Style Selector="TextBlock.popup-title">
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-        </Style>
-        <Style Selector="TextBlock.popup-hint">
-            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
-            <Setter Property="FontSize" Value="10" />
+            <Setter Property="CanResize" Value="False" />
+            <Setter Property="ShowInTaskbar" Value="False" />
+            <Setter Property="Topmost" Value="True" />
         </Style>
     </Window.Styles>
 
     <Design.DataContext>
         <vm:QuickSearchViewModel SearchQuery="紧张氛围的音乐"
-                                 SearchStatus="按回车即可查看检索结果。">
+                                 SearchStatus="按 Enter 执行检索，方向键浏览历史。">
             <vm:QuickSearchViewModel.SearchResults>
                 <models:AssetSearchDocument AssetId="asset-001"
                                             AssetName="37_zombie.mp3"
@@ -85,84 +50,106 @@
         </vm:QuickSearchViewModel>
     </Design.DataContext>
 
-    <Panel Margin="4">
-        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
-            <Grid WindowDecorationProperties.ElementRole="TitleBar" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                <Border>
-                    <Panel >
-
-                        <TextBox x:Name="SearchTextBox"
-                                 Grid.Column="1"
-                                 Text="{Binding SearchQuery, Mode=TwoWay}"
-                                 KeyDown="SearchTextBox_KeyDown"
-                                 Padding="32,0,0,0"
-                                 VerticalContentAlignment="Center"
-                                 PlaceholderText="输入素材描述并回车，例如：紧张氛围的音乐" >
-                            
-                        </TextBox>
-                        
-                        <lucide:LucideIcon HorizontalAlignment="Left"
+    <Border MinWidth="720"
+            Background="{DynamicResource SystemAltMediumHighColor}"
+            Margin="8">
+        <Grid RowDefinitions="Auto,*" RowSpacing="12">
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SystemAltLowColor}"
+                    Padding="12,10">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                        <lucide:LucideIcon HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            Size="16"
-                                           Margin="8,0,0,0"
-                                           Kind="Search">
+                                           Kind="Search" />
+                    <TextBox x:Name="SearchTextBox"
+                             Grid.Column="1"
+                             Text="{Binding SearchQuery, Mode=TwoWay}"
+                             KeyDown="SearchTextBox_KeyDown"
+                             Background="Transparent"
+                             BorderBrush="Transparent"
+                             Foreground="{DynamicResource AppTextBrush}"
+                             FontFamily="Consolas"
+                             VerticalContentAlignment="Center"
+                             Padding="0,0,0,0"
+                             PlaceholderText="输入素材描述并回车，例如：紧张氛围的音乐">
+                        <TextBox.Styles>
+                            <Style Selector="TextBox /template/ Border#PART_BorderElement">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Style>
+                            <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Style>
 
-                        </lucide:LucideIcon>
-                    </Panel>
-                </Border>
+                        </TextBox.Styles>
+                    </TextBox>
+                </Grid>
+            </Border>
 
-                <Button Grid.Column="1"
-                        WindowDecorationProperties.ElementRole="CloseButton"
-                        Classes="popup-icon"
-                        Click="CloseWindow_Click">
-                    <lucide:LucideIcon Classes="shell-glyph" Kind="X" Size="12" />
-                </Button>
-            </Grid>
+            <Grid Grid.Row="1" RowDefinitions="Auto,*" RowSpacing="10">
+                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                           FontSize="10"
+                           Text="{Binding SearchStatus}" />
 
-            <TextBlock Grid.Row="1"
-                       Classes="popup-hint"
-                       Text="{Binding SearchStatus}" />
-
-            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding SearchResults}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="models:AssetSearchDocument">
-                            <Border Classes="popup-result">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                   FontSize="13"
-                                                   FontWeight="SemiBold"
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding SearchResults}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:AssetSearchDocument">
+                                <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="10"
+                                        Margin="0,0,0,8">
+                                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                            <StackPanel Spacing="1">
+                                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Text="{Binding AssetName}" />
+                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                           FontSize="10"
+                                                           Text="{Binding AssetType}" />
+                                            </StackPanel>
+                                            <Border Grid.Column="1" Background="{DynamicResource AppAccentSurfaceBrush}"
+                                                    BorderBrush="{DynamicResource AppAccentBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="999"
+                                                    Padding="8,3">
+                                                <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                           FontSize="10"
+                                                           Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
+                                            </Border>
+                                        </Grid>
+                                        <TextBlock Grid.Row="1"
+                                                   Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                   FontSize="10"
                                                    TextTrimming="CharacterEllipsis"
-                                                   Text="{Binding AssetName}" />
-                                        <TextBlock Classes="popup-hint" Text="{Binding AssetPath}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" Spacing="2">
-                                        <Border Background="{DynamicResource AppAccentSurfaceBrush}"
-                                                BorderBrush="{DynamicResource AppAccentBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="999"
-                                                Padding="8,3">
-                                            <TextBlock Foreground="{DynamicResource AppAccentBrush}"
-                                                       FontSize="10"
-                                                       Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
-                                        </Border>
-                                        <TextBlock Classes="popup-hint"
-                                                   HorizontalAlignment="Right"
-                                                   Text="{Binding AssetType}" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                                                   Text="{Binding AssetPath}" />
+                                        <TextBlock Grid.Row="2"
+                                                   Foreground="{DynamicResource AppTextBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Text="{Binding Description}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
         </Grid>
-
-    </Panel>
+    </Border>
 </Window>
