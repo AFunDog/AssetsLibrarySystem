@@ -10,25 +10,23 @@
         CanResize="False"
         ShowInTaskbar="False"
         Topmost="True"
-        WindowDecorations="None"
-        Background="{DynamicResource AppWindowBackgroundBrush}"
         WindowStartupLocation="CenterScreen"
         Title="快速检索">
 
     <Window.Styles>
+        <Style Selector="Window">
+            <Setter Property="WindowDecorations" Value="BorderOnly" />
+            <Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
+            <Setter Property="ExtendClientAreaTitleBarHeightHint" Value="34" />
+            <Setter Property="Background" Value="{DynamicResource AppWindowBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
         <Style Selector="Border.popup-shell">
             <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="18" />
             <Setter Property="Padding" Value="14" />
-        </Style>
-        <Style Selector="Border.popup-input-shell">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Padding" Value="10,8" />
         </Style>
         <Style Selector="Border.popup-result">
             <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
@@ -59,47 +57,62 @@
             <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
             <Setter Property="FontSize" Value="10" />
         </Style>
-        <Style Selector="TextBox.popup-input">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="MinHeight" Value="28" />
-            <Setter Property="FontSize" Value="14" />
-        </Style>
-        <Style Selector="TextBox.popup-input:focus">
-            <Setter Property="CaretBrush" Value="{DynamicResource AppAccentBrush}" />
-        </Style>
     </Window.Styles>
 
-    <Border Classes="popup-shell">
+    <Design.DataContext>
+        <vm:QuickSearchViewModel SearchQuery="紧张氛围的音乐"
+                                 SearchStatus="按回车即可查看检索结果。">
+            <vm:QuickSearchViewModel.SearchResults>
+                <models:AssetSearchDocument AssetId="asset-001"
+                                            AssetName="37_zombie.mp3"
+                                            AssetType="音频"
+                                            AssetPath="D:\Data\全资源\music\邦多利背景音乐未整理\37_zombie.mp3"
+                                            Description="节奏逐步推进、情绪偏压抑的音频片段。"
+                                            SourceStorePath="D:\GitRepository\AssetsLibrarySystem\data\asset_descriptions.db"
+                                            GeneratedAt="2026-06-01T18:00:00+08:00"
+                                            EmbeddingSimilarity="0.4818"
+                                            RerankScore="9.6875" />
+                <models:AssetSearchDocument AssetId="asset-002"
+                                            AssetName="opening_theme.wav"
+                                            AssetType="音频"
+                                            AssetPath="D:\Data\全资源\music\DDLC\DDLC_PLUS\opening_theme.wav"
+                                            Description="适合开场和菜单场景的氛围音乐。"
+                                            SourceStorePath="D:\GitRepository\AssetsLibrarySystem\data\asset_descriptions.db"
+                                            GeneratedAt="2026-06-01T18:00:00+08:00"
+                                            EmbeddingSimilarity="0.7602"
+                                            RerankScore="8.2241" />
+            </vm:QuickSearchViewModel.SearchResults>
+        </vm:QuickSearchViewModel>
+    </Design.DataContext>
+
+    <Panel Margin="4">
         <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                <Border Classes="popup-input-shell">
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                        <Border Width="24"
-                                Height="24"
-                                Background="{DynamicResource AppAccentSurfaceBrush}"
-                                BorderBrush="{DynamicResource AppAccentBrush}"
-                                BorderThickness="1"
-                                CornerRadius="999"
-                                VerticalAlignment="Center">
-                            <lucide:LucideIcon HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               Size="12"
-                                               Kind="Search" />
-                        </Border>
+            <Grid WindowDecorationProperties.ElementRole="TitleBar" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Border>
+                    <Panel >
+
                         <TextBox x:Name="SearchTextBox"
                                  Grid.Column="1"
-                                 Classes="popup-input"
                                  Text="{Binding SearchQuery, Mode=TwoWay}"
                                  KeyDown="SearchTextBox_KeyDown"
-                                 PlaceholderText="输入素材描述并回车，例如：紧张氛围的音乐" />
-                    </Grid>
+                                 Padding="32,0,0,0"
+                                 VerticalContentAlignment="Center"
+                                 PlaceholderText="输入素材描述并回车，例如：紧张氛围的音乐" >
+                            
+                        </TextBox>
+                        
+                        <lucide:LucideIcon HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"
+                                           Size="16"
+                                           Margin="8,0,0,0"
+                                           Kind="Search">
+
+                        </lucide:LucideIcon>
+                    </Panel>
                 </Border>
 
                 <Button Grid.Column="1"
+                        WindowDecorationProperties.ElementRole="CloseButton"
                         Classes="popup-icon"
                         Click="CloseWindow_Click">
                     <lucide:LucideIcon Classes="shell-glyph" Kind="X" Size="12" />
@@ -150,5 +163,6 @@
                 </ItemsControl>
             </ScrollViewer>
         </Grid>
-    </Border>
+
+    </Panel>
 </Window>

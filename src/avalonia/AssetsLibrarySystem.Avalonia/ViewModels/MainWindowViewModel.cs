@@ -53,6 +53,7 @@ public partial class MainWindowViewModel : ObservableObject
         SearchResults = new ObservableCollection<AssetSearchDocument>();
 
         BackendStatusTitle = "Python 模型服务待连接";
+        BackendStatusStage = "等待启动 [0/2]";
         BackendStatusDetail = "桌面端承担素材目录、元数据和工作流编排；Python 只负责 HTTP 模型能力。";
         BackendEndpoint = "http://127.0.0.1:8000";
         WorkspaceTitle = "本地素材工作台";
@@ -95,6 +96,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string BackendStatusTitle { get; set; }
+
+    [ObservableProperty]
+    public partial string BackendStatusStage { get; set; }
 
     [ObservableProperty]
     public partial ManagedAssetRecord? SelectedAsset { get; set; }
@@ -197,6 +201,7 @@ public partial class MainWindowViewModel : ObservableObject
         if (BackendLauncher is null)
         {
             BackendStatusTitle = "设计时模式";
+            BackendStatusStage = "本地预览 [0/0]";
             BackendStatusDetail = "当前界面使用桌面端本地逻辑，没有注入 Python 模型服务。";
         }
         else
@@ -593,6 +598,7 @@ public partial class MainWindowViewModel : ObservableObject
     private async Task InitializeBackendAsync()
     {
         BackendStatusTitle = "Python 模型服务启动中";
+        BackendStatusStage = "启动服务 [0/2]";
         BackendStatusDetail = "正在等待 /health 返回，就绪后桌面端可将提示词任务转发给 HTTP 后端。";
 
         try
@@ -600,29 +606,38 @@ public partial class MainWindowViewModel : ObservableObject
             await BackendLauncher!.StartAsync();
             BackendEndpoint = BackendLauncher.BaseUrl;
             BackendStatusTitle = "Python 模型服务已连接";
+            BackendStatusStage = "模型加载完毕 [2/2]";
             BackendStatusDetail = "模型服务只负责大模型 HTTP 接口，不再承担素材库、文件扫描或目录管理。";
             ActivityFeed.Insert(0, $"模型网关就绪：{BackendEndpoint}");
 
             if (AssetSearchService is not null)
             {
+                BackendStatusStage = "正在预热模型 [1/2]";
                 BackendStatusDetail = "正在预热向量模型与重排序模型，减少第一次检索等待。";
                 try
                 {
                     var embeddingWarmup = await AssetSearchService.WarmupEmbeddingAsync(BackendEndpoint);
                     var rerankWarmup = await AssetSearchService.WarmupRerankAsync(BackendEndpoint);
+                    BackendStatusStage = "模型加载完毕 [2/2]";
                     BackendStatusDetail = $"检索模型已预热：{embeddingWarmup.ModelName} / {rerankWarmup.ModelName}";
                     ActivityFeed.Insert(0, $"检索模型预热完成：{embeddingWarmup.ModelName} / {rerankWarmup.ModelName}");
                 }
                 catch (Exception ex)
                 {
+                    BackendStatusStage = "模型预热失败 [2/2]";
                     BackendStatusDetail = $"模型预热失败：{ex.Message}";
                     ActivityFeed.Insert(0, $"检索模型预热失败：{ex.Message}");
                 }
+            }
+            else
+            {
+                BackendStatusStage = "模型已连接 [1/2]";
             }
         }
         catch (Exception ex)
         {
             BackendStatusTitle = "Python 模型服务未就绪";
+            BackendStatusStage = "启动失败 [0/2]";
             BackendStatusDetail = ex.Message;
             OperatorNotice = "后端启动失败，当前仍可继续使用桌面端素材库管理。";
             ActivityFeed.Insert(0, $"模型网关启动失败：{ex.Message}");

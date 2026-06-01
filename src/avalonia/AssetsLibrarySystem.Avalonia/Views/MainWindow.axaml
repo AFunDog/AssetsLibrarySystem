@@ -138,8 +138,11 @@
                     </Border>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                        <Border Background="Transparent" BorderThickness="0" CornerRadius="0" Padding="0">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Background="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="0"
+                                Padding="0">
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <Border Background="{DynamicResource AppAccentSurfaceBrush}"
                                         BorderBrush="{DynamicResource AppAccentBrush}"
                                         BorderThickness="1"
@@ -148,10 +151,13 @@
                                         Height="20">
                                     <LucideIcon Classes="shell-glyph" Kind="Bot" Size="12" />
                                 </Border>
-                                <StackPanel Spacing="2">
+                                <StackPanel Spacing="1">
                                     <TextBlock FontSize="11"
                                                FontWeight="SemiBold"
                                                Text="{Binding BackendStatusTitle}" />
+                                    <TextBlock FontSize="10"
+                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               Text="{Binding BackendStatusStage}" />
                                     <TextBlock FontSize="10"
                                                Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                Text="{Binding BackendEndpoint}" />
