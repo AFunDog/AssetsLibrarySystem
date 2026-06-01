@@ -447,17 +447,17 @@
                             <ItemsControl ItemsSource="{Binding SearchResults}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <StackPanel Spacing="10" />
+                                        <StackPanel Spacing="12" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="models:AssetSearchDocument">
-                                        <Border Classes="shell-soft">
-                                            <StackPanel Spacing="8">
-                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                        <Border Classes="shell-soft" Padding="14">
+                                            <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                                     <StackPanel Spacing="2">
                                                         <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                                   FontSize="13"
+                                                                   FontSize="14"
                                                                    FontWeight="SemiBold"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    Text="{Binding AssetName}" />
@@ -476,15 +476,17 @@
                                                         </StackPanel>
                                                     </Border>
                                                 </Grid>
-                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                <TextBlock Grid.Row="1"
+                                                           Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                            FontSize="11"
                                                            TextWrapping="Wrap"
                                                            Text="{Binding AssetPath}" />
-                                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                <TextBlock Grid.Row="2"
+                                                           Foreground="{DynamicResource AppTextBrush}"
                                                            FontSize="11"
                                                            TextWrapping="Wrap"
                                                            Text="{Binding Description}" />
-                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                <Grid Grid.Row="3" ColumnDefinitions="Auto,*" ColumnSpacing="8">
                                                     <Button Classes="secondary-action"
                                                             Click="RevealSearchResult_Click"
                                                             CommandParameter="{Binding}"
@@ -493,9 +495,10 @@
                                                                VerticalAlignment="Center"
                                                                Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                                FontSize="10"
+                                                               TextTrimming="CharacterEllipsis"
                                                                Text="{Binding SourceStorePath, TargetNullValue=SQLite 中无来源路径}" />
                                                 </Grid>
-                                            </StackPanel>
+                                            </Grid>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

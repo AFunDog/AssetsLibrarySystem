@@ -29,3 +29,9 @@ public sealed record AssetReindexResponseDocument(
     string IndexPath,
     string MetadataPath,
     string[] EmbeddingModels);
+
+public sealed record AssetSearchWarmupDocument(
+    string ModelKind,
+    string ModelName,
+    string Device,
+    bool Warmed);

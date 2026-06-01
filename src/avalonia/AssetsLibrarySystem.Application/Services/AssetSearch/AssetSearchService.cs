@@ -104,6 +104,49 @@ public sealed class AssetSearchService : IAssetSearchService
             EmbeddingModels: backendResponse.EmbeddingModels.ToArray());
     }
 
+    public async Task<AssetSearchWarmupDocument> WarmupEmbeddingAsync(
+        string backendBaseUrl,
+        CancellationToken ct = default)
+    {
+        return await WarmupAsync(backendBaseUrl, "embedding", ct);
+    }
+
+    public async Task<AssetSearchWarmupDocument> WarmupRerankAsync(
+        string backendBaseUrl,
+        CancellationToken ct = default)
+    {
+        return await WarmupAsync(backendBaseUrl, "rerank", ct);
+    }
+
+    private async Task<AssetSearchWarmupDocument> WarmupAsync(
+        string backendBaseUrl,
+        string modelKind,
+        CancellationToken ct)
+    {
+        var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/warmup/{modelKind}";
+        using var content = new StringContent(
+            "{}",
+            Encoding.UTF8,
+            "application/json");
+
+        using var response = await Http.PostAsync(endpoint, content, ct);
+        var responseText = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            Log.Warning("素材 {ModelKind} 模型预热失败: {StatusCode}, body={Body}", modelKind, (int)response.StatusCode, responseText);
+            throw new InvalidOperationException($"后端{modelKind}模型预热失败：{responseText}");
+        }
+
+        var backendResponse = JsonSerializer.Deserialize<SearchWarmupResponse>(responseText, JsonOptions)
+            ?? throw new InvalidOperationException("后端返回空模型预热响应。");
+
+        return new AssetSearchWarmupDocument(
+            ModelKind: backendResponse.ModelKind,
+            ModelName: backendResponse.ModelName,
+            Device: backendResponse.Device,
+            Warmed: backendResponse.Warmed);
+    }
+
     private sealed record SearchExploreRequest(
         [property: JsonPropertyName("query")] string Query,
         [property: JsonPropertyName("candidate_top_k")] int CandidateTopK,
@@ -137,4 +180,10 @@ public sealed class AssetSearchService : IAssetSearchService
         [property: JsonPropertyName("index_path")] string IndexPath,
         [property: JsonPropertyName("metadata_path")] string MetadataPath,
         [property: JsonPropertyName("embedding_models")] string[] EmbeddingModels);
+
+    private sealed record SearchWarmupResponse(
+        [property: JsonPropertyName("model_kind")] string ModelKind,
+        [property: JsonPropertyName("model_name")] string ModelName,
+        [property: JsonPropertyName("device")] string Device,
+        [property: JsonPropertyName("warmed")] bool Warmed);
 }

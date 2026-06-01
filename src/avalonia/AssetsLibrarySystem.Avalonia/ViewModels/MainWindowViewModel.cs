@@ -602,6 +602,23 @@ public partial class MainWindowViewModel : ObservableObject
             BackendStatusTitle = "Python 模型服务已连接";
             BackendStatusDetail = "模型服务只负责大模型 HTTP 接口，不再承担素材库、文件扫描或目录管理。";
             ActivityFeed.Insert(0, $"模型网关就绪：{BackendEndpoint}");
+
+            if (AssetSearchService is not null)
+            {
+                BackendStatusDetail = "正在预热向量模型与重排序模型，减少第一次检索等待。";
+                try
+                {
+                    var embeddingWarmup = await AssetSearchService.WarmupEmbeddingAsync(BackendEndpoint);
+                    var rerankWarmup = await AssetSearchService.WarmupRerankAsync(BackendEndpoint);
+                    BackendStatusDetail = $"检索模型已预热：{embeddingWarmup.ModelName} / {rerankWarmup.ModelName}";
+                    ActivityFeed.Insert(0, $"检索模型预热完成：{embeddingWarmup.ModelName} / {rerankWarmup.ModelName}");
+                }
+                catch (Exception ex)
+                {
+                    BackendStatusDetail = $"模型预热失败：{ex.Message}";
+                    ActivityFeed.Insert(0, $"检索模型预热失败：{ex.Message}");
+                }
+            }
         }
         catch (Exception ex)
         {

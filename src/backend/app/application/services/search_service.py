@@ -16,6 +16,7 @@ from app.schemas.search import (
     SearchExploreRequest,
     SearchExploreResponse,
     SearchReindexResponse,
+    SearchWarmupResponse,
     SearchQueryRequest,
     SearchQueryResponse,
     SearchQueryResultItem,
@@ -48,6 +49,10 @@ class LocalSearchModelBundle:
     def rerank_model_name(self) -> str:
         return self._config.rerank_model
 
+    @property
+    def device_name(self) -> str:
+        return self._get_device()
+
     def encode_documents(self, descriptions: list[str]) -> np.ndarray:
         model = self._get_embed_model()
         return model.encode_document(
@@ -70,6 +75,12 @@ class LocalSearchModelBundle:
         pairs = [(query, description) for description in descriptions]
         scores = model.predict(pairs)
         return [float(score) for score in scores]
+
+    def warmup_embedding(self) -> None:
+        self._get_embed_model()
+
+    def warmup_rerank(self) -> None:
+        self._get_rerank_model()
 
     def _get_embed_model(self):
         if self._embed_model is None:
@@ -242,6 +253,24 @@ class SearchService:
             index_path=str(vector_index_manager.index_path),
             metadata_path=str(vector_index_manager.metadata_path),
             embedding_models=sorted({record.embedding_model for record in records}),
+        )
+
+    def warmup_embedding_model(self) -> SearchWarmupResponse:
+        self._model_bundle.warmup_embedding()
+        return SearchWarmupResponse(
+            model_kind="embedding",
+            model_name=self._model_bundle.embedding_model_name,
+            device=self._model_bundle.device_name,
+            warmed=True,
+        )
+
+    def warmup_rerank_model(self) -> SearchWarmupResponse:
+        self._model_bundle.warmup_rerank()
+        return SearchWarmupResponse(
+            model_kind="rerank",
+            model_name=self._model_bundle.rerank_model_name,
+            device=self._model_bundle.device_name,
+            warmed=True,
         )
 
     def rerank(self, payload: SearchQueryRequest) -> SearchQueryResponse:

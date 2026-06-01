@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -104,6 +105,13 @@ class SearchReindexResponse(BaseModel):
     index_path: str
     metadata_path: str
     embedding_models: list[str]
+
+
+class SearchWarmupResponse(BaseModel):
+    model_kind: Literal["embedding", "rerank"]
+    model_name: str
+    device: str
+    warmed: bool = True
 
 
 SearchQueryRequest.model_rebuild()

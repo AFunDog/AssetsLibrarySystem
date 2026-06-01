@@ -17,4 +17,12 @@ public interface IAssetSearchService
     Task<AssetReindexResponseDocument> ReindexAsync(
         string backendBaseUrl,
         CancellationToken ct = default);
+
+    Task<AssetSearchWarmupDocument> WarmupEmbeddingAsync(
+        string backendBaseUrl,
+        CancellationToken ct = default);
+
+    Task<AssetSearchWarmupDocument> WarmupRerankAsync(
+        string backendBaseUrl,
+        CancellationToken ct = default);
 }

@@ -67,21 +67,16 @@ public partial class App : Application
             ShellViewModel.AttachMainWindow(mainWindow);
             ShellViewModel.AttachQuickSearchWindow(quickSearchWindow);
 
-            desktop.Exit += async (_, _) =>
+            desktop.Exit += (_, _) =>
             {
-                if (backendLauncher is null)
-                {
-                    ShellViewModel?.Dispose();
-                    Container?.Dispose();
-                    return;
-                }
-
                 try
                 {
                     ShellViewModel?.Dispose();
-                    await backendLauncher.StopAsync();
-                    await backendLauncher.DisposeAsync();
-                    Log.Information("桌面端退出时已清理 Python 后端进程");
+                    if (backendLauncher is not null)
+                    {
+                        backendLauncher.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        Log.Information("桌面端退出时已清理 Python 后端进程");
+                    }
                 }
                 catch (Exception ex)
                 {

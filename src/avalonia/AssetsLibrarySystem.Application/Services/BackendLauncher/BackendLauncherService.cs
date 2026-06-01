@@ -35,19 +35,24 @@ public sealed class BackendLauncherService : IBackendLauncher
 
         var psi = CreateProcessStartInfo();
         Log.Information(
-            "准备启动后端: mode={Mode}, file={File}, arguments={Arguments}, workingDirectory={WorkingDirectory}",
+            "准备启动后端: mode={Mode}, file={File}, arguments={Arguments}, workingDirectory={WorkingDirectory}, launcherPid={LauncherPid}",
             IsDebugBuild ? "Debug" : "Release",
             psi.FileName,
             psi.Arguments,
-            psi.WorkingDirectory);
+            psi.WorkingDirectory,
+            Environment.ProcessId);
 
         BackendProcess = Process.Start(psi)
             ?? throw new InvalidOperationException("无法启动 Python 进程。");
 
-        Log.Information("后端进程已启动，pid={Pid}", BackendProcess.Id);
+        Log.Information(
+            "后端进程已启动，pid={BackendPid}, backendExecutable={BackendExecutable}, launcherPid={LauncherPid}",
+            BackendProcess.Id,
+            psi.FileName,
+            Environment.ProcessId);
 
-        _ = BackendProcess.StandardOutput.ReadToEndAsync(ct);
-        _ = BackendProcess.StandardError.ReadToEndAsync(ct);
+        // _ = BackendProcess.StandardOutput.ReadToEndAsync(ct);
+        // _ = BackendProcess.StandardError.ReadToEndAsync(ct);
 
         await WaitForHealthAsync(ct);
         StartHeartbeatLoop();
@@ -143,12 +148,13 @@ public sealed class BackendLauncherService : IBackendLauncher
             WorkingDirectory = Options.BackendWorkingDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
+            RedirectStandardOutput = false,
+            RedirectStandardError = false,
         };
         processStartInfo.Environment["BACKEND_HEARTBEAT_TIMEOUT"] = Options.HeartbeatTimeout.TotalSeconds.ToString("0.###");
         processStartInfo.Environment["BACKEND_HEARTBEAT_CHECK_INTERVAL"] = "1";
         processStartInfo.Environment["BACKEND_HEARTBEAT_STARTUP_GRACE"] = Options.HeartbeatStartupGrace.TotalSeconds.ToString("0.###");
+        processStartInfo.Environment["BACKEND_LAUNCHER_PID"] = Environment.ProcessId.ToString();
 
         return processStartInfo;
     }

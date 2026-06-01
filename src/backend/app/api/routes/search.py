@@ -9,6 +9,7 @@ from app.schemas.search import (
     SearchExploreRequest,
     SearchExploreResponse,
     SearchReindexResponse,
+    SearchWarmupResponse,
     SearchQueryRequest,
     SearchQueryResponse,
 )
@@ -53,5 +54,21 @@ def explore(payload: SearchExploreRequest) -> SearchExploreResponse:
 def reindex() -> SearchReindexResponse:
     try:
         return get_search_service().rebuild_index()
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/warmup/embedding", response_model=SearchWarmupResponse)
+def warmup_embedding() -> SearchWarmupResponse:
+    try:
+        return get_search_service().warmup_embedding_model()
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/warmup/rerank", response_model=SearchWarmupResponse)
+def warmup_rerank() -> SearchWarmupResponse:
+    try:
+        return get_search_service().warmup_rerank_model()
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
