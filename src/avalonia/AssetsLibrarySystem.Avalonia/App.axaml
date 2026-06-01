@@ -1,17 +1,17 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="AssetsLibrarySystem.Avalonia.App"
-             RequestedThemeVariant="Default">
+             RequestedThemeVariant="Dark">
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>
 
     <Application.Resources>
-            <ResourceDictionary>
-            <SolidColorBrush x:Key="AppAccentBrush" Color="{DynamicResource SystemAccentColor}" />
-            <SolidColorBrush x:Key="AppAccentSurfaceBrush" Color="{DynamicResource SystemAccentColor}" Opacity="0.14" />
+        <ResourceDictionary>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AppAccentBrush" Color="{DynamicResource SystemAccentColor}" />
+                    <SolidColorBrush x:Key="AppAccentSurfaceBrush" Color="{DynamicResource SystemAccentColor}" Opacity="0.12" />
                     <SolidColorBrush x:Key="AppWindowBackgroundBrush" Color="#EEF3F9" />
                     <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FCFEFF" />
                     <SolidColorBrush x:Key="AppSoftSurfaceBrush" Color="#F7FAFD" />
@@ -22,14 +22,16 @@
                     <SolidColorBrush x:Key="AppBadgeBrush" Color="#EDF3FA" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="AppWindowBackgroundBrush" Color="#10151B" />
-                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#171D24" />
-                    <SolidColorBrush x:Key="AppSoftSurfaceBrush" Color="#1D242C" />
-                    <SolidColorBrush x:Key="AppBorderBrush" Color="#2B3642" />
-                    <SolidColorBrush x:Key="AppTextBrush" Color="#F1F4F7" />
-                    <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#A7B3BF" />
-                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#D1D9E1" />
-                    <SolidColorBrush x:Key="AppBadgeBrush" Color="#1F2933" />
+                    <SolidColorBrush x:Key="AppAccentBrush" Color="{DynamicResource SystemAccentColor}" />
+                    <SolidColorBrush x:Key="AppAccentSurfaceBrush" Color="{DynamicResource SystemAccentColor}" Opacity="0.14" />
+                    <SolidColorBrush x:Key="AppWindowBackgroundBrush" Color="#0D1117" />
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#131922" />
+                    <SolidColorBrush x:Key="AppSoftSurfaceBrush" Color="#171E28" />
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#243140" />
+                    <SolidColorBrush x:Key="AppTextBrush" Color="#E9EEF5" />
+                    <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#9FA9B6" />
+                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#C7D0D9" />
+                    <SolidColorBrush x:Key="AppBadgeBrush" Color="#1A222C" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
