@@ -26,6 +26,7 @@ internal static class Program
                 scope.Resolve<AssetsLibrarySystem.Avalonia.Services.AssetDescription.IAssetDescriptionStore>(),
                 scope.Resolve<AssetsLibrarySystem.Avalonia.Services.AssetDescription.IAssetDescriptionVectorStore>(),
                 scope.Resolve<AssetsLibrarySystem.Avalonia.Services.AssetDescription.IAssetTextVectorizationService>(),
+                scope.Resolve<AssetsLibrarySystem.Avalonia.Services.AssetSearch.IAssetSearchService>(),
                 scope.Resolve<AssetsLibrarySystem.Avalonia.Services.BackendLauncher.IBackendLauncher>());
 
             return await runner.RunAsync(args);

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
+using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 
 namespace AssetsLibrarySystem.Avalonia.ConsoleHost;
@@ -17,6 +18,7 @@ public sealed class ConsoleCommandRunner
     private IAssetDescriptionStore DescriptionStore { get; }
     private IAssetDescriptionVectorStore VectorStore { get; }
     private IAssetTextVectorizationService TextVectorizationService { get; }
+    private IAssetSearchService AssetSearchService { get; }
     private IBackendLauncher BackendLauncher { get; }
 
     public ConsoleCommandRunner(
@@ -25,6 +27,7 @@ public sealed class ConsoleCommandRunner
         IAssetDescriptionStore descriptionStore,
         IAssetDescriptionVectorStore vectorStore,
         IAssetTextVectorizationService textVectorizationService,
+        IAssetSearchService assetSearchService,
         IBackendLauncher backendLauncher)
     {
         LibraryService = libraryService;
@@ -32,6 +35,7 @@ public sealed class ConsoleCommandRunner
         DescriptionStore = descriptionStore;
         VectorStore = vectorStore;
         TextVectorizationService = textVectorizationService;
+        AssetSearchService = assetSearchService;
         BackendLauncher = backendLauncher;
     }
 
@@ -107,6 +111,8 @@ public sealed class ConsoleCommandRunner
             "describe" => await DescribeAssetAsync(args.Skip(1).ToArray()),
             "describe-dir" => await DescribeDirectoryAsync(args.Skip(1).ToArray()),
             "vectorize-missing" => await VectorizeMissingDescriptionsAsync(args.Skip(1).ToArray()),
+            "search" => await SearchAssetsAsync(args.Skip(1).ToArray()),
+            "query" => await SearchAssetsAsync(args.Skip(1).ToArray()),
             _ => PrintAssetHelpAndFail()
         };
     }
@@ -425,6 +431,46 @@ public sealed class ConsoleCommandRunner
         return failureCount == 0 ? 0 : 1;
     }
 
+    private async Task<int> SearchAssetsAsync(string[] args)
+    {
+        var query = GetOptionValue(args, "--query")
+            ?? GetOptionValue(args, "-q")
+            ?? GetLeadingText(args);
+        var candidateTopK = GetIntOptionValue(args, "--candidate-top-k")
+            ?? GetIntOptionValue(args, "--candidate-topk")
+            ?? 20;
+        var finalTopK = GetIntOptionValue(args, "--top-k")
+            ?? GetIntOptionValue(args, "--topk")
+            ?? 5;
+        var assetFormat = GetOptionValue(args, "--format")
+            ?? GetOptionValue(args, "--asset-format");
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            Console.Error.WriteLine("需要提供查询文本。");
+            PrintAssetHelp();
+            return 1;
+        }
+
+        await BackendLauncher.StartAsync();
+        try
+        {
+            var response = await AssetSearchService.SearchAsync(
+                BackendLauncher.BaseUrl,
+                query,
+                candidateTopK,
+                finalTopK,
+                assetFormat);
+            PrintSearchResult(response);
+        }
+        finally
+        {
+            await BackendLauncher.StopAsync();
+        }
+
+        return 0;
+    }
+
     private async Task<LibraryWorkspace?> ResolveLibraryAsync(string key)
     {
         var libraries = await LibraryService.GetLibrariesAsync();
@@ -487,6 +533,34 @@ public sealed class ConsoleCommandRunner
         return null;
     }
 
+    private static int? GetIntOptionValue(string[] args, string name)
+    {
+        var value = GetOptionValue(args, name);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return int.TryParse(value, out var parsed) ? parsed : null;
+    }
+
+    private static string? GetLeadingText(string[] args)
+    {
+        var parts = new List<string>();
+        foreach (var arg in args)
+        {
+            if (arg.StartsWith('-'))
+            {
+                break;
+            }
+
+            parts.Add(arg);
+        }
+
+        var text = string.Join(" ", parts).Trim();
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
     private async Task<AssetDescriptionDocument> DescribeSingleAssetAsync(
         ManagedAssetRecord asset,
         string? prompt,
@@ -507,6 +581,24 @@ public sealed class ConsoleCommandRunner
         Console.WriteLine($"- 模式: {document.Mode}");
         Console.WriteLine($"- 时间: {document.GeneratedAt:yyyy-MM-dd HH:mm:ss}");
         Console.WriteLine($"- 文本: {document.Description}");
+    }
+
+    private static void PrintSearchResult(AssetSearchResponseDocument response)
+    {
+        Console.WriteLine("查询完成。");
+        Console.WriteLine($"- 查询: {response.Query}");
+        Console.WriteLine($"- 候选数: {response.CandidateTopK}");
+        Console.WriteLine($"- 返回数: {response.FinalTopK}");
+        Console.WriteLine($"- 向量模型: {response.EmbeddingModel}");
+        Console.WriteLine($"- 重排模型: {response.RerankModel}");
+
+        for (var index = 0; index < response.Results.Length; index++)
+        {
+            var item = response.Results[index];
+            Console.WriteLine($"[{index + 1}] {item.AssetName} | {item.AssetType} | rerank={item.RerankScore:0.0000} | sim={item.EmbeddingSimilarity:0.0000}");
+            Console.WriteLine($"    path: {item.AssetPath}");
+            Console.WriteLine($"    desc: {item.Description}");
+        }
     }
 
     private static bool IsHelp(string arg)
@@ -552,6 +644,7 @@ public sealed class ConsoleCommandRunner
             assets 命令:
               assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>]
               assets describe-dir --library <libraryId|libraryName|rootPath> --folder <relativeFolderPath> [--prompt <prompt>] [--system-prompt <prompt>]
+              assets search <query> [--candidate-top-k <n>] [--top-k <n>] [--format <assetFormat>]
               assets vectorize-missing [--library <libraryId|libraryName|rootPath>]
             """);
     }

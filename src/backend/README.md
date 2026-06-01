@@ -23,6 +23,8 @@
 - `POST /api/v1/model/generate`
 - `POST /api/v1/search/index`
 - `POST /api/v1/search/query`
+- `POST /api/v1/search/explore`
+- `POST /api/v1/search/reindex`
 
 `POST /api/v1/model/generate` 现在接收的是素材打标请求，而不是对话消息流。请求体的核心字段是：
 
@@ -50,6 +52,8 @@
 - `ALS_SEARCH_CACHE_DIR`
 
 `POST /api/v1/search/query` 只对调用方传入的候选文本做本地 rerank，不负责数据库读取或写入。
+
+`POST /api/v1/search/reindex` 会直接读取 Avalonia 已写入的 `asset_descriptions.db` 中的 `asset_description_vectors` 表，重新构建本地 HNSW 索引文件，不再维护第二份向量 SQLite。
 
 `api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取环境变量 `DASHSCOPE_API_KEY`。
 

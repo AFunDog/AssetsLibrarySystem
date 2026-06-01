@@ -8,12 +8,13 @@ import numpy as np
 from app.core.paths import ensure_shared_data_dir
 from app.infrastructure.search.hnsw_index_manager import HnswIndexManager
 from app.infrastructure.search.sqlite_vector_repository import (
-    AssetVectorInput,
     SqliteVectorRepository,
 )
 from app.schemas.search import (
     SearchIndexRequest,
     SearchIndexResponse,
+    SearchExploreRequest,
+    SearchExploreResponse,
     SearchReindexResponse,
     SearchQueryRequest,
     SearchQueryResponse,
@@ -120,9 +121,9 @@ class SearchService:
         if cache_folder is None or not cache_folder.strip():
             cache_folder = str(data_dir / "huggingface")
 
-        vector_database_path = os.getenv("ALS_SEARCH_VECTOR_DATABASE_PATH")
+        vector_database_path = os.getenv("ALS_DESCRIPTION_VECTOR_DATABASE_PATH")
         if vector_database_path is None or not vector_database_path.strip():
-            vector_database_path = str(data_dir / "asset_search_vectors.db")
+            vector_database_path = str(data_dir / "asset_descriptions.db")
 
         vector_index_path = os.getenv("ALS_SEARCH_VECTOR_INDEX_PATH")
         if vector_index_path is None or not vector_index_path.strip():
@@ -158,36 +159,89 @@ class SearchService:
             embedding_model=self._model_bundle.embedding_model_name,
         )
 
-    def rebuild_index(self, documents: list[AssetVectorInput]) -> SearchReindexResponse:
-        if not documents:
-            raise ValueError("没有可重建索引的向量数据。")
-
-        vector_dim: int | None = None
-        embedding_models: list[str] = []
-
-        for document in documents:
-            current_dim = int(document.vector.shape[0])
-            if vector_dim is None:
-                vector_dim = current_dim
-            elif current_dim != vector_dim:
-                raise ValueError("所有向量的维度必须一致。")
-
-            embedding_models.append(document.embedding_model)
-
+    def explore(self, payload: SearchExploreRequest) -> SearchExploreResponse:
         vector_repository = self._get_vector_repository()
-        vector_index_manager = self._get_vector_index_manager()
+        records = vector_repository.list_documents()
+        if not records:
+            raise ValueError("当前没有可检索的素材描述。")
 
-        records = vector_repository.replace_documents(documents)
+        state = vector_repository.get_state()
+        vector_index_manager = self._get_vector_index_manager()
+        vector_index_manager.ensure_current(records, state)
+
+        query_vector = self._model_bundle.encode_query(payload.query)
+        search_top_k = min(
+            len(records),
+            max(payload.candidate_top_k * 5, payload.candidate_top_k, 50),
+        )
+        search_results = vector_index_manager.search(query_vector, search_top_k)
+
+        record_by_doc_id = {record.doc_id: record for record in records}
+        candidates: list[tuple[float, object]] = []
+        for doc_id, embedding_similarity in search_results:
+            record = record_by_doc_id.get(doc_id)
+            if record is None:
+                continue
+            if payload.asset_format is not None and record.asset_format != payload.asset_format:
+                continue
+            candidates.append((embedding_similarity, record))
+            if len(candidates) >= payload.candidate_top_k:
+                break
+
+        if not candidates:
+            raise ValueError("未找到符合条件的素材。")
+
+        rerank_scores = self._model_bundle.rerank(
+            payload.query,
+            [record.description for _, record in candidates],
+        )
+
+        ranked_items = []
+        for (embedding_similarity, record), rerank_score in zip(candidates, rerank_scores, strict=True):
+            ranked_items.append(
+                SearchQueryResultItem(
+                    asset_id=record.asset_id,
+                    asset_name=record.asset_name,
+                    asset_format=record.asset_format,
+                    asset_path=record.asset_path,
+                    description=record.description,
+                    source_store_path=record.source_store_path,
+                    generated_at=record.generated_at,
+                    embedding_similarity=embedding_similarity,
+                    rerank_score=rerank_score,
+                )
+            )
+
+        ranked_items.sort(key=lambda item: item.rerank_score, reverse=True)
+
+        return SearchExploreResponse(
+            query=payload.query,
+            candidate_top_k=len(candidates),
+            final_top_k=min(payload.final_top_k, len(ranked_items)),
+            asset_format=payload.asset_format,
+            embedding_model=self._model_bundle.embedding_model_name,
+            rerank_model=self._model_bundle.rerank_model_name,
+            results=ranked_items[: payload.final_top_k],
+        )
+
+    def rebuild_index(self) -> SearchReindexResponse:
+        vector_repository = self._get_vector_repository()
+        records = vector_repository.list_documents()
+        if not records:
+            raise ValueError("当前没有可重建索引的素材描述。")
+
+        vector_dim = int(records[0].vector.shape[0])
+        vector_index_manager = self._get_vector_index_manager()
         state = vector_repository.get_state()
         vector_index_manager.rebuild(records, state)
 
         return SearchReindexResponse(
             document_count=state.document_count,
-            vector_dim=vector_dim or 0,
+            vector_dim=vector_dim,
             database_path=str(vector_repository.database_path),
             index_path=str(vector_index_manager.index_path),
             metadata_path=str(vector_index_manager.metadata_path),
-            embedding_models=sorted(set(embedding_models)),
+            embedding_models=sorted({record.embedding_model for record in records}),
         )
 
     def rerank(self, payload: SearchQueryRequest) -> SearchQueryResponse:
