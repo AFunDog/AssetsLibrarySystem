@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
+using System.Collections.Specialized;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,6 +12,7 @@ using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
 using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
+using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -22,11 +25,12 @@ public partial class MainWindowViewModel : ObservableObject
     private IAssetDescriptionService? AssetDescriptionService { get; }
     private IAssetDescriptionStore? AssetDescriptionStore { get; }
     private IAssetSearchService? AssetSearchService { get; }
+    private IBackgroundTaskService? BackgroundTaskService { get; }
     private List<ManagedAssetRecord> AllAssets { get; } = [];
     private bool SuppressLibrarySelectionLoad { get; set; }
     private bool IsLibraryScanRunning { get; set; }
 
-    public MainWindowViewModel() : this(null, null, null, null, null)
+    public MainWindowViewModel() : this(null, null, null, null, null, null)
     {
     }
 
@@ -35,13 +39,15 @@ public partial class MainWindowViewModel : ObservableObject
         IAssetLibraryService? assetLibraryService,
         IAssetDescriptionService? assetDescriptionService,
         IAssetDescriptionStore? assetDescriptionStore,
-        IAssetSearchService? assetSearchService)
+        IAssetSearchService? assetSearchService,
+        IBackgroundTaskService? backgroundTaskService)
     {
         BackendLauncher = backendLauncher;
         AssetLibraryService = assetLibraryService;
         AssetDescriptionService = assetDescriptionService;
         AssetDescriptionStore = assetDescriptionStore;
         AssetSearchService = assetSearchService;
+        BackgroundTaskService = backgroundTaskService;
 
         Metrics = new ObservableCollection<DashboardMetric>();
         AssetTreeRoots = [];
@@ -51,6 +57,7 @@ public partial class MainWindowViewModel : ObservableObject
         SelectedAssetTags = new ObservableCollection<string>();
         ActivityFeed = new ObservableCollection<string>();
         SearchResults = new ObservableCollection<AssetSearchDocument>();
+        BackgroundTasks = backgroundTaskService?.Tasks ?? [];
 
         BackendStatusTitle = "Python 模型服务待连接";
         BackendStatusStage = "等待启动 [0/2]";
@@ -75,11 +82,20 @@ public partial class MainWindowViewModel : ObservableObject
         SearchStatus = "尚未执行素材检索。";
         SearchIndexSummary = "尚未重建索引。";
         SearchIndexDetail = "点击“重建向量索引”后，Python 后端会根据 asset_descriptions.db 重新构建 HNSW。";
+        TitleBarTaskText = backgroundTaskService?.ActiveTaskSummary ?? string.Empty;
+        HasTitleBarTask = backgroundTaskService?.HasActiveTaskSummary ?? false;
+        HasBackgroundTaskEntries = BackgroundTasks.Count > 0;
 
         SeedStaticData();
         RebuildMetrics();
         SetEmptyWorkspaceState();
         ResetSelectedAssetDescription();
+
+        if (backgroundTaskService is not null)
+        {
+            backgroundTaskService.PropertyChanged += OnBackgroundTaskServicePropertyChanged;
+            BackgroundTasks.CollectionChanged += OnBackgroundTasksCollectionChanged;
+        }
     }
 
     public ObservableCollection<DashboardMetric> Metrics { get; }
@@ -90,6 +106,7 @@ public partial class MainWindowViewModel : ObservableObject
     public ObservableCollection<string> SelectedAssetTags { get; }
     public ObservableCollection<string> ActivityFeed { get; }
     public ObservableCollection<AssetSearchDocument> SearchResults { get; }
+    public ObservableCollection<BackgroundTaskEntry> BackgroundTasks { get; }
 
     [ObservableProperty]
     public partial LibraryWorkspace? SelectedLibrary { get; set; }
@@ -195,6 +212,18 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string SearchIndexDetail { get; set; }
+
+    [ObservableProperty]
+    public partial string TitleBarTaskText { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasTitleBarTask { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasBackgroundTaskEntries { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsBackgroundTaskPanelOpen { get; set; }
 
     public async Task InitializeAsync()
     {
@@ -357,6 +386,7 @@ public partial class MainWindowViewModel : ObservableObject
         SyncSelectedAssetFields();
         OperatorNotice = $"已为 {SelectedAsset.Name} 排入描述任务，正在调用后端服务。";
         ActivityFeed.Insert(0, $"描述任务排队：{SelectedAsset.Name}");
+        var taskId = BeginBackgroundTask("素材描述", $"正在生成素材描述：{SelectedAsset.Name}", SelectedAsset.LocalPath);
 
         try
         {
@@ -371,6 +401,7 @@ public partial class MainWindowViewModel : ObservableObject
             SyncSelectedAssetFields();
             OperatorNotice = $"描述已写入 SQLite：{document.StorePath}";
             ActivityFeed.Insert(0, $"描述完成：{SelectedAsset.Name} -> {document.StorePath}");
+            CompleteBackgroundTask(taskId, $"描述完成：{SelectedAsset.Name}", document.StorePath);
         }
         catch (Exception ex)
         {
@@ -379,6 +410,7 @@ public partial class MainWindowViewModel : ObservableObject
             SyncSelectedAssetFields();
             OperatorNotice = $"描述任务失败：{ex.Message}";
             ActivityFeed.Insert(0, $"描述失败：{SelectedAsset.Name} -> {ex.Message}");
+            FailBackgroundTask(taskId, $"描述失败：{SelectedAsset.Name}", ex.Message);
         }
     }
 
@@ -595,8 +627,26 @@ public partial class MainWindowViewModel : ObservableObject
         ActivityFeed.Insert(0, $"提示词草稿已更新：{target}");
     }
 
+    [RelayCommand]
+    private void ToggleBackgroundTaskPanel()
+    {
+        if (BackgroundTasks.Count == 0)
+        {
+            return;
+        }
+
+        IsBackgroundTaskPanelOpen = !IsBackgroundTaskPanelOpen;
+    }
+
+    [RelayCommand]
+    private void CloseBackgroundTaskPanel()
+    {
+        IsBackgroundTaskPanelOpen = false;
+    }
+
     private async Task InitializeBackendAsync()
     {
+        var taskId = BeginBackgroundTask("模型服务", "正在启动 Python 模型服务");
         BackendStatusTitle = "Python 模型服务启动中";
         BackendStatusStage = "启动服务 [0/2]";
         BackendStatusDetail = "正在等待 /health 返回，就绪后桌面端可将提示词任务转发给 HTTP 后端。";
@@ -612,6 +662,7 @@ public partial class MainWindowViewModel : ObservableObject
 
             if (AssetSearchService is not null)
             {
+                UpdateBackgroundTask(taskId, "正在预热模型", "预热向量模型与重排序模型");
                 BackendStatusStage = "正在预热模型 [1/2]";
                 BackendStatusDetail = "正在预热向量模型与重排序模型，减少第一次检索等待。";
                 try
@@ -621,17 +672,20 @@ public partial class MainWindowViewModel : ObservableObject
                     BackendStatusStage = "模型加载完毕 [2/2]";
                     BackendStatusDetail = $"检索模型已预热：{embeddingWarmup.ModelName} / {rerankWarmup.ModelName}";
                     ActivityFeed.Insert(0, $"检索模型预热完成：{embeddingWarmup.ModelName} / {rerankWarmup.ModelName}");
+                    CompleteBackgroundTask(taskId, "模型加载完毕", BackendStatusDetail);
                 }
                 catch (Exception ex)
                 {
                     BackendStatusStage = "模型预热失败 [2/2]";
                     BackendStatusDetail = $"模型预热失败：{ex.Message}";
                     ActivityFeed.Insert(0, $"检索模型预热失败：{ex.Message}");
+                    FailBackgroundTask(taskId, "模型预热失败", ex.Message);
                 }
             }
             else
             {
                 BackendStatusStage = "模型已连接 [1/2]";
+                CompleteBackgroundTask(taskId, "模型已连接", BackendStatusDetail);
             }
         }
         catch (Exception ex)
@@ -641,6 +695,7 @@ public partial class MainWindowViewModel : ObservableObject
             BackendStatusDetail = ex.Message;
             OperatorNotice = "后端启动失败，当前仍可继续使用桌面端素材库管理。";
             ActivityFeed.Insert(0, $"模型网关启动失败：{ex.Message}");
+            FailBackgroundTask(taskId, "模型启动失败", ex.Message);
         }
     }
 
@@ -713,12 +768,14 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        var taskId = BeginBackgroundTask("素材库加载", "正在加载素材库数据");
         try
         {
             OperatorNotice = "正在后台异步加载全部素材库文件数据...";
 
             foreach (var library in Libraries.ToList())
             {
+                UpdateBackgroundTask(taskId, $"正在加载素材库：{library.Name}", library.RootPath);
                 var assets = await AssetLibraryService.ScanLibraryAsync(library);
 
                 AllAssets.RemoveAll(asset => asset.LibraryName == library.Name);
@@ -750,11 +807,13 @@ public partial class MainWindowViewModel : ObservableObject
             }
 
             OperatorNotice = "全部素材库文件数据已加载完成。";
+            CompleteBackgroundTask(taskId, "全部素材库文件数据已加载完成");
         }
         catch (Exception ex)
         {
             OperatorNotice = $"素材库数据加载失败：{ex.Message}";
             ActivityFeed.Insert(0, $"素材库数据加载失败：{ex.Message}");
+            FailBackgroundTask(taskId, "素材库数据加载失败", ex.Message);
         }
     }
 
@@ -765,6 +824,7 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        var taskId = BeginBackgroundTask("素材库扫描", $"正在扫描素材库：{library.Name}", library.RootPath);
         try
         {
             IsLibraryScanRunning = true;
@@ -792,6 +852,7 @@ public partial class MainWindowViewModel : ObservableObject
             RestoreTreeSelection(library);
             RebuildMetrics();
             ActivityFeed.Insert(0, $"扫描完成：{library.Name}，共 {assets.Count} 个素材文件。");
+            CompleteBackgroundTask(taskId, $"扫描完成：{library.Name}", $"共 {assets.Count} 个素材文件");
         }
         catch (Exception ex)
         {
@@ -799,10 +860,67 @@ public partial class MainWindowViewModel : ObservableObject
             library.Summary = ex.Message;
             OperatorNotice = $"扫描失败：{ex.Message}";
             ActivityFeed.Insert(0, $"扫描失败：{library.Name} -> {ex.Message}");
+            FailBackgroundTask(taskId, $"扫描失败：{library.Name}", ex.Message);
         }
         finally
         {
             IsLibraryScanRunning = false;
+        }
+    }
+
+    private string? BeginBackgroundTask(string title, string stageText, string? detailText = null)
+    {
+        return BackgroundTaskService?.BeginTask(title, stageText, detailText);
+    }
+
+    private void UpdateBackgroundTask(string? taskId, string stageText, string? detailText = null)
+    {
+        if (string.IsNullOrWhiteSpace(taskId))
+        {
+            return;
+        }
+
+        BackgroundTaskService?.UpdateTask(taskId, stageText, detailText);
+    }
+
+    private void CompleteBackgroundTask(string? taskId, string? stageText = null, string? detailText = null)
+    {
+        if (string.IsNullOrWhiteSpace(taskId))
+        {
+            return;
+        }
+
+        BackgroundTaskService?.CompleteTask(taskId, stageText, detailText);
+    }
+
+    private void FailBackgroundTask(string? taskId, string stageText, string detailText)
+    {
+        if (string.IsNullOrWhiteSpace(taskId))
+        {
+            return;
+        }
+
+        BackgroundTaskService?.FailTask(taskId, detailText, stageText);
+    }
+
+    private void OnBackgroundTaskServicePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IBackgroundTaskService.ActiveTaskSummary))
+        {
+            TitleBarTaskText = BackgroundTaskService?.ActiveTaskSummary ?? string.Empty;
+        }
+        else if (e.PropertyName == nameof(IBackgroundTaskService.HasActiveTaskSummary))
+        {
+            HasTitleBarTask = BackgroundTaskService?.HasActiveTaskSummary ?? false;
+        }
+    }
+
+    private void OnBackgroundTasksCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        HasBackgroundTaskEntries = BackgroundTasks.Count > 0;
+        if (BackgroundTasks.Count == 0)
+        {
+            IsBackgroundTaskPanelOpen = false;
         }
     }
 

@@ -6,6 +6,7 @@ using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
 using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
+using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
 using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Avalonia.Infrastructure;
@@ -23,6 +24,7 @@ public static class ServiceBootstrapper
         builder.RegisterType<AssetTextVectorizationService>().As<IAssetTextVectorizationService>().SingleInstance();
         builder.RegisterType<AssetSearchService>().As<IAssetSearchService>().SingleInstance();
         builder.RegisterType<BackendLauncherService>().As<IBackendLauncher>().SingleInstance();
+        builder.RegisterType<BackgroundTaskService>().As<IBackgroundTaskService>().SingleInstance();
         return builder;
     }
 
