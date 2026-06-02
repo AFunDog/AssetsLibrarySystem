@@ -288,19 +288,29 @@
                                                                 Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                                 Text="{Binding AssetType}" />
                                                         </StackPanel>
-                                                        <TextBlock Grid.Column="1"
-                                                                   Foreground="{DynamicResource AppAccentBrush}"
-                                                                   VerticalAlignment="Center"
-                                                                   Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
+                                                        <StackPanel Grid.Column="1"
+                                                                    VerticalAlignment="Center"
+                                                                    HorizontalAlignment="Right"
+                                                                    Spacing="1">
+                                                            <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                                       Text="{Binding CombinedScore, StringFormat=combo {0:0.0000}}" />
+                                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                       Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
+                                                        </StackPanel>
                                                     </Grid>
                                                     <TextBlock Grid.Row="1"
                                                                Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                                TextTrimming="CharacterEllipsis"
                                                                Text="{Binding AssetPath}" />
-                                                    <TextBlock Grid.Row="2"
-                                                               Foreground="{DynamicResource AppTextBrush}"
-                                                               TextWrapping="Wrap"
-                                                               Text="{Binding Description}" />
+                                                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="{Binding Description}" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                   VerticalAlignment="Bottom"
+                                                                   Text="{Binding VectorDistance, StringFormat=dist {0:0.0000}}" />
+                                                    </Grid>
                                                 </Grid>
                                             </Button>
                                         </DataTemplate>

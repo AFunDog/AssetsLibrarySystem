@@ -62,8 +62,10 @@ class SearchQueryCandidate(BaseModel):
 
 
 class SearchQueryResultItem(SearchQueryCandidate):
-    embedding_similarity: float
+    embedding_similarity: float | None = Field(default=None)
+    vector_distance: float | None = Field(default=None)
     rerank_score: float
+    combined_score: float | None = Field(default=None)
 
 
 class SearchQueryResponse(BaseModel):

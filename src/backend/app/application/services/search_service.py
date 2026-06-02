@@ -231,14 +231,15 @@ class SearchService:
         search_results = vector_index_manager.search(query_vector, search_top_k)
 
         record_by_doc_id = {record.doc_id: record for record in records}
-        candidates: list[tuple[float, object]] = []
+        candidates: list[tuple[float, float, object]] = []
         for doc_id, embedding_similarity in search_results:
             record = record_by_doc_id.get(doc_id)
             if record is None:
                 continue
             if payload.asset_format is not None and record.asset_format != payload.asset_format:
                 continue
-            candidates.append((embedding_similarity, record))
+            vector_distance = max(0.0, 1.0 - embedding_similarity)
+            candidates.append((embedding_similarity, vector_distance, record))
             if len(candidates) >= payload.candidate_top_k:
                 break
 
@@ -247,11 +248,18 @@ class SearchService:
 
         rerank_scores = self._model_bundle.rerank(
             payload.query,
-            [record.description for _, record in candidates],
+            [record.description for _, _, record in candidates],
         )
+        normalized_rerank_scores = self._normalize_scores(rerank_scores)
 
         ranked_items = []
-        for (embedding_similarity, record), rerank_score in zip(candidates, rerank_scores, strict=True):
+        for (embedding_similarity, vector_distance, record), rerank_score, normalized_rerank_score in zip(
+            candidates,
+            rerank_scores,
+            normalized_rerank_scores,
+            strict=True,
+        ):
+            combined_score = self._combine_scores(embedding_similarity, normalized_rerank_score)
             ranked_items.append(
                 SearchQueryResultItem(
                     asset_id=record.asset_id,
@@ -262,11 +270,13 @@ class SearchService:
                     source_store_path=record.source_store_path,
                     generated_at=record.generated_at,
                     embedding_similarity=embedding_similarity,
+                    vector_distance=vector_distance,
                     rerank_score=rerank_score,
+                    combined_score=combined_score,
                 )
             )
 
-        ranked_items.sort(key=lambda item: item.rerank_score, reverse=True)
+        ranked_items.sort(key=lambda item: item.combined_score if item.combined_score is not None else item.rerank_score, reverse=True)
 
         return SearchExploreResponse(
             query=payload.query,
@@ -362,12 +372,14 @@ class SearchService:
                     description=candidate.description,
                     source_store_path=candidate.source_store_path,
                     generated_at=candidate.generated_at,
-                    embedding_similarity=0.0,
+                    embedding_similarity=None,
+                    vector_distance=None,
                     rerank_score=rerank_score,
+                    combined_score=rerank_score,
                 )
             )
 
-        ranked_items.sort(key=lambda item: item.rerank_score, reverse=True)
+        ranked_items.sort(key=lambda item: item.combined_score if item.combined_score is not None else item.rerank_score, reverse=True)
 
         return SearchQueryResponse(
             query=payload.query,
@@ -388,3 +400,22 @@ class SearchService:
                 self._vector_metadata_path,
             )
         return self._vector_index_manager
+
+    @staticmethod
+    def _normalize_scores(scores: list[float]) -> list[float]:
+        if not scores:
+            return []
+
+        min_score = min(scores)
+        max_score = max(scores)
+        if max_score == min_score:
+            return [1.0 for _ in scores]
+
+        scale = max_score - min_score
+        return [(score - min_score) / scale for score in scores]
+
+    @staticmethod
+    def _combine_scores(embedding_similarity: float, normalized_rerank_score: float) -> float:
+        vector_weight = 0.35
+        rerank_weight = 0.65
+        return (embedding_similarity * vector_weight) + (normalized_rerank_score * rerank_weight)

@@ -16,7 +16,8 @@ public sealed class AssetSearchDocument
         string description,
         string? sourceStorePath,
         DateTimeOffset? generatedAt,
-        float embeddingSimilarity,
+        float? embeddingSimilarity,
+        float? vectorDistance,
         float rerankScore)
     {
         AssetId = assetId;
@@ -27,6 +28,7 @@ public sealed class AssetSearchDocument
         SourceStorePath = sourceStorePath;
         GeneratedAt = generatedAt;
         EmbeddingSimilarity = embeddingSimilarity;
+        VectorDistance = vectorDistance;
         RerankScore = rerankScore;
     }
 
@@ -37,8 +39,10 @@ public sealed class AssetSearchDocument
     public string Description { get; set; } = string.Empty;
     public string? SourceStorePath { get; set; }
     public DateTimeOffset? GeneratedAt { get; set; }
-    public float EmbeddingSimilarity { get; set; }
+    public float? EmbeddingSimilarity { get; set; }
+    public float? VectorDistance { get; set; }
     public float RerankScore { get; set; }
+    public float? CombinedScore { get; set; }
 }
 
 public sealed record AssetSearchResponseDocument(

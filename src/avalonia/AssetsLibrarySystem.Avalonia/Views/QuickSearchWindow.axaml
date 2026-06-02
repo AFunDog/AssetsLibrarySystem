@@ -36,7 +36,9 @@
                                             SourceStorePath="D:\GitRepository\AssetsLibrarySystem\data\asset_descriptions.db"
                                             GeneratedAt="2026-06-01T18:00:00+08:00"
                                             EmbeddingSimilarity="0.4818"
-                                            RerankScore="9.6875" />
+                                            VectorDistance="0.5182"
+                                            RerankScore="9.6875"
+                                            CombinedScore="0.7825" />
                 <models:AssetSearchDocument AssetId="asset-002"
                                             AssetName="opening_theme.wav"
                                             AssetType="音频"
@@ -45,7 +47,9 @@
                                             SourceStorePath="D:\GitRepository\AssetsLibrarySystem\data\asset_descriptions.db"
                                             GeneratedAt="2026-06-01T18:00:00+08:00"
                                             EmbeddingSimilarity="0.7602"
-                                            RerankScore="8.2241" />
+                                            VectorDistance="0.2398"
+                                            RerankScore="8.2241"
+                                            CombinedScore="0.8116" />
             </vm:QuickSearchViewModel.SearchResults>
         </vm:QuickSearchViewModel>
     </Design.DataContext>
@@ -134,20 +138,30 @@
                                                            FontSize="10"
                                                            Text="{Binding AssetType}" />
                                             </StackPanel>
-                                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AppAccentBrush}"
-                                                       FontSize="10"
-                                                       Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
+                                            <StackPanel Grid.Column="1" Spacing="1" HorizontalAlignment="Right">
+                                                <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                           FontSize="10"
+                                                           Text="{Binding CombinedScore, StringFormat=combo {0:0.0000}}" />
+                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                           FontSize="10"
+                                                           Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
+                                            </StackPanel>
                                         </Grid>
                                         <TextBlock Grid.Row="1"
                                                    Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                    FontSize="10"
                                                    TextTrimming="CharacterEllipsis"
                                                    Text="{Binding AssetPath}" />
-                                        <TextBlock Grid.Row="2"
-                                                   Foreground="{DynamicResource AppTextBrush}"
-                                                   TextWrapping="Wrap"
-                                                   FontSize="12"
-                                                   Text="{Binding Description}" />
+                                        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                       TextWrapping="Wrap"
+                                                       FontSize="12"
+                                                       Text="{Binding Description}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                       FontSize="10"
+                                                       Text="{Binding VectorDistance, StringFormat=dist {0:0.0000}}" />
+                                        </Grid>
                                     </Grid>
                                 </Button>
                             </DataTemplate>

@@ -72,7 +72,9 @@ public sealed class AssetSearchService : IAssetSearchService
                     SourceStorePath = item.SourceStorePath,
                     GeneratedAt = item.GeneratedAt,
                     EmbeddingSimilarity = item.EmbeddingSimilarity,
+                    VectorDistance = item.VectorDistance,
                     RerankScore = item.RerankScore,
+                    CombinedScore = item.CombinedScore,
                 }).ToArray());
     }
 
@@ -230,8 +232,10 @@ public sealed class AssetSearchService : IAssetSearchService
         [property: JsonPropertyName("description")] string Description,
         [property: JsonPropertyName("source_store_path")] string? SourceStorePath,
         [property: JsonPropertyName("generated_at")] DateTimeOffset? GeneratedAt,
-        [property: JsonPropertyName("embedding_similarity")] float EmbeddingSimilarity,
-        [property: JsonPropertyName("rerank_score")] float RerankScore);
+        [property: JsonPropertyName("embedding_similarity")] float? EmbeddingSimilarity,
+        [property: JsonPropertyName("vector_distance")] float? VectorDistance,
+        [property: JsonPropertyName("rerank_score")] float RerankScore,
+        [property: JsonPropertyName("combined_score")] float? CombinedScore);
 
     private sealed record SearchReindexResponse(
         [property: JsonPropertyName("document_count")] int DocumentCount,

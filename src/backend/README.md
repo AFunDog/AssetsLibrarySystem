@@ -76,7 +76,7 @@
 - `ALS_SEARCH_RERANK_MODEL`
 - `ALS_SEARCH_CACHE_DIR`
 
-`POST /api/v1/search/query` 只对调用方传入的候选文本做本地 rerank，不负责数据库读取或写入。
+`POST /api/v1/search/query` 只对调用方传入的候选文本做本地 rerank，不负责数据库读取或写入。返回结果里的 `rerank_score` 是重排序模型的原始分数，`vector_distance` 仅在 `explore` 场景下有意义，表示向量召回的距离；`combined_score` 是后端用于最终排序的综合分数。
 
 `POST /api/v1/search/reindex` 会直接读取 Avalonia 已写入的 `asset_descriptions.db` 中的 `asset_description_vectors` 表，重新构建本地 HNSW 索引文件，不再维护第二份向量 SQLite。
 

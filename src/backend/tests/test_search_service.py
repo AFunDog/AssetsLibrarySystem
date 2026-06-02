@@ -127,6 +127,8 @@ class SearchServiceTestCase(unittest.TestCase):
         self.assertEqual(len(response.results), 2)
         self.assertEqual(response.results[0].asset_id, "asset-1")
         self.assertGreater(response.results[0].rerank_score, response.results[1].rerank_score)
+        self.assertIsNone(response.results[0].vector_distance)
+        self.assertEqual(response.results[0].combined_score, response.results[0].rerank_score)
 
     def test_close_model_releases_single_cached_model(self) -> None:
         bundle = FakeModelBundle()
@@ -208,7 +210,7 @@ class SearchServiceTestCase(unittest.TestCase):
                 asset_name="shock.png",
                 asset_format="图片",
                 asset_path=r"D:\Data\shock.png",
-                description="惊吓 后退 停顿",
+                description="惊吓 停顿",
                 source_store_path=None,
                 generated_at=None,
                 embedding_model="fake-embed",
@@ -221,7 +223,7 @@ class SearchServiceTestCase(unittest.TestCase):
                 asset_name="happy.png",
                 asset_format="图片",
                 asset_path=r"D:\Data\happy.png",
-                description="开心 挥手",
+                description="惊吓 后退 开心 挥手",
                 source_store_path=None,
                 generated_at=None,
                 embedding_model="fake-embed",
@@ -240,15 +242,18 @@ class SearchServiceTestCase(unittest.TestCase):
             SearchExploreRequest(
                 query="惊吓 后退",
                 candidate_top_k=2,
-                final_top_k=1,
+                final_top_k=2,
             )
         )
 
         self.assertEqual(response.embedding_model, "fake-embed")
         self.assertEqual(response.rerank_model, "fake-rerank")
         self.assertEqual(response.candidate_top_k, 2)
-        self.assertEqual(len(response.results), 1)
-        self.assertEqual(response.results[0].asset_id, "asset-1")
+        self.assertEqual(len(response.results), 2)
+        self.assertEqual(response.results[0].asset_id, "asset-2")
+        self.assertIsNotNone(response.results[0].vector_distance)
+        self.assertIsNotNone(response.results[0].combined_score)
+        self.assertGreater(response.results[0].combined_score or 0.0, response.results[1].combined_score or 0.0)
         self.assertEqual(fake_index_manager.ensure_current_calls[0][0], 2)
         self.assertEqual(fake_index_manager.search_calls[0][1], 2)
 
