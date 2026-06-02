@@ -332,6 +332,24 @@
                             <Border Classes="nav-icon">
                                 <LucideIcon HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
+                                            Kind="BotMessageSquare"
+                                             />
+                            </Border>
+                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                <TextBlock Classes="nav-title" Text="描述任务" />
+                                <TextBlock Classes="nav-subtitle" Text="后端工作列表" />
+                            </StackPanel>
+                        </Grid>
+                    </TabItem.Header>
+                    <pages:DescriptionTasksPage />
+                </TabItem>
+
+                <TabItem Classes="nav-item">
+                    <TabItem.Header>
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
+                            <Border Classes="nav-icon">
+                                <LucideIcon HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
                                             Kind="Settings2"
                                              />
                             </Border>

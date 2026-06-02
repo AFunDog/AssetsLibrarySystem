@@ -58,6 +58,7 @@ public partial class MainWindowViewModel : ObservableObject
         ActivityFeed = new ObservableCollection<string>();
         SearchResults = new ObservableCollection<AssetSearchDocument>();
         BackgroundTasks = backgroundTaskService?.Tasks ?? [];
+        DescriptionTasks = new ObservableCollection<BackgroundTaskEntry>();
 
         BackendStatusTitle = "Python 模型服务待连接";
         BackendStatusStage = "等待启动 [0/2]";
@@ -85,11 +86,14 @@ public partial class MainWindowViewModel : ObservableObject
         TitleBarTaskText = backgroundTaskService?.ActiveTaskSummary ?? string.Empty;
         HasTitleBarTask = backgroundTaskService?.HasActiveTaskSummary ?? false;
         HasBackgroundTaskEntries = BackgroundTasks.Count > 0;
+        DescriptionSelectionSummary = "请选择左侧素材库、目录或单个素材，再安排描述任务。";
 
         SeedStaticData();
         RebuildMetrics();
         SetEmptyWorkspaceState();
         ResetSelectedAssetDescription();
+        RefreshDescriptionTasks();
+        UpdateDescriptionSelectionSummary();
 
         if (backgroundTaskService is not null)
         {
@@ -107,6 +111,7 @@ public partial class MainWindowViewModel : ObservableObject
     public ObservableCollection<string> ActivityFeed { get; }
     public ObservableCollection<AssetSearchDocument> SearchResults { get; }
     public ObservableCollection<BackgroundTaskEntry> BackgroundTasks { get; }
+    public ObservableCollection<BackgroundTaskEntry> DescriptionTasks { get; }
 
     [ObservableProperty]
     public partial LibraryWorkspace? SelectedLibrary { get; set; }
@@ -225,6 +230,9 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsBackgroundTaskPanelOpen { get; set; }
 
+    [ObservableProperty]
+    public partial string DescriptionSelectionSummary { get; set; }
+
     public async Task InitializeAsync()
     {
         if (BackendLauncher is null)
@@ -295,12 +303,14 @@ public partial class MainWindowViewModel : ObservableObject
     partial void OnSelectedAssetChanged(ManagedAssetRecord? value)
     {
         UpdateSelectedAssetDetails(value);
+        UpdateDescriptionSelectionSummary();
         _ = LoadSelectedAssetDescriptionAsync(value);
     }
 
     partial void OnSelectedAssetTreeNodeChanged(AssetLibraryTreeNode? value)
     {
         ApplyTreeSelection(value);
+        UpdateDescriptionSelectionSummary();
     }
 
     private void UpdateSelectedAssetDetails(ManagedAssetRecord? value)
@@ -381,36 +391,37 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        SelectedAsset.Stage = "描述中";
-        SelectedAsset.AiState = "已发送到 Python HTTP 服务";
-        SyncSelectedAssetFields();
-        OperatorNotice = $"已为 {SelectedAsset.Name} 排入描述任务，正在调用后端服务。";
-        ActivityFeed.Insert(0, $"描述任务排队：{SelectedAsset.Name}");
-        var taskId = BeginBackgroundTask("素材描述", $"正在生成素材描述：{SelectedAsset.Name}", SelectedAsset.LocalPath);
+        await DescribeAssetAsync(SelectedAsset);
+    }
 
-        try
+    [RelayCommand]
+    private async Task QueueDescriptionsForSelectionAsync()
+    {
+        var assets = GetAssetsForDescriptionSelection().ToList();
+        if (assets.Count == 0)
         {
-            var document = await AssetDescriptionService.DescribeAsync(
-                SelectedAsset,
-                BackendLauncher.BaseUrl,
-                prompt: null,
-                systemPrompt: null);
-
-            SelectedAsset.Stage = document.Mode == "live" ? "已描述" : "已描述（占位）";
-            ApplySelectedAssetDescription(document);
-            SyncSelectedAssetFields();
-            OperatorNotice = $"描述已写入 SQLite：{document.StorePath}";
-            ActivityFeed.Insert(0, $"描述完成：{SelectedAsset.Name} -> {document.StorePath}");
-            CompleteBackgroundTask(taskId, $"描述完成：{SelectedAsset.Name}", document.StorePath);
+            OperatorNotice = "当前选中范围内没有可发送到后端的素材。";
+            return;
         }
-        catch (Exception ex)
+
+        if (BackendLauncher?.IsRunning != true)
         {
-            SelectedAsset.Stage = "描述失败";
-            SelectedAsset.AiState = "调用后端失败";
-            SyncSelectedAssetFields();
-            OperatorNotice = $"描述任务失败：{ex.Message}";
-            ActivityFeed.Insert(0, $"描述失败：{SelectedAsset.Name} -> {ex.Message}");
-            FailBackgroundTask(taskId, $"描述失败：{SelectedAsset.Name}", ex.Message);
+            OperatorNotice = "Python 模型服务尚未就绪，请先等待后端启动完成。";
+            return;
+        }
+
+        if (AssetDescriptionService is null)
+        {
+            OperatorNotice = "描述服务未注册，当前无法调用后端。";
+            return;
+        }
+
+        OperatorNotice = $"已将 {assets.Count} 个素材排入后端描述任务。";
+        ActivityFeed.Insert(0, $"批量描述任务排队：{BuildDescriptionSelectionLabel()}，共 {assets.Count} 个素材");
+
+        foreach (var asset in assets)
+        {
+            await DescribeAssetAsync(asset);
         }
     }
 
@@ -918,10 +929,161 @@ public partial class MainWindowViewModel : ObservableObject
     private void OnBackgroundTasksCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         HasBackgroundTaskEntries = BackgroundTasks.Count > 0;
+        RefreshDescriptionTasks();
         if (BackgroundTasks.Count == 0)
         {
             IsBackgroundTaskPanelOpen = false;
         }
+    }
+
+    private async Task DescribeAssetAsync(ManagedAssetRecord asset)
+    {
+        if (BackendLauncher?.IsRunning != true || AssetDescriptionService is null)
+        {
+            return;
+        }
+
+        asset.Stage = "描述中";
+        asset.AiState = "已发送到 Python HTTP 服务";
+
+        if (ReferenceEquals(SelectedAsset, asset))
+        {
+            SyncSelectedAssetFields();
+        }
+        else
+        {
+            RebuildAssetTree();
+        }
+
+        OperatorNotice = $"已为 {asset.Name} 排入描述任务，正在调用后端服务。";
+        ActivityFeed.Insert(0, $"描述任务排队：{asset.Name}");
+        var taskId = BeginBackgroundTask("素材描述", $"正在生成素材描述：{asset.Name}", asset.LocalPath);
+
+        try
+        {
+            var document = await AssetDescriptionService.DescribeAsync(
+                asset,
+                BackendLauncher.BaseUrl,
+                prompt: null,
+                systemPrompt: null);
+
+            asset.Stage = document.Mode == "live" ? "已描述" : "已描述（占位）";
+            asset.AiState = $"SQLite 已保存 · {document.Mode}";
+
+            if (ReferenceEquals(SelectedAsset, asset))
+            {
+                ApplySelectedAssetDescription(document);
+                SyncSelectedAssetFields();
+            }
+            else
+            {
+                RebuildAssetTree();
+            }
+
+            OperatorNotice = $"描述已写入 SQLite：{document.StorePath}";
+            ActivityFeed.Insert(0, $"描述完成：{asset.Name} -> {document.StorePath}");
+            CompleteBackgroundTask(taskId, $"描述完成：{asset.Name}", document.StorePath);
+        }
+        catch (Exception ex)
+        {
+            asset.Stage = "描述失败";
+            asset.AiState = "调用后端失败";
+
+            if (ReferenceEquals(SelectedAsset, asset))
+            {
+                SyncSelectedAssetFields();
+            }
+            else
+            {
+                RebuildAssetTree();
+            }
+
+            OperatorNotice = $"描述任务失败：{ex.Message}";
+            ActivityFeed.Insert(0, $"描述失败：{asset.Name} -> {ex.Message}");
+            FailBackgroundTask(taskId, $"描述失败：{asset.Name}", ex.Message);
+        }
+    }
+
+    private IEnumerable<ManagedAssetRecord> GetAssetsForDescriptionSelection()
+    {
+        if (SelectedAsset is not null)
+        {
+            yield return SelectedAsset;
+            yield break;
+        }
+
+        if (SelectedAssetTreeNode is null)
+        {
+            yield break;
+        }
+
+        if (SelectedAssetTreeNode.Kind == AssetLibraryTreeNodeKind.Library && SelectedAssetTreeNode.Library is not null)
+        {
+            foreach (var asset in AllAssets.Where(asset => asset.LibraryName == SelectedAssetTreeNode.Library.Name))
+            {
+                yield return asset;
+            }
+
+            yield break;
+        }
+
+        var fullPath = SelectedAssetTreeNode.FullPath;
+        if (string.IsNullOrWhiteSpace(fullPath))
+        {
+            yield break;
+        }
+
+        var normalizedPrefix = NormalizePathPrefix(fullPath);
+        foreach (var asset in AllAssets.Where(asset => NormalizePathPrefix(asset.LocalPath).StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase)))
+        {
+            yield return asset;
+        }
+    }
+
+    private void UpdateDescriptionSelectionSummary()
+    {
+        var assets = GetAssetsForDescriptionSelection().ToList();
+        if (assets.Count == 0)
+        {
+            DescriptionSelectionSummary = "请选择左侧素材库、目录或单个素材，再安排描述任务。";
+            return;
+        }
+
+        DescriptionSelectionSummary = $"{BuildDescriptionSelectionLabel()} · 共 {assets.Count} 个素材可发送到后端描述。";
+    }
+
+    private string BuildDescriptionSelectionLabel()
+    {
+        if (SelectedAsset is not null)
+        {
+            return $"当前素材：{SelectedAsset.Name}";
+        }
+
+        if (SelectedAssetTreeNode?.Kind == AssetLibraryTreeNodeKind.Library)
+        {
+            return $"当前素材库：{SelectedAssetTreeNode.DisplayName}";
+        }
+
+        if (SelectedAssetTreeNode is not null)
+        {
+            return $"当前目录：{SelectedAssetTreeNode.DisplayName}";
+        }
+
+        return "当前选择";
+    }
+
+    private void RefreshDescriptionTasks()
+    {
+        DescriptionTasks.Clear();
+        foreach (var task in BackgroundTasks.Where(task => string.Equals(task.Title, "素材描述", StringComparison.Ordinal)))
+        {
+            DescriptionTasks.Add(task);
+        }
+    }
+
+    private static string NormalizePathPrefix(string value)
+    {
+        return value.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
     }
 
     private void RebuildVisibleAssets(LibraryWorkspace? library)
