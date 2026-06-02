@@ -1,184 +1,274 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:pagevm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
              xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.SettingsPage"
              x:DataType="pagevm:SettingsPageViewModel">
-    <UserControl.Styles>
-        <Style Selector="Border.page-card">
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="12" />
-        </Style>
-        <Style Selector="Border.sub-card">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="8" />
-        </Style>
-        <Style Selector="TextBlock.eyebrow">
-            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="LetterSpacing" Value="1.2" />
-        </Style>
-        <Style Selector="TextBlock.section-title">
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style Selector="TextBlock.section-subtitle">
-            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
-        <Style Selector="TextBox.prompt-box">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="MinHeight" Value="112" />
-        </Style>
-        <Style Selector="Button.primary-action">
-            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="MinHeight" Value="32" />
-        </Style>
-        <Style Selector="Button.secondary-action">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="MinHeight" Value="32" />
-        </Style>
-    </UserControl.Styles>
-
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <Grid ColumnDefinitions="300,*" ColumnSpacing="8">
-            <StackPanel Spacing="8">
-                <Border Classes="page-card">
+        <Grid RowDefinitions="Auto,*" RowSpacing="8">
+            <Border Background="{DynamicResource AppSurfaceBrush}"
+                    BorderBrush="{DynamicResource AppBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <StackPanel Spacing="4">
-                        <TextBlock Classes="eyebrow" Text="设置" />
-                        <TextBlock Classes="section-title" Text="模型网关与桌面配置" />
-                        <TextBlock Classes="section-subtitle" Text="{Binding OperatorNotice}" />
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1.2"
+                                   Text="设置" />
+                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                   FontWeight="SemiBold"
+                                   Text="模型网关与桌面配置" />
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="这里集中管理后端连接、本地搜索模型和发送给模型网关的提示词草稿。" />
                     </StackPanel>
-                </Border>
 
-                <Border Classes="page-card">
-                    <StackPanel Spacing="8">
-                        <TextBlock Classes="eyebrow" Text="后端状态" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <lucide:LucideIcon Kind="Bot" Size="18" />
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1.2"
+                                   Text="后端状态" />
+                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding BackendStatusTitle}" />
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   Text="{Binding BackendStatusDetail}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" ColumnDefinitions="300,*" ColumnSpacing="8">
+                <StackPanel Spacing="8">
+                    <Border Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1.2"
+                                       Text="后端" />
                             <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                        FontWeight="SemiBold"
-                                       Text="{Binding BackendStatusTitle}" />
-                        </StackPanel>
-                        <TextBlock Classes="section-subtitle" Text="{Binding BackendStatusDetail}" />
-                        <Border Classes="sub-card">
-                            <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding BackendEndpoint}" />
-                        </Border>
-                    </StackPanel>
-                </Border>
+                                       Text="连接信息" />
+                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding OperatorNotice}" />
 
-                <Border Classes="page-card">
-                    <StackPanel Spacing="8">
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="本地搜索模型" />
-                                <TextBlock Classes="section-title" Text="{Binding SearchModelStatusTitle}" />
-                                <TextBlock Classes="section-subtitle" Text="{Binding SearchModelStatusStage}" />
-                            </StackPanel>
-                            <Button Grid.Column="1"
-                                    Classes="secondary-action"
-                                    Command="{Binding RefreshModelStatusCommand}"
-                                    Content="刷新状态" />
-                        </Grid>
-
-                        <TextBlock Classes="section-subtitle" Text="{Binding SearchModelStatusDetail}" />
-
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                            <Button Classes="secondary-action"
-                                    Command="{Binding CloseEmbeddingModelCommand}"
-                                    Content="关闭 embedding" />
-                            <Button Grid.Column="1"
-                                    Classes="secondary-action"
-                                    Command="{Binding CloseRerankModelCommand}"
-                                    Content="关闭 rerank" />
-                        </Grid>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-
-            <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="8">
-                <Border Classes="page-card">
-                    <StackPanel Spacing="8">
-                        <TextBlock Classes="eyebrow" Text="提示词" />
-                        <TextBlock Classes="section-title" Text="发送给模型网关的草稿" />
-                        <TextBox Classes="prompt-box"
-                                 Text="{Binding PromptDraft}"
-                                 AcceptsReturn="True"
-                                 VerticalContentAlignment="Top" />
-                        <Button Classes="primary-action"
-                                Command="{Binding SubmitPromptCommand}"
-                                Content="准备发送提示词" />
-                    </StackPanel>
-                </Border>
-
-                <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
-                    <Border Classes="page-card">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="eyebrow" Text="能力清单" />
-                            <TextBlock Classes="section-title" Text="当前可用接口" />
-                            <ItemsControl ItemsSource="{Binding AiCapabilities}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="models:AiCapabilityRecord">
-                                        <Border Classes="sub-card" Margin="0,0,0,4">
-                                            <StackPanel Spacing="4">
-                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                               FontWeight="SemiBold"
-                                                               Text="{Binding Name}" />
-                                                    <TextBlock Grid.Column="1"
-                                                               Foreground="{DynamicResource AppAccentBrush}"
-                                                               Text="{Binding Endpoint}" />
-                                                </Grid>
-                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                           TextWrapping="Wrap"
-                                                           Text="{Binding Summary}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="8">
+                                <StackPanel Spacing="4">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <lucide:LucideIcon Kind="Bot" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding BackendStatusTitle}" />
+                                    </StackPanel>
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding BackendStatusDetail}" />
+                                    <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                               Text="{Binding BackendEndpoint}" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Column="1" Classes="page-card">
+                    <Border Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="eyebrow" Text="动态" />
-                            <TextBlock Classes="section-title" Text="活动纪要" />
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" Height="420">
-                                <ItemsControl ItemsSource="{Binding ActivityFeed}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Classes="sub-card" Margin="0,0,0,4">
-                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                           TextWrapping="Wrap"
-                                                           Text="{Binding .}" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1.2"
+                                               Text="本地搜索模型" />
+                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding SearchModelStatusTitle}" />
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               Text="{Binding SearchModelStatusStage}" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Background="{DynamicResource AppSoftSurfaceBrush}"
+                                        Foreground="{DynamicResource AppTextBrush}"
+                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10,8"
+                                        Command="{Binding RefreshModelStatusCommand}"
+                                        Content="刷新状态" />
+                            </Grid>
+
+                            <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="8">
+                                <TextBlock TextWrapping="Wrap"
+                                           Text="{Binding SearchModelStatusDetail}" />
+                            </Border>
+
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                <Button Background="{DynamicResource AppSoftSurfaceBrush}"
+                                        Foreground="{DynamicResource AppTextBrush}"
+                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10,8"
+                                        Command="{Binding CloseEmbeddingModelCommand}"
+                                        Content="关闭 embedding" />
+                                <Button Grid.Column="1"
+                                        Background="{DynamicResource AppSoftSurfaceBrush}"
+                                        Foreground="{DynamicResource AppTextBrush}"
+                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10,8"
+                                        Command="{Binding CloseRerankModelCommand}"
+                                        Content="关闭 rerank" />
+                            </Grid>
                         </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+                    <Border Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                       FontWeight="SemiBold"
+                                       LetterSpacing="1.2"
+                                       Text="提示词" />
+                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                       FontWeight="SemiBold"
+                                       Text="发送给模型网关的草稿" />
+                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                       TextWrapping="Wrap"
+                                       Text="这里仅保存当前会话草稿，真正发送仍由后端接口接管。" />
+                            <TextBox Background="{DynamicResource AppSoftSurfaceBrush}"
+                                     Foreground="{DynamicResource AppTextBrush}"
+                                     BorderBrush="{DynamicResource AppBorderBrush}"
+                                     CornerRadius="4"
+                                     TextWrapping="Wrap"
+                                     MinHeight="112"
+                                     Text="{Binding PromptDraft}"
+                                     AcceptsReturn="True"
+                                     VerticalContentAlignment="Top" />
+                            <Button Background="{DynamicResource AppAccentBrush}"
+                                    Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                    BorderThickness="0"
+                                    CornerRadius="4"
+                                    Padding="10,8"
+                                    MinHeight="32"
+                                    Command="{Binding SubmitPromptCommand}"
+                                    Content="准备发送提示词" />
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Border Background="{DynamicResource AppSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.2"
+                                           Text="能力清单" />
+                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                           FontWeight="SemiBold"
+                                           Text="当前可用接口" />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding AiCapabilities}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:AiCapabilityRecord">
+                                                <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="8"
+                                                        Margin="0,0,0,4">
+                                                    <StackPanel Spacing="4">
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                       FontWeight="SemiBold"
+                                                                       Text="{Binding Name}" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       Foreground="{DynamicResource AppAccentBrush}"
+                                                                       Text="{Binding Endpoint}" />
+                                                        </Grid>
+                                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="{Binding Summary}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Background="{DynamicResource AppSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.2"
+                                           Text="动态" />
+                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                           FontWeight="SemiBold"
+                                           Text="活动纪要" />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding ActivityFeed}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="8"
+                                                        Margin="0,0,0,4">
+                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               TextWrapping="Wrap"
+                                                               Text="{Binding .}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Border Grid.Row="2"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="提示词、接口列表和活动日志保持在同一页，便于在调试时快速确认状态与操作结果。" />
                     </Border>
                 </Grid>
             </Grid>

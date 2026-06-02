@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
+using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
 using AssetsLibrarySystem.Avalonia.Services.Library;
@@ -22,11 +23,24 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
     private BackendSessionService BackendSessionService { get; }
     private LibraryCatalogService LibraryCatalogService { get; }
     private IAssetDescriptionService? AssetDescriptionService { get; }
+    private IAssetDescriptionStore? AssetDescriptionStore { get; }
+    private IAssetDescriptionVectorStore? AssetDescriptionVectorStore { get; }
+    private IAssetTextVectorizationService? AssetTextVectorizationService { get; }
+    private IAssetSearchService? AssetSearchService { get; }
     private IBackgroundTaskService BackgroundTaskService { get; }
     private ObservableCollection<BackgroundTaskEntry> SourceTasks => BackgroundTaskService.Tasks;
 
     public DescriptionTasksPageViewModel()
-        : this(new BackendSessionService(), new LibraryCatalogService(), null, new BackgroundTaskService(), new ActivityFeedService())
+        : this(
+            new BackendSessionService(),
+            new LibraryCatalogService(),
+            null,
+            new AssetDescriptionStore(),
+            new AssetDescriptionVectorStore(),
+            new AssetTextVectorizationService(),
+            null,
+            new BackgroundTaskService(),
+            new ActivityFeedService())
     {
     }
 
@@ -34,12 +48,20 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
         BackendSessionService backendSessionService,
         LibraryCatalogService libraryCatalogService,
         IAssetDescriptionService? assetDescriptionService,
+        IAssetDescriptionStore? assetDescriptionStore,
+        IAssetDescriptionVectorStore? assetDescriptionVectorStore,
+        IAssetTextVectorizationService? assetTextVectorizationService,
+        IAssetSearchService? assetSearchService,
         IBackgroundTaskService backgroundTaskService,
         ActivityFeedService activityFeedService)
     {
         BackendSessionService = backendSessionService;
         LibraryCatalogService = libraryCatalogService;
         AssetDescriptionService = assetDescriptionService;
+        AssetDescriptionStore = assetDescriptionStore;
+        AssetDescriptionVectorStore = assetDescriptionVectorStore;
+        AssetTextVectorizationService = assetTextVectorizationService;
+        AssetSearchService = assetSearchService;
         BackgroundTaskService = backgroundTaskService;
         ActivityFeed = activityFeedService.Entries;
         DescriptionTasks = [];
@@ -47,6 +69,8 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
         ScanSelectedLibraryCommand = new AsyncRelayCommand(() => LibraryCatalogService.ScanSelectedLibraryAsync());
         QueueDescriptionsForSelectionCommand = new AsyncRelayCommand(QueueDescriptionsForSelectionAsync);
         QueueDescriptionCommand = new AsyncRelayCommand(QueueDescriptionAsync);
+        VectorizeSelectedDescriptionCommand = new AsyncRelayCommand(VectorizeSelectedDescriptionAsync);
+        RebuildSearchIndexCommand = new AsyncRelayCommand(RebuildSearchIndexAsync);
 
         BackendSessionService.PropertyChanged += OnDependencyPropertyChanged;
         LibraryCatalogService.PropertyChanged += OnDependencyPropertyChanged;
@@ -75,6 +99,8 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
     public IAsyncRelayCommand ScanSelectedLibraryCommand { get; }
     public IAsyncRelayCommand QueueDescriptionsForSelectionCommand { get; }
     public IAsyncRelayCommand QueueDescriptionCommand { get; }
+    public IAsyncRelayCommand VectorizeSelectedDescriptionCommand { get; }
+    public IAsyncRelayCommand RebuildSearchIndexCommand { get; }
 
     public Task AddLibraryDirectoryAsync(string folderPath)
     {
@@ -111,6 +137,108 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
         }
 
         await DescribeAssetAsync(asset);
+    }
+
+    private async Task VectorizeSelectedDescriptionAsync()
+    {
+        var assets = LibraryCatalogService.GetDescriptionSelectionAssets();
+        if (assets.Count == 0)
+        {
+            LibraryCatalogService.SetOperatorNotice("当前选中范围内没有可向量化的素材。");
+            return;
+        }
+
+        if (!BackendSessionService.IsBackendReady)
+        {
+            LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
+            return;
+        }
+
+        if (AssetDescriptionStore is null || AssetDescriptionVectorStore is null || AssetTextVectorizationService is null)
+        {
+            LibraryCatalogService.SetOperatorNotice("向量化服务未注册，当前无法执行手动向量化。");
+            return;
+        }
+
+        LibraryCatalogService.SetOperatorNotice($"正在批量向量化当前范围：{assets.Count} 个素材");
+        ActivityFeed.Insert(0, $"开始批量向量化：{assets.Count} 个素材");
+
+        try
+        {
+            var successCount = 0;
+            var skipCount = 0;
+            var failCount = 0;
+
+            foreach (var asset in assets)
+            {
+                var descriptionDocument = await AssetDescriptionStore.TryGetAsync(asset.Id);
+                if (descriptionDocument is null)
+                {
+                    skipCount++;
+                    ActivityFeed.Insert(0, $"跳过向量化：{asset.Name}（尚未生成描述）");
+                    continue;
+                }
+
+                if (await AssetDescriptionVectorStore.TryGetAsync(asset.Id) is not null)
+                {
+                    skipCount++;
+                    ActivityFeed.Insert(0, $"跳过向量化：{asset.Name}（向量已存在）");
+                    continue;
+                }
+
+                try
+                {
+                    var vectorDocument = await AssetTextVectorizationService.VectorizeAsync(descriptionDocument, BackendSessionService.BaseUrl);
+                    await AssetDescriptionVectorStore.SaveAsync(vectorDocument);
+                    successCount++;
+                    ActivityFeed.Insert(0, $"向量化完成：{asset.Name}");
+                }
+                catch (Exception ex)
+                {
+                    failCount++;
+                    ActivityFeed.Insert(0, $"向量化失败：{asset.Name} -> {ex.Message}");
+                }
+            }
+
+            LibraryCatalogService.SetOperatorNotice(
+                $"批量向量化完成：成功 {successCount}，跳过 {skipCount}，失败 {failCount}。");
+            ActivityFeed.Insert(0, $"批量向量化完成：成功 {successCount}，跳过 {skipCount}，失败 {failCount}");
+        }
+        catch (Exception ex)
+        {
+            LibraryCatalogService.SetOperatorNotice($"手动向量化失败：{ex.Message}");
+            ActivityFeed.Insert(0, $"批量向量化失败：{ex.Message}");
+        }
+    }
+
+    private async Task RebuildSearchIndexAsync()
+    {
+        if (AssetSearchService is null)
+        {
+            LibraryCatalogService.SetOperatorNotice("检索服务未注册，当前无法重建索引。");
+            return;
+        }
+
+        if (!BackendSessionService.IsBackendReady)
+        {
+            LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
+            return;
+        }
+
+        LibraryCatalogService.SetOperatorNotice("正在重建后端向量索引...");
+        ActivityFeed.Insert(0, "开始重建后端向量索引。");
+
+        try
+        {
+            var response = await AssetSearchService.ReindexAsync(BackendSessionService.BaseUrl);
+            LibraryCatalogService.SetOperatorNotice($"索引已重建：{response.DocumentCount} 条，{response.VectorDim} 维。");
+            ActivityFeed.Insert(0, $"索引重建完成：{response.DocumentCount} 条素材描述。");
+        }
+        catch (Exception ex)
+        {
+            LibraryCatalogService.SetOperatorNotice($"索引重建失败：{ex.Message}");
+            ActivityFeed.Insert(0, $"索引重建失败：{ex.Message}");
+        }
     }
 
     private async Task QueueDescriptionsForSelectionAsync()

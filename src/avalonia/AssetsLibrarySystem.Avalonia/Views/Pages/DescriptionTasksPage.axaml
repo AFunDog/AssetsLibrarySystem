@@ -1,74 +1,38 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:pagevm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
              xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.DescriptionTasksPage"
              x:DataType="pagevm:DescriptionTasksPageViewModel">
-    <UserControl.Styles>
-        <Style Selector="Border.page-card">
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="12" />
-        </Style>
-        <Style Selector="Border.sub-card">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="8" />
-        </Style>
-        <Style Selector="Button.primary-action">
-            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="MinHeight" Value="32" />
-        </Style>
-        <Style Selector="Button.secondary-action">
-            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="MinHeight" Value="32" />
-        </Style>
-        <Style Selector="TextBlock.eyebrow">
-            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
-            <Setter Property="FontSize" Value="9" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="LetterSpacing" Value="1.2" />
-        </Style>
-        <Style Selector="TextBlock.section-title">
-            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style Selector="TextBlock.section-subtitle">
-            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
-    </UserControl.Styles>
-
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid RowDefinitions="Auto,*" RowSpacing="8">
-            <Border Classes="page-card">
+            <Border Background="{DynamicResource AppSurfaceBrush}"
+                    BorderBrush="{DynamicResource AppBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <StackPanel Spacing="4">
-                        <TextBlock Classes="eyebrow" Text="描述任务" />
-                        <TextBlock Classes="section-title" Text="将本地素材送去后端生成描述" />
-                        <TextBlock Classes="section-subtitle"
-                                   Text="左侧沿用素材库树选择范围，右侧集中查看后端描述任务。当前后端仍是单素材接口，批量发送由桌面端顺序编排。" />
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1.2"
+                                   Text="描述任务" />
+                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                   FontWeight="SemiBold"
+                                   Text="素材描述派发工作台" />
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="左侧选范围，右侧发任务。当前页面只负责描述编排，不把生成逻辑塞进界面层。" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                        <TextBlock Classes="eyebrow" Text="模型状态" />
-                        <TextBlock FontWeight="SemiBold"
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   FontWeight="SemiBold"
+                                   LetterSpacing="1.2"
+                                   Text="后端状态" />
+                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                   FontWeight="SemiBold"
                                    Text="{Binding BackendStatusTitle}" />
                         <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                    Text="{Binding BackendStatusStage}" />
@@ -78,41 +42,98 @@
 
             <Grid Grid.Row="1" ColumnDefinitions="320,*" ColumnSpacing="8">
                 <StackPanel Spacing="8">
-                    <Border Classes="page-card">
-                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                    <Border Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
+                        <StackPanel Spacing="8">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Classes="eyebrow" Text="素材库" />
-                                    <TextBlock Classes="section-title" Text="{Binding WorkspaceTitle}" />
-                                    <TextBlock Classes="section-subtitle"
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1.2"
+                                               Text="素材库" />
+                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding WorkspaceTitle}" />
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               TextWrapping="Wrap"
                                                Text="{Binding WorkspaceSummary}" />
                                 </StackPanel>
+
                                 <Button Grid.Column="1"
-                                        Classes="secondary-action"
-                                        Click="AddLibraryFolder_Click"
-                                        Content="添加目录" />
+                                        Background="{DynamicResource AppSoftSurfaceBrush}"
+                                        Foreground="{DynamicResource AppTextBrush}"
+                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10,8"
+                                        Command="{Binding ScanSelectedLibraryCommand}"
+                                        Content="扫描当前素材库" />
                             </Grid>
 
-                            <Border Grid.Row="1" Classes="sub-card">
+                            <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="8">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Classes="eyebrow" Text="当前范围" />
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1.2"
+                                               Text="当前范围" />
                                     <TextBlock TextWrapping="Wrap"
                                                Text="{Binding DescriptionSelectionSummary}" />
                                 </StackPanel>
                             </Border>
 
-                            <Button Grid.Row="2"
-                                    Classes="secondary-action"
-                                    Command="{Binding ScanSelectedLibraryCommand}"
-                                    Content="扫描当前素材库" />
-                        </Grid>
+                            <Button Background="{DynamicResource AppSoftSurfaceBrush}"
+                                    Foreground="{DynamicResource AppTextBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="10,8"
+                                    Command="{Binding QueueDescriptionsForSelectionCommand}"
+                                    Content="发送当前范围" />
+
+                            <Button Background="{DynamicResource AppSoftSurfaceBrush}"
+                                    Foreground="{DynamicResource AppTextBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="10,8"
+                                    Command="{Binding VectorizeSelectedDescriptionCommand}"
+                                    Content="批量向量化当前范围" />
+
+                            <Button Background="{DynamicResource AppSoftSurfaceBrush}"
+                                    Foreground="{DynamicResource AppTextBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="10,8"
+                                    Command="{Binding RebuildSearchIndexCommand}"
+                                    Content="更新后端索引" />
+                        </StackPanel>
                     </Border>
 
-                    <Border Classes="page-card">
+                    <Border Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
                         <Grid RowDefinitions="Auto,*" RowSpacing="8">
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="目录树" />
-                                <TextBlock Classes="section-title" Text="选择要发送的素材范围" />
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.2"
+                                           Text="目录树" />
+                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                           FontWeight="SemiBold"
+                                           Text="选择要发送的素材范围" />
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           TextWrapping="Wrap"
+                                           Text="右键节点可直接在文件资源管理器中打开。" />
                             </StackPanel>
 
                             <ScrollViewer Grid.Row="1"
@@ -122,22 +143,27 @@
                                 <TreeView ItemsSource="{Binding AssetTreeRoots}"
                                           SelectedItem="{Binding SelectedAssetTreeNode, Mode=TwoWay}">
                                     <TreeView.Styles>
+                                        <Style
+                                            Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+                                            <Setter Property="Background" Value="Transparent" />
+                                        </Style>
+                                        <Style
+                                            Selector="TreeViewItem:pointerover /template/ Border#PART_LayoutRoot">
+                                            <Setter Property="Background" Value="Transparent" />
+                                        </Style>
                                         <Style Selector="TreeViewItem">
                                             <Setter Property="Padding" Value="0" />
                                             <Setter Property="Margin" Value="0,0,0,4" />
-                                        </Style>
-                                        <Style Selector="Border.tree-item">
-                                            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-                                            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-                                            <Setter Property="BorderThickness" Value="1" />
-                                            <Setter Property="CornerRadius" Value="4" />
-                                            <Setter Property="Padding" Value="8" />
                                         </Style>
                                     </TreeView.Styles>
                                     <TreeView.ItemTemplate>
                                         <TreeDataTemplate x:DataType="models:AssetLibraryTreeNode"
                                                           ItemsSource="{Binding Children}">
-                                            <Border Classes="tree-item">
+                                            <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Padding="8">
                                                 <Border.ContextMenu>
                                                     <ContextMenu>
                                                         <MenuItem Header="在文件资源管理器中显示"
@@ -148,10 +174,10 @@
                                                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                                     <Border Background="{DynamicResource AppAccentSurfaceBrush}"
                                                             BorderBrush="{DynamicResource AppAccentBrush}"
+                                                            VerticalAlignment="Center"
                                                             BorderThickness="1"
                                                             CornerRadius="4"
-                                                            Width="20"
-                                                            Height="20">
+                                                            Padding="4">
                                                         <lucide:LucideIcon Kind="Folder" Size="12" />
                                                     </Border>
                                                     <StackPanel Grid.Column="1" Spacing="2">
@@ -175,30 +201,69 @@
                 </StackPanel>
 
                 <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="8">
-                    <Border Classes="page-card">
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="派发" />
-                                <TextBlock Classes="section-title" Text="后端描述入口" />
-                                <TextBlock Classes="section-subtitle"
-                                           Text="当前选中单个素材时发送一条任务；选中目录或素材库时，桌面端会按当前范围顺序发送多条任务。" />
-                            </StackPanel>
+                    <Border Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
+                        <StackPanel Spacing="8">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               FontWeight="SemiBold"
+                                               LetterSpacing="1.2"
+                                               Text="派发" />
+                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                               FontWeight="SemiBold"
+                                               Text="后端描述入口" />
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="选中单个素材时发一条；选中目录或范围时，桌面端按当前选择顺序排队。" />
+                                </StackPanel>
 
-                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                <Button Classes="primary-action"
-                                        Command="{Binding QueueDescriptionsForSelectionCommand}"
-                                        Content="发送当前范围" />
-                                <Button Classes="secondary-action"
-                                        Command="{Binding QueueDescriptionCommand}"
-                                        Content="仅发送当前素材" />
-                            </StackPanel>
-                        </Grid>
+                                <StackPanel Grid.Column="1"
+                                            Spacing="4"
+                                            VerticalAlignment="Center">
+                                    <Button Background="{DynamicResource AppAccentBrush}"
+                                            Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                            BorderThickness="0"
+                                            CornerRadius="4"
+                                            Padding="10,8"
+                                            Command="{Binding QueueDescriptionsForSelectionCommand}"
+                                            Content="发送当前范围" />
+                                    <Button Background="{DynamicResource AppSoftSurfaceBrush}"
+                                            Foreground="{DynamicResource AppTextBrush}"
+                                            BorderBrush="{DynamicResource AppBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="10,8"
+                                            Command="{Binding QueueDescriptionCommand}"
+                                            Content="仅发送当前素材" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="8">
+                                <TextBlock TextWrapping="Wrap"
+                                           Text="{Binding DescriptionSelectionSummary}" />
+                            </Border>
+                        </StackPanel>
                     </Border>
 
                     <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
-                        <Border Classes="sub-card">
+                        <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="8">
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="当前素材" />
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.2"
+                                           Text="当前素材" />
                                 <TextBlock FontWeight="SemiBold"
                                            Text="{Binding SelectedAssetName}" />
                                 <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
@@ -206,9 +271,18 @@
                                            Text="{Binding SelectedAssetPath}" />
                             </StackPanel>
                         </Border>
-                        <Border Grid.Column="1" Classes="sub-card">
+
+                        <Border Grid.Column="1"
+                                Background="{DynamicResource AppSoftSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="8">
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="状态" />
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.2"
+                                           Text="状态" />
                                 <TextBlock Text="{Binding SelectedAssetStage}" />
                                 <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                            TextWrapping="Wrap"
@@ -217,22 +291,42 @@
                         </Border>
                     </Grid>
 
-                    <Border Grid.Row="2" Classes="page-card">
+                    <Border Grid.Row="2"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
                         <Grid RowDefinitions="Auto,*" RowSpacing="8">
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="任务列表" />
-                                <TextBlock Classes="section-title" Text="后端描述工作队列" />
-                                <TextBlock Classes="section-subtitle"
-                                           Text="这里只显示素材描述相关任务，便于跟踪哪些素材正在调用后端、哪些已经完成或失败。" />
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           FontWeight="SemiBold"
+                                           LetterSpacing="1.2"
+                                           Text="任务列表" />
+                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                           FontWeight="SemiBold"
+                                           Text="后端描述工作队列" />
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           TextWrapping="Wrap"
+                                           Text="这里只显示素材描述任务，便于追踪排队、执行、完成和失败。" />
                             </StackPanel>
 
                             <ScrollViewer Grid.Row="1"
                                           VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled">
                                 <ItemsControl ItemsSource="{Binding DescriptionTasks}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="4" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="models:BackgroundTaskEntry">
-                                            <Border Classes="sub-card" Margin="0,0,0,8">
+                                            <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Padding="8">
                                                 <StackPanel Spacing="4">
                                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                                         <TextBlock FontWeight="SemiBold"
