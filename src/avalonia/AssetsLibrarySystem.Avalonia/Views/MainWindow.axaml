@@ -77,7 +77,7 @@
                         </StackPanel>
                     </Border>
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <StackPanel.Styles>
                             <Style Selector="Button.window-control">
                                 <Setter Property="Width" Value="24" />
@@ -96,61 +96,97 @@
                             </Style>
                         </StackPanel.Styles>
 
-                        <Border Background="Transparent"
-                                BorderThickness="0"
-                                CornerRadius="0"
-                                Padding="0">
-                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <Border Background="{DynamicResource AppAccentSurfaceBrush}"
-                                        BorderBrush="{DynamicResource AppAccentBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="4"
-                                        Width="18"
-                                        Height="18">
-                                    <LucideIcon HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                Margin="0"
-                                                Kind="Bot"
-                                                Size="10" />
-                                </Border>
-                                <StackPanel Spacing="1">
-                                    <TextBlock FontWeight="SemiBold"
-                                               Text="{Binding BackendStatusTitle}" />
-                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                               Text="{Binding BackendStatusStage}" />
-                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                               Text="{Binding BackendEndpoint}" />
+                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                            <Border Background="Transparent"
+                                    BorderThickness="0"
+                                    CornerRadius="0"
+                                    Padding="0">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <Border Background="{DynamicResource AppAccentSurfaceBrush}"
+                                            BorderBrush="{DynamicResource AppAccentBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Width="18"
+                                            Height="18">
+                                        <LucideIcon HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Margin="0"
+                                                    Kind="Bot"
+                                                    Size="10" />
+                                    </Border>
+                                    <StackPanel Spacing="1">
+                                        <TextBlock FontWeight="SemiBold"
+                                                   Text="{Binding BackendStatusTitle}" />
+                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                   Text="{Binding BackendStatusStage}" />
+                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                   Text="{Binding BackendEndpoint}" />
+                                    </StackPanel>
                                 </StackPanel>
-                            </StackPanel>
-                        </Border>
+                            </Border>
 
-                        <Button WindowDecorationProperties.ElementRole="MinimizeButton"
-                                Classes="window-control"
-                                Click="MinimizeWindow_Click">
-                            <LucideIcon HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Margin="0"
-                                        Kind="Minus"
-                                        Size="12" />
-                        </Button>
-                        <Button WindowDecorationProperties.ElementRole="MaximizeButton"
-                                Classes="window-control"
-                                Click="ToggleMaximizeWindow_Click">
-                            <LucideIcon HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Margin="0"
-                                        Kind="Square"
-                                        Size="12" />
-                        </Button>
-                        <Button WindowDecorationProperties.ElementRole="CloseButton"
-                                Classes="window-control"
-                                Click="CloseWindow_Click">
-                            <LucideIcon HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Margin="0"
-                                        Kind="X"
-                                        Size="12" />
-                        </Button>
+                            <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,6">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <Border Background="{DynamicResource AppAccentSurfaceBrush}"
+                                            BorderBrush="{DynamicResource AppAccentBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Width="18"
+                                            Height="18">
+                                        <LucideIcon HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Margin="0"
+                                                    Kind="Cpu"
+                                                    Size="10" />
+                                    </Border>
+                                    <StackPanel Spacing="1">
+                                        <TextBlock FontWeight="SemiBold"
+                                                   Text="{Binding SearchModelStatusTitle}" />
+                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                   Text="{Binding SearchModelStatusStage}" />
+                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                   Text="{Binding SearchModelStatusDetail}"
+                                                   TextWrapping="NoWrap"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   MaxWidth="280" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <Button WindowDecorationProperties.ElementRole="MinimizeButton"
+                                    Classes="window-control"
+                                    Click="MinimizeWindow_Click">
+                                <LucideIcon HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Margin="0"
+                                            Kind="Minus"
+                                            Size="12" />
+                            </Button>
+                            <Button WindowDecorationProperties.ElementRole="MaximizeButton"
+                                    Classes="window-control"
+                                    Click="ToggleMaximizeWindow_Click">
+                                <LucideIcon HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Margin="0"
+                                            Kind="Square"
+                                            Size="12" />
+                            </Button>
+                            <Button WindowDecorationProperties.ElementRole="CloseButton"
+                                    Classes="window-control"
+                                    Click="CloseWindow_Click">
+                                <LucideIcon HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Margin="0"
+                                            Kind="X"
+                                            Size="12" />
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
             </Border>

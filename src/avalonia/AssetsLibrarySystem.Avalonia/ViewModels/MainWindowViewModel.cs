@@ -68,6 +68,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public string BackendStatusTitle => BackendSessionService.BackendStatusTitle;
     public string BackendStatusStage => BackendSessionService.BackendStatusStage;
     public string BackendEndpoint => BackendSessionService.BackendEndpoint;
+    public string SearchModelStatusTitle => BackendSessionService.SearchModelStatusTitle;
+    public string SearchModelStatusStage => BackendSessionService.SearchModelStatusStage;
+    public string SearchModelStatusDetail => BackendSessionService.SearchModelStatusDetail;
 
     [ObservableProperty]
     public partial string TitleBarTaskText { get; set; } = string.Empty;

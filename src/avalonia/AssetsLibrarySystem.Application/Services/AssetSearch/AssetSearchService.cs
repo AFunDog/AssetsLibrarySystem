@@ -120,6 +120,64 @@ public sealed class AssetSearchService : IAssetSearchService
         return await WarmupAsync(backendBaseUrl, "rerank", ct);
     }
 
+    public async Task<AssetSearchModelStatusDocument> GetModelStatusAsync(
+        string backendBaseUrl,
+        CancellationToken ct = default)
+    {
+        var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/models/status";
+        using var response = await Http.GetAsync(endpoint, ct);
+        var responseText = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            Log.Warning("模型状态查询失败: {StatusCode}, body={Body}", (int)response.StatusCode, responseText);
+            throw new InvalidOperationException($"后端模型状态查询失败：{responseText}");
+        }
+
+        var backendResponse = JsonSerializer.Deserialize<SearchModelStatusResponse>(responseText, JsonOptions)
+            ?? throw new InvalidOperationException("后端返回空模型状态响应。");
+
+        return new AssetSearchModelStatusDocument(
+            EmbeddingModelName: backendResponse.EmbeddingModelName,
+            RerankModelName: backendResponse.RerankModelName,
+            Device: backendResponse.Device,
+            LoadedModelKinds: backendResponse.LoadedModelKinds.ToArray(),
+            EmbeddingLoaded: backendResponse.EmbeddingLoaded,
+            RerankLoaded: backendResponse.RerankLoaded,
+            LoadedCount: backendResponse.LoadedCount);
+    }
+
+    public async Task<AssetSearchModelCloseDocument> CloseModelAsync(
+        string backendBaseUrl,
+        string modelKind,
+        CancellationToken ct = default)
+    {
+        var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/models/close";
+        var request = new SearchModelCloseRequest(modelKind);
+        using var content = new StringContent(
+            JsonSerializer.Serialize(request, JsonOptions),
+            Encoding.UTF8,
+            "application/json");
+
+        using var response = await Http.PostAsync(endpoint, content, ct);
+        var responseText = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            Log.Warning("模型关闭请求失败: {StatusCode}, body={Body}", (int)response.StatusCode, responseText);
+            throw new InvalidOperationException($"后端模型关闭失败：{responseText}");
+        }
+
+        var backendResponse = JsonSerializer.Deserialize<SearchModelCloseResponse>(responseText, JsonOptions)
+            ?? throw new InvalidOperationException("后端返回空模型关闭响应。");
+
+        return new AssetSearchModelCloseDocument(
+            ModelKind: backendResponse.ModelKind,
+            ModelName: backendResponse.ModelName,
+            Device: backendResponse.Device,
+            Closed: backendResponse.Closed,
+            CudaCacheCleared: backendResponse.CudaCacheCleared,
+            RemainingLoadedModels: backendResponse.RemainingLoadedModels.ToArray());
+    }
+
     private async Task<AssetSearchWarmupDocument> WarmupAsync(
         string backendBaseUrl,
         string modelKind,
@@ -188,4 +246,24 @@ public sealed class AssetSearchService : IAssetSearchService
         [property: JsonPropertyName("model_name")] string ModelName,
         [property: JsonPropertyName("device")] string Device,
         [property: JsonPropertyName("warmed")] bool Warmed);
+
+    private sealed record SearchModelStatusResponse(
+        [property: JsonPropertyName("embedding_model_name")] string EmbeddingModelName,
+        [property: JsonPropertyName("rerank_model_name")] string RerankModelName,
+        [property: JsonPropertyName("device")] string Device,
+        [property: JsonPropertyName("loaded_model_kinds")] string[] LoadedModelKinds,
+        [property: JsonPropertyName("embedding_loaded")] bool EmbeddingLoaded,
+        [property: JsonPropertyName("rerank_loaded")] bool RerankLoaded,
+        [property: JsonPropertyName("loaded_count")] int LoadedCount);
+
+    private sealed record SearchModelCloseRequest(
+        [property: JsonPropertyName("model_kind")] string ModelKind);
+
+    private sealed record SearchModelCloseResponse(
+        [property: JsonPropertyName("model_kind")] string ModelKind,
+        [property: JsonPropertyName("model_name")] string ModelName,
+        [property: JsonPropertyName("device")] string Device,
+        [property: JsonPropertyName("closed")] bool Closed,
+        [property: JsonPropertyName("cuda_cache_cleared")] bool CudaCacheCleared,
+        [property: JsonPropertyName("remaining_loaded_models")] string[] RemainingLoadedModels);
 }

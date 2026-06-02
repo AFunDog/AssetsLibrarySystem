@@ -50,6 +50,15 @@
             <Setter Property="Padding" Value="10,8" />
             <Setter Property="MinHeight" Value="32" />
         </Style>
+        <Style Selector="Button.secondary-action">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
     </UserControl.Styles>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -76,6 +85,34 @@
                         <Border Classes="sub-card">
                             <TextBlock Foreground="{DynamicResource AppAccentBrush}" Text="{Binding BackendEndpoint}" />
                         </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="page-card">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="eyebrow" Text="本地搜索模型" />
+                                <TextBlock Classes="section-title" Text="{Binding SearchModelStatusTitle}" />
+                                <TextBlock Classes="section-subtitle" Text="{Binding SearchModelStatusStage}" />
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Classes="secondary-action"
+                                    Command="{Binding RefreshModelStatusCommand}"
+                                    Content="刷新状态" />
+                        </Grid>
+
+                        <TextBlock Classes="section-subtitle" Text="{Binding SearchModelStatusDetail}" />
+
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Button Classes="secondary-action"
+                                    Command="{Binding CloseEmbeddingModelCommand}"
+                                    Content="关闭 embedding" />
+                            <Button Grid.Column="1"
+                                    Classes="secondary-action"
+                                    Command="{Binding CloseRerankModelCommand}"
+                                    Content="关闭 rerank" />
+                        </Grid>
                     </StackPanel>
                 </Border>
             </StackPanel>

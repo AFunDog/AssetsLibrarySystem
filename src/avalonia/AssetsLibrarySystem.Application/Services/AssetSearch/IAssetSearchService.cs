@@ -25,4 +25,13 @@ public interface IAssetSearchService
     Task<AssetSearchWarmupDocument> WarmupRerankAsync(
         string backendBaseUrl,
         CancellationToken ct = default);
+
+    Task<AssetSearchModelStatusDocument> GetModelStatusAsync(
+        string backendBaseUrl,
+        CancellationToken ct = default);
+
+    Task<AssetSearchModelCloseDocument> CloseModelAsync(
+        string backendBaseUrl,
+        string modelKind,
+        CancellationToken ct = default);
 }
