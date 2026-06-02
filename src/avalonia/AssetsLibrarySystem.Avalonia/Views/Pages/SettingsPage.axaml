@@ -1,10 +1,11 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
+             xmlns:pagevm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
              xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.SettingsPage"
-             x:DataType="vm:MainWindowViewModel">
+             x:DataType="pagevm:SettingsPageViewModel">
     <UserControl.Styles>
         <Style Selector="Border.page-card">
             <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />

@@ -305,7 +305,7 @@
                             </StackPanel>
                         </Grid>
                     </TabItem.Header>
-                    <pages:OverviewPage />
+                    <pages:OverviewPage DataContext="{Binding OverviewPage}" />
                 </TabItem>
 
                 <TabItem Classes="nav-item">
@@ -323,7 +323,7 @@
                             </StackPanel>
                         </Grid>
                     </TabItem.Header>
-                    <pages:LibraryPage />
+                    <pages:LibraryPage DataContext="{Binding LibraryPage}" />
                 </TabItem>
 
                 <TabItem Classes="nav-item">
@@ -341,7 +341,7 @@
                             </StackPanel>
                         </Grid>
                     </TabItem.Header>
-                    <pages:DescriptionTasksPage />
+                    <pages:DescriptionTasksPage DataContext="{Binding DescriptionTasksPage}" />
                 </TabItem>
 
                 <TabItem Classes="nav-item">
@@ -359,7 +359,7 @@
                             </StackPanel>
                         </Grid>
                     </TabItem.Header>
-                    <pages:SettingsPage />
+                    <pages:SettingsPage DataContext="{Binding SettingsPage}" />
                 </TabItem>
             </TabControl>
         </Grid>

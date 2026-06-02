@@ -17,7 +17,7 @@ public partial class LibraryPage : UserControl
     private async void AddLibraryFolder_Click(object? sender, RoutedEventArgs e)
     {
         if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storageProvider ||
-            DataContext is not MainWindowViewModel viewModel)
+            DataContext is not LibraryPageViewModel viewModel)
         {
             return;
         }
@@ -42,23 +42,23 @@ public partial class LibraryPage : UserControl
     {
         if (sender is not MenuItem menuItem ||
             menuItem.CommandParameter is not AssetLibraryTreeNode node ||
-            DataContext is not MainWindowViewModel viewModel)
+            DataContext is not LibraryPageViewModel viewModel)
         {
             return;
         }
 
-        viewModel.RevealInFileExplorerCommand.Execute(node);
+        viewModel.RevealInFileExplorer(node);
     }
 
     private void RevealSearchResult_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button ||
             button.CommandParameter is not AssetSearchDocument result ||
-            DataContext is not MainWindowViewModel viewModel)
+            DataContext is not LibraryPageViewModel viewModel)
         {
             return;
         }
 
-        viewModel.RevealSearchResultInExplorerCommand.Execute(result);
+        viewModel.RevealSearchResultInExplorer(result);
     }
 }

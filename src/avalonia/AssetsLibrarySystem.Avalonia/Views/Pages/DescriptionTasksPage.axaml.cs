@@ -17,7 +17,7 @@ public partial class DescriptionTasksPage : UserControl
     private async void AddLibraryFolder_Click(object? sender, RoutedEventArgs e)
     {
         if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storageProvider ||
-            DataContext is not MainWindowViewModel viewModel)
+            DataContext is not DescriptionTasksPageViewModel viewModel)
         {
             return;
         }
@@ -41,11 +41,11 @@ public partial class DescriptionTasksPage : UserControl
     {
         if (sender is not MenuItem menuItem ||
             menuItem.CommandParameter is not AssetLibraryTreeNode node ||
-            DataContext is not MainWindowViewModel viewModel)
+            DataContext is not DescriptionTasksPageViewModel viewModel)
         {
             return;
         }
 
-        viewModel.RevealInFileExplorerCommand.Execute(node);
+        viewModel.RevealInFileExplorer(node);
     }
 }

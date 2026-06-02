@@ -1,10 +1,11 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
+             xmlns:pagevm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
              xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.OverviewPage"
-             x:DataType="vm:MainWindowViewModel">
+             x:DataType="pagevm:OverviewPageViewModel">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid ColumnDefinitions="*,280" ColumnSpacing="8">
             <StackPanel Spacing="8">

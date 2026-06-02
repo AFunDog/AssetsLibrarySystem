@@ -5,6 +5,9 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using AssetsLibrarySystem.Avalonia.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
+using AssetsLibrarySystem.Avalonia.Services.Activity;
+using AssetsLibrarySystem.Avalonia.Services.Backend;
+using AssetsLibrarySystem.Avalonia.Services.Library;
 using AssetsLibrarySystem.Avalonia.ViewModels;
 using AssetsLibrarySystem.Avalonia.Views;
 using Autofac;
@@ -39,9 +42,30 @@ public partial class App : Application
             builder.RegisterType<QuickSearchViewModel>()
                 .AsSelf()
                 .SingleInstance();
+            builder.RegisterType<ActivityFeedService>()
+                .AsSelf()
+                .SingleInstance();
+            builder.RegisterType<BackendSessionService>()
+                .AsSelf()
+                .SingleInstance();
+            builder.RegisterType<LibraryCatalogService>()
+                .AsSelf()
+                .SingleInstance();
+            builder.RegisterType<OverviewPageViewModel>()
+                .AsSelf()
+                .SingleInstance();
+            builder.RegisterType<LibraryPageViewModel>()
+                .AsSelf()
+                .SingleInstance();
+            builder.RegisterType<DescriptionTasksPageViewModel>()
+                .AsSelf()
+                .SingleInstance();
+            builder.RegisterType<SettingsPageViewModel>()
+                .AsSelf()
+                .SingleInstance();
             builder.RegisterType<MainWindowViewModel>()
                 .AsSelf()
-                .InstancePerDependency();
+                .SingleInstance();
             Container = builder.Build();
 
             ShellViewModel = Container.Resolve<DesktopShellViewModel>();
