@@ -48,6 +48,8 @@
 - `POST /api/v1/search/query`
 - `POST /api/v1/search/explore`
 - `POST /api/v1/search/reindex`
+- `GET /api/v1/search/models/status`
+- `POST /api/v1/search/models/close`
 
 `POST /api/v1/model/generate` 现在接收的是素材打标请求，而不是对话消息流。请求体的核心字段是：
 
@@ -77,6 +79,10 @@
 `POST /api/v1/search/query` 只对调用方传入的候选文本做本地 rerank，不负责数据库读取或写入。
 
 `POST /api/v1/search/reindex` 会直接读取 Avalonia 已写入的 `asset_descriptions.db` 中的 `asset_description_vectors` 表，重新构建本地 HNSW 索引文件，不再维护第二份向量 SQLite。
+
+`POST /api/v1/search/models/close` 用来主动释放本地搜索模型缓存，当前可选值为 `embedding` 和 `rerank`。这个接口只影响进程内已经加载的 `SentenceTransformer` / `CrossEncoder` 对象，适合在长时间空闲后手动腾出显存；如果对应模型还没被加载，接口也会正常返回，只是 `closed=false`。
+
+`GET /api/v1/search/models/status` 用来查看当前进程里哪些本地搜索模型已经驻留。返回里会包含 `embedding_loaded`、`rerank_loaded`、`loaded_model_kinds` 和对应模型名，便于前端直接展示缓存状态。
 
 `api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取 `DASHSCOPE_API_KEY`。
 

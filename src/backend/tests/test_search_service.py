@@ -8,12 +8,23 @@ import numpy as np
 
 from app.application.services.search_service import SearchService
 from app.infrastructure.search.sqlite_vector_repository import IndexState, IndexedAssetVectorRecord
-from app.schemas.search import SearchExploreRequest, SearchIndexRequest, SearchQueryCandidate, SearchQueryRequest
+from app.schemas.search import (
+    SearchExploreRequest,
+    SearchIndexRequest,
+    SearchModelCloseRequest,
+    SearchModelStatusResponse,
+    SearchQueryCandidate,
+    SearchQueryRequest,
+)
 
 
 class FakeModelBundle:
     embedding_model_name = "fake-embed"
     rerank_model_name = "fake-rerank"
+
+    def __init__(self) -> None:
+        self._loaded_models = {"embedding", "rerank"}
+        self._device_name = "cuda"
 
     def encode_documents(self, descriptions: list[str]) -> np.ndarray:
         return np.asarray([self._vector_for_text(text) for text in descriptions], dtype=np.float32)
@@ -31,6 +42,32 @@ class FakeModelBundle:
                     score += 1.0
             scores.append(score)
         return scores
+
+    @property
+    def device_name(self) -> str:
+        return self._device_name
+
+    def loaded_model_kinds(self) -> list[str]:
+        return sorted(self._loaded_models)
+
+    def model_status(self) -> tuple[str, str, str, list[str], bool, bool]:
+        loaded_models = self.loaded_model_kinds()
+        return (
+            self.embedding_model_name,
+            self.rerank_model_name,
+            self.device_name,
+            loaded_models,
+            "embedding" in loaded_models,
+            "rerank" in loaded_models,
+        )
+
+    def close_model(self, model_kind: str) -> tuple[str, bool, list[str], bool]:
+        model_name = self.embedding_model_name if model_kind == "embedding" else self.rerank_model_name
+        if model_kind not in self._loaded_models:
+            return model_name, False, self.loaded_model_kinds(), True
+
+        self._loaded_models.remove(model_kind)
+        return model_name, True, self.loaded_model_kinds(), True
 
     @staticmethod
     def _vector_for_text(text: str) -> list[float]:
@@ -90,6 +127,32 @@ class SearchServiceTestCase(unittest.TestCase):
         self.assertEqual(len(response.results), 2)
         self.assertEqual(response.results[0].asset_id, "asset-1")
         self.assertGreater(response.results[0].rerank_score, response.results[1].rerank_score)
+
+    def test_close_model_releases_single_cached_model(self) -> None:
+        bundle = FakeModelBundle()
+        service = SearchService(model_bundle=bundle)
+
+        response = service.close_model(SearchModelCloseRequest(model_kind="embedding"))
+
+        self.assertEqual(response.model_kind, "embedding")
+        self.assertEqual(response.model_name, "fake-embed")
+        self.assertTrue(response.closed)
+        self.assertTrue(response.cuda_cache_cleared)
+        self.assertEqual(response.remaining_loaded_models, ["rerank"])
+
+    def test_get_model_status_reports_loaded_models(self) -> None:
+        service = SearchService(model_bundle=FakeModelBundle())
+
+        response = service.get_model_status()
+
+        self.assertIsInstance(response, SearchModelStatusResponse)
+        self.assertEqual(response.embedding_model_name, "fake-embed")
+        self.assertEqual(response.rerank_model_name, "fake-rerank")
+        self.assertEqual(response.device, "cuda")
+        self.assertEqual(response.loaded_model_kinds, ["embedding", "rerank"])
+        self.assertTrue(response.embedding_loaded)
+        self.assertTrue(response.rerank_loaded)
+        self.assertEqual(response.loaded_count, 2)
 
     def test_reindex_rebuilds_index_from_source_vectors(self) -> None:
         fake_repository = FakeVectorRepository()

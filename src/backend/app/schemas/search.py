@@ -114,6 +114,35 @@ class SearchWarmupResponse(BaseModel):
     warmed: bool = True
 
 
+class SearchModelCloseRequest(BaseModel):
+    model_kind: Literal["embedding", "rerank"] = Field(description="要释放的本地模型类型")
+
+
+class SearchModelCloseResponse(BaseModel):
+    model_kind: Literal["embedding", "rerank"]
+    model_name: str
+    device: str
+    closed: bool = Field(description="本次是否释放了已加载模型")
+    cuda_cache_cleared: bool = Field(description="是否清理了 CUDA 缓存")
+    remaining_loaded_models: list[Literal["embedding", "rerank"]] = Field(
+        default_factory=list,
+        description="关闭后仍然驻留的本地模型",
+    )
+
+
+class SearchModelStatusResponse(BaseModel):
+    embedding_model_name: str
+    rerank_model_name: str
+    device: str
+    loaded_model_kinds: list[Literal["embedding", "rerank"]] = Field(
+        default_factory=list,
+        description="当前已经驻留在进程中的本地模型类型",
+    )
+    embedding_loaded: bool = Field(description="embedding 模型是否已驻留")
+    rerank_loaded: bool = Field(description="rerank 模型是否已驻留")
+    loaded_count: int = Field(ge=0, description="当前已驻留模型数量")
+
+
 SearchQueryRequest.model_rebuild()
 SearchQueryResultItem.model_rebuild()
 SearchExploreRequest.model_rebuild()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import gc
 
 import numpy as np
 
@@ -17,6 +18,9 @@ from app.schemas.search import (
     SearchExploreResponse,
     SearchReindexResponse,
     SearchWarmupResponse,
+    SearchModelCloseRequest,
+    SearchModelCloseResponse,
+    SearchModelStatusResponse,
     SearchQueryRequest,
     SearchQueryResponse,
     SearchQueryResultItem,
@@ -51,7 +55,7 @@ class LocalSearchModelBundle:
 
     @property
     def device_name(self) -> str:
-        return self._get_device()
+        return self._device or "cpu"
 
     def encode_documents(self, descriptions: list[str]) -> np.ndarray:
         model = self._get_embed_model()
@@ -82,6 +86,40 @@ class LocalSearchModelBundle:
     def warmup_rerank(self) -> None:
         self._get_rerank_model()
 
+    def close_model(self, model_kind: str) -> tuple[str, bool, list[str], bool]:
+        if model_kind == "embedding":
+            model_name = self.embedding_model_name
+            closed = self._embed_model is not None
+            self._embed_model = None
+        elif model_kind == "rerank":
+            model_name = self.rerank_model_name
+            closed = self._rerank_model is not None
+            self._rerank_model = None
+        else:
+            raise ValueError(f"不支持的模型类型: {model_kind}")
+
+        cuda_cache_cleared = self._release_model_cache()
+        return model_name, closed, self.loaded_model_kinds(), cuda_cache_cleared
+
+    def loaded_model_kinds(self) -> list[str]:
+        loaded_models: list[str] = []
+        if self._embed_model is not None:
+            loaded_models.append("embedding")
+        if self._rerank_model is not None:
+            loaded_models.append("rerank")
+        return loaded_models
+
+    def model_status(self) -> tuple[str, str, str, list[str], bool, bool]:
+        loaded_models = self.loaded_model_kinds()
+        return (
+            self.embedding_model_name,
+            self.rerank_model_name,
+            self.device_name,
+            loaded_models,
+            "embedding" in loaded_models,
+            "rerank" in loaded_models,
+        )
+
     def _get_embed_model(self):
         if self._embed_model is None:
             sentence_transformers = self._import_sentence_transformers()
@@ -110,6 +148,21 @@ class LocalSearchModelBundle:
                 raise RuntimeError("检索功能需要安装 `torch`。") from exc
             self._device = "cuda" if torch.cuda.is_available() else "cpu"
         return self._device
+
+    def _release_model_cache(self) -> bool:
+        gc.collect()
+        cuda_cache_cleared = False
+        if self._device == "cuda":
+            try:
+                import torch
+            except ImportError:
+                return False
+
+            torch.cuda.empty_cache()
+            if hasattr(torch.cuda, "ipc_collect"):
+                torch.cuda.ipc_collect()
+            cuda_cache_cleared = True
+        return cuda_cache_cleared
 
     @staticmethod
     def _import_sentence_transformers():
@@ -261,6 +314,36 @@ class SearchService:
             model_name=self._model_bundle.rerank_model_name,
             device=self._model_bundle.device_name,
             warmed=True,
+        )
+
+    def close_model(self, payload: SearchModelCloseRequest) -> SearchModelCloseResponse:
+        model_name, closed, remaining_models, cuda_cache_cleared = self._model_bundle.close_model(payload.model_kind)
+        return SearchModelCloseResponse(
+            model_kind=payload.model_kind,
+            model_name=model_name,
+            device=self._model_bundle.device_name,
+            closed=closed,
+            cuda_cache_cleared=cuda_cache_cleared,
+            remaining_loaded_models=remaining_models,
+        )
+
+    def get_model_status(self) -> SearchModelStatusResponse:
+        (
+            embedding_model_name,
+            rerank_model_name,
+            device,
+            loaded_models,
+            embedding_loaded,
+            rerank_loaded,
+        ) = self._model_bundle.model_status()
+        return SearchModelStatusResponse(
+            embedding_model_name=embedding_model_name,
+            rerank_model_name=rerank_model_name,
+            device=device,
+            loaded_model_kinds=loaded_models,
+            embedding_loaded=embedding_loaded,
+            rerank_loaded=rerank_loaded,
+            loaded_count=len(loaded_models),
         )
 
     def rerank(self, payload: SearchQueryRequest) -> SearchQueryResponse:

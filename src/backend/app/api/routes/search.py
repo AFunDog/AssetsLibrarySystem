@@ -8,6 +8,9 @@ from app.schemas.search import (
     SearchIndexResponse,
     SearchExploreRequest,
     SearchExploreResponse,
+    SearchModelCloseRequest,
+    SearchModelCloseResponse,
+    SearchModelStatusResponse,
     SearchReindexResponse,
     SearchWarmupResponse,
     SearchQueryRequest,
@@ -70,5 +73,21 @@ def warmup_embedding() -> SearchWarmupResponse:
 def warmup_rerank() -> SearchWarmupResponse:
     try:
         return get_search_service().warmup_rerank_model()
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/models/close", response_model=SearchModelCloseResponse)
+def close_model(payload: SearchModelCloseRequest) -> SearchModelCloseResponse:
+    try:
+        return get_search_service().close_model(payload)
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/models/status", response_model=SearchModelStatusResponse)
+def get_model_status() -> SearchModelStatusResponse:
+    try:
+        return get_search_service().get_model_status()
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

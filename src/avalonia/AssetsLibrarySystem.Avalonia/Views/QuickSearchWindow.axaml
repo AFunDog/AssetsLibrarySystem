@@ -50,7 +50,8 @@
         </vm:QuickSearchViewModel>
     </Design.DataContext>
 
-    <Border MinWidth="720"
+    <Border Width="720"
+            MaxHeight="540"
             Background="{DynamicResource SystemAltMediumHighColor}"
             Padding="8">
         <Grid RowDefinitions="Auto,*" RowSpacing="4">
@@ -58,10 +59,10 @@
                     Background="{DynamicResource SystemAltLowColor}"
                     Padding="12,10">
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                        <lucide:LucideIcon HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           Size="16"
-                                           Kind="Search" />
+                    <lucide:LucideIcon HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Size="16"
+                                       Kind="Search" />
                     <TextBox x:Name="SearchTextBox"
                              Grid.Column="1"
                              Text="{Binding SearchQuery, Mode=TwoWay}"
@@ -84,6 +85,12 @@
                                 <Setter Property="BorderBrush" Value="Transparent" />
                                 <Setter Property="BorderThickness" Value="0" />
                             </Style>
+                            <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Style>
+
 
                         </TextBox.Styles>
                     </TextBox>
@@ -101,52 +108,47 @@
                     <ItemsControl ItemsSource="{Binding SearchResults}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Spacing="8"/>
+                                <StackPanel Spacing="8" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="models:AssetSearchDocument">
-                                <Button 
-                                        BorderThickness="1"
-                                        CornerRadius="4"
-                                        Padding="8"
-                                        HorizontalAlignment="Stretch"
-                                        Click="RevealSearchResult_Click"
-                                        CommandParameter="{Binding}"
-                                        ToolTip.Tip="点击定位到文件资源管理器">
-       
-                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                                <StackPanel Spacing="1">
-                                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                               FontSize="13"
-                                                               FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               Text="{Binding AssetName}" />
-                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                               FontSize="10"
-                                                               Text="{Binding AssetType}" />
-                                                </StackPanel>
-                                                <Border Grid.Column="1" Background="{DynamicResource AppAccentSurfaceBrush}"
-                                                        BorderBrush="{DynamicResource AppAccentBrush}"
-                                                        BorderThickness="1"
-                                                        CornerRadius="999"
-                                                        Padding="8,3">
-                                                    <TextBlock Foreground="{DynamicResource AppAccentBrush}"
-                                                               FontSize="10"
-                                                               Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
-                                                </Border>
-                                            </Grid>
-                                            <TextBlock Grid.Row="1"
-                                                       Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                <Button
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="8"
+                                    HorizontalAlignment="Stretch"
+                                    Click="RevealSearchResult_Click"
+                                    CommandParameter="{Binding}"
+                                    ToolTip.Tip="点击定位到文件资源管理器">
+
+                                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                            <StackPanel Spacing="1">
+                                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Text="{Binding AssetName}" />
+                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                           FontSize="10"
+                                                           Text="{Binding AssetType}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Foreground="{DynamicResource AppAccentBrush}"
                                                        FontSize="10"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Text="{Binding AssetPath}" />
-                                            <TextBlock Grid.Row="2"
-                                                       Foreground="{DynamicResource AppTextBrush}"
-                                                       TextWrapping="Wrap"
-                                                       Text="{Binding Description}" />
+                                                       Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
                                         </Grid>
+                                        <TextBlock Grid.Row="1"
+                                                   Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                   FontSize="10"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Text="{Binding AssetPath}" />
+                                        <TextBlock Grid.Row="2"
+                                                   Foreground="{DynamicResource AppTextBrush}"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="12"
+                                                   Text="{Binding Description}" />
+                                    </Grid>
                                 </Button>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
