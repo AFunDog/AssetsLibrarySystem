@@ -324,14 +324,19 @@
                                           HorizontalScrollBarVisibility="Auto">
                                 <TreeView Classes="tree-root"
                                           AutoScrollToSelectedItem="True"
+
                                           ItemsSource="{Binding AssetTreeRoots}"
                                           SelectedItem="{Binding SelectedAssetTreeNode, Mode=TwoWay}">
                                     <TreeView.Styles>
-                                        <Style Selector="TreeView.tree-root">
+                                        <Style
+                                            Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
                                             <Setter Property="Background" Value="Transparent" />
-                                            <Setter Property="BorderThickness" Value="0" />
-                                            <Setter Property="Padding" Value="0" />
                                         </Style>
+                                        <Style
+                                            Selector="TreeViewItem:pointerover /template/ Border#PART_LayoutRoot">
+                                            <Setter Property="Background" Value="Transparent" />
+                                        </Style>
+
                                         <Style Selector="Border.tree-item">
                                             <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
                                             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
@@ -360,17 +365,17 @@
                                                             Height="20">
                                                         <lucide:LucideIcon Kind="Folder" Size="12" />
                                                     </Border>
-                                                        <StackPanel Grid.Column="1" Spacing="2">
-                                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                                       FontWeight="SemiBold"
-                                                                       Text="{Binding DisplayName}" />
-                                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                                       Text="{Binding PathLabel}" />
-                                                        </StackPanel>
-                                                        <TextBlock Grid.Column="2"
-                                                                   Foreground="{DynamicResource AppAccentBrush}"
-                                                                   VerticalAlignment="Center"
-                                                                   Text="{Binding MetaLabel}" />
+                                                    <StackPanel Grid.Column="1" Spacing="2">
+                                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                   FontWeight="SemiBold"
+                                                                   Text="{Binding DisplayName}" />
+                                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                   Text="{Binding PathLabel}" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="2"
+                                                               Foreground="{DynamicResource AppAccentBrush}"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding MetaLabel}" />
                                                 </Grid>
                                             </Border>
                                         </TreeDataTemplate>
@@ -472,8 +477,9 @@
                                                                        FontWeight="SemiBold"
                                                                        TextTrimming="CharacterEllipsis"
                                                                        Text="{Binding AssetName}" />
-                                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                                       Text="{Binding AssetType}" />
+                                                            <TextBlock
+                                                                Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                Text="{Binding AssetType}" />
                                                         </StackPanel>
                                                         <TextBlock Grid.Column="1"
                                                                    Foreground="{DynamicResource AppAccentBrush}"
@@ -517,19 +523,22 @@
                                 <Border Classes="sub-card">
                                     <StackPanel Spacing="2">
                                         <TextBlock Classes="eyebrow" Text="类型" />
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetType}" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                   Text="{Binding SelectedAssetType}" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Column="1" Classes="sub-card">
                                     <StackPanel Spacing="2">
                                         <TextBlock Classes="eyebrow" Text="阶段" />
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetStage}" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                   Text="{Binding SelectedAssetStage}" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Row="1" Grid.ColumnSpan="2" Classes="sub-card">
                                     <StackPanel Spacing="2">
                                         <TextBlock Classes="eyebrow" Text="状态" />
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetAiState}" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                   Text="{Binding SelectedAssetAiState}" />
                                     </StackPanel>
                                 </Border>
                             </Grid>
@@ -569,7 +578,8 @@
                                 <Border Grid.Column="1" Classes="sub-card">
                                     <StackPanel Spacing="2">
                                         <TextBlock Classes="eyebrow" Text="模式" />
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}" Text="{Binding SelectedAssetDescriptionMode}" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                   Text="{Binding SelectedAssetDescriptionMode}" />
                                     </StackPanel>
                                 </Border>
                             </Grid>
