@@ -1,10 +1,8 @@
 using System;
-using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
 using Microsoft.Data.Sqlite;
@@ -13,8 +11,6 @@ namespace AssetsLibrarySystem.Application.Services.AssetDescription;
 
 public sealed class AssetDescriptionStore : IAssetDescriptionStore
 {
-    private static IDatabaseWriteQueue FallbackWriteQueue { get; } = new DatabaseWriteQueue();
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -22,28 +18,23 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    public string DatabasePath { get; }
     private IDatabaseWriteQueue WriteQueue { get; }
+    private IAssetDatabase AssetDatabase { get; }
 
-    public AssetDescriptionStore()
-        : this(FallbackWriteQueue)
-    {
-    }
-
-    public AssetDescriptionStore(IDatabaseWriteQueue writeQueue)
+    public AssetDescriptionStore(IDatabaseWriteQueue writeQueue, IAssetDatabase assetDatabase)
     {
         WriteQueue = writeQueue;
-        DatabasePath = SharedDataPathHelper.GetDataFilePath("asset_descriptions.db");
+        AssetDatabase = assetDatabase;
     }
+
+    public string DatabasePath => AssetDatabase.DatabasePath;
 
     public async Task SaveAsync(AssetDescriptionDocument document, CancellationToken ct = default)
     {
+        await AssetDatabase.EnsureSchemaAsync(ct);
         await WriteQueue.EnqueueAsync(async token =>
         {
-            await EnsureSchemaCoreAsync(token);
-
-            await using var connection = CreateConnection();
-            await connection.OpenAsync(token);
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
 
             await using var command = connection.CreateCommand();
             command.CommandText = """
@@ -118,10 +109,7 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
 
     public async Task<AssetDescriptionDocument?> TryGetAsync(string assetId, CancellationToken ct = default)
     {
-        await EnsureSchemaAsync(ct);
-
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(ct);
+        await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
@@ -157,10 +145,7 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
 
     public async Task<AssetDescriptionDocument?> TryGetForAssetAsync(ManagedAssetRecord asset, CancellationToken ct = default)
     {
-        await EnsureSchemaAsync(ct);
-
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(ct);
+        await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
@@ -228,55 +213,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             reader.IsDBNull(13) ? "ready" : reader.GetString(13));
     }
 
-    private async Task EnsureSchemaAsync(CancellationToken ct)
-    {
-        await WriteQueue.EnqueueAsync(EnsureSchemaCoreAsync, ct);
-    }
-
-    private async Task EnsureSchemaCoreAsync(CancellationToken ct)
-    {
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(ct);
-
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            CREATE TABLE IF NOT EXISTS asset_descriptions (
-                asset_id TEXT PRIMARY KEY,
-                asset_name TEXT NOT NULL,
-                asset_type TEXT NOT NULL,
-                asset_path TEXT NOT NULL,
-                store_path TEXT NOT NULL,
-                description TEXT NOT NULL,
-                backend_endpoint TEXT NOT NULL,
-                mode TEXT NOT NULL,
-                generated_at TEXT NOT NULL,
-                token_usage_json TEXT NULL,
-                prompt TEXT NULL,
-                system_prompt TEXT NULL,
-                content_hash TEXT NULL,
-                metadata_status TEXT NOT NULL DEFAULT 'ready'
-            );
-
-            CREATE TABLE IF NOT EXISTS asset_metadata (
-                asset_uid TEXT PRIMARY KEY,
-                tags_json TEXT NOT NULL DEFAULT '[]',
-                metadata_status TEXT NOT NULL,
-                vector_state TEXT NOT NULL DEFAULT 'pending',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            """;
-
-        await command.ExecuteNonQueryAsync(ct);
-        await EnsureColumnAsync(connection, "asset_descriptions", "content_hash", "TEXT NULL", ct);
-        await EnsureColumnAsync(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'", ct);
-    }
-
-    private SqliteConnection CreateConnection()
-    {
-        return new SqliteConnection($"Data Source={DatabasePath}");
-    }
-
     private static void AddParameter(SqliteCommand command, string name, object? value)
     {
         command.Parameters.AddWithValue(name, value ?? DBNull.Value);
@@ -294,39 +230,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         return string.IsNullOrWhiteSpace(json)
             ? null
             : JsonSerializer.Deserialize<AssetDescriptionTokenUsage>(json, JsonOptions);
-    }
-
-    private static async Task EnsureColumnAsync(
-        SqliteConnection connection,
-        string tableName,
-        string columnName,
-        string definition,
-        CancellationToken ct)
-    {
-        await using var pragma = connection.CreateCommand();
-        pragma.CommandText = $"PRAGMA table_info({tableName});";
-
-        var exists = false;
-        await using (var reader = await pragma.ExecuteReaderAsync(ct))
-        {
-            while (await reader.ReadAsync(ct))
-            {
-                if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
-                {
-                    exists = true;
-                    break;
-                }
-            }
-        }
-
-        if (exists)
-        {
-            return;
-        }
-
-        await using var alter = connection.CreateCommand();
-        alter.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {definition};";
-        await alter.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task UpdateAssetMetadataAsync(

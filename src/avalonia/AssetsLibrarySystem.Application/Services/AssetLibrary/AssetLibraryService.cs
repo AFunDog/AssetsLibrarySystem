@@ -47,16 +47,16 @@ public sealed class AssetLibraryService : IAssetLibraryService
     };
 
     private string LibraryStorePath { get; }
-    private string MetadataDatabasePath { get; }
     private IDatabaseWriteQueue WriteQueue { get; }
+    private IAssetDatabase AssetDatabase { get; }
     private ConcurrentDictionary<string, CachedUidSidecar> UidSidecarCache { get; } = new(StringComparer.OrdinalIgnoreCase);
     private ConcurrentDictionary<string, CachedContentHash> ContentHashCache { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public AssetLibraryService(IDatabaseWriteQueue writeQueue)
+    public AssetLibraryService(IDatabaseWriteQueue writeQueue, IAssetDatabase assetDatabase)
     {
         WriteQueue = writeQueue;
+        AssetDatabase = assetDatabase;
         LibraryStorePath = SharedDataPathHelper.GetDataFilePath("libraries.json");
-        MetadataDatabasePath = SharedDataPathHelper.GetDataFilePath("asset_descriptions.db");
     }
 
     public async Task<IReadOnlyList<LibraryWorkspace>> GetLibrariesAsync(CancellationToken ct = default)
@@ -122,7 +122,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     private async Task<List<ManagedAssetRecord>> BuildRecordsForDirectoryAsync(LibraryWorkspace library, CancellationToken ct)
     {
-        await EnsureMetadataSchemaAsync(ct);
+        await AssetDatabase.EnsureSchemaAsync(ct);
 
         var stats = new ScanHashStats();
         var scanAt = DateTimeOffset.UtcNow;
@@ -179,8 +179,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         var currentHash = string.Empty;
         string stage = "已识别";
         string aiState = "身份已确认";
-        await using var connection = CreateMetadataConnection();
-        await connection.OpenAsync(ct);
+        await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
 
         if (!string.IsNullOrWhiteSpace(sidecarUid))
         {
@@ -423,8 +422,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             var actualCreatedAt = createdAt ?? scanAt;
             var actualCreatedBy = string.IsNullOrWhiteSpace(createdBy) ? SystemCreatedBy : createdBy;
 
-            await using var connection = CreateMetadataConnection();
-            await connection.OpenAsync(token);
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
 
             await using var command = connection.CreateCommand();
             command.CommandText = """
@@ -512,8 +510,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
     {
         return WriteQueue.EnqueueAsync(async token =>
         {
-            await using var connection = CreateMetadataConnection();
-            await connection.OpenAsync(token);
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
 
             await using var command = connection.CreateCommand();
             command.CommandText = """
@@ -675,15 +672,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
             reader.GetInt32(13));
     }
 
-    private Task EnsureMetadataSchemaAsync(CancellationToken ct)
-    {
-        return WriteQueue.EnqueueAsync(token =>
-        {
-            EnsureMetadataSchemaCore();
-            return Task.CompletedTask;
-        }, ct).AsTask();
-    }
-
     private static bool HasDescription(SqliteConnection connection, string assetUid, string currentPath, string contentHash)
     {
         using var command = connection.CreateCommand();
@@ -708,8 +696,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     private bool DescriptionTableExists()
     {
-        using var connection = CreateMetadataConnection();
-        connection.Open();
+        using var connection = AssetDatabase.OpenConnection();
         return TableExists(connection, "asset_descriptions");
     }
 
@@ -725,54 +712,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
             """;
         AddParameter(command, "$table_name", tableName);
         return command.ExecuteScalar() is not null;
-    }
-
-    private void EnsureMetadataSchemaCore()
-    {
-        using var connection = CreateMetadataConnection();
-        connection.Open();
-
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            CREATE TABLE IF NOT EXISTS assets (
-                asset_uid TEXT PRIMARY KEY,
-                library_id TEXT NOT NULL,
-                asset_name TEXT NOT NULL,
-                asset_type TEXT NOT NULL,
-                current_path TEXT NOT NULL,
-                content_hash TEXT NOT NULL,
-                observed_hash TEXT NOT NULL,
-                file_size INTEGER NOT NULL,
-                modified_time_utc TEXT NOT NULL,
-                status TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                created_by TEXT NOT NULL,
-                uid_version INTEGER NOT NULL DEFAULT 1
-            );
-
-            CREATE INDEX IF NOT EXISTS ix_assets_content_hash
-                ON assets(content_hash);
-
-            CREATE INDEX IF NOT EXISTS ix_assets_current_path
-                ON assets(current_path);
-
-            CREATE TABLE IF NOT EXISTS asset_metadata (
-                asset_uid TEXT PRIMARY KEY,
-                tags_json TEXT NOT NULL DEFAULT '[]',
-                metadata_status TEXT NOT NULL,
-                vector_state TEXT NOT NULL DEFAULT 'pending',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            """;
-        command.ExecuteNonQuery();
-    }
-
-    private SqliteConnection CreateMetadataConnection()
-    {
-        return new SqliteConnection($"Data Source={MetadataDatabasePath}");
     }
 
     private static string[] BuildTags(string assetType, string extension, IEnumerable<string> metadataTags)

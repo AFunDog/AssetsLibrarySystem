@@ -1,7 +1,6 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
 using Microsoft.Data.Sqlite;
@@ -10,30 +9,23 @@ namespace AssetsLibrarySystem.Application.Services.AssetDescription;
 
 public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 {
-    private static IDatabaseWriteQueue FallbackWriteQueue { get; } = new DatabaseWriteQueue();
-
-    public string DatabasePath { get; }
     private IDatabaseWriteQueue WriteQueue { get; }
+    private IAssetDatabase AssetDatabase { get; }
 
-    public AssetDescriptionVectorStore()
-        : this(FallbackWriteQueue)
-    {
-    }
-
-    public AssetDescriptionVectorStore(IDatabaseWriteQueue writeQueue)
+    public AssetDescriptionVectorStore(IDatabaseWriteQueue writeQueue, IAssetDatabase assetDatabase)
     {
         WriteQueue = writeQueue;
-        DatabasePath = SharedDataPathHelper.GetDataFilePath("asset_descriptions.db");
+        AssetDatabase = assetDatabase;
     }
+
+    public string DatabasePath => AssetDatabase.DatabasePath;
 
     public async Task SaveAsync(AssetDescriptionVectorDocument document, CancellationToken ct = default)
     {
+        await AssetDatabase.EnsureSchemaAsync(ct);
         await WriteQueue.EnqueueAsync(async token =>
         {
-            await EnsureSchemaCoreAsync(token);
-
-            await using var connection = CreateConnection();
-            await connection.OpenAsync(token);
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
 
             await using var command = connection.CreateCommand();
             command.CommandText = """
@@ -82,10 +74,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 
     public async Task<AssetDescriptionVectorDocument?> TryGetAsync(string assetId, CancellationToken ct = default)
     {
-        await EnsureSchemaAsync(ct);
-
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(ct);
+        await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
@@ -120,47 +109,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             reader.IsDBNull(6) ? null : reader.GetString(6));
     }
 
-    private async Task EnsureSchemaAsync(CancellationToken ct)
-    {
-        await WriteQueue.EnqueueAsync(EnsureSchemaCoreAsync, ct);
-    }
-
-    private async Task EnsureSchemaCoreAsync(CancellationToken ct)
-    {
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(ct);
-
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            CREATE TABLE IF NOT EXISTS asset_description_vectors (
-                asset_id TEXT PRIMARY KEY,
-                description_store_path TEXT NOT NULL,
-                embedding_model TEXT NOT NULL,
-                vector_dim INTEGER NOT NULL,
-                vector_blob BLOB NOT NULL,
-                vectorized_at TEXT NOT NULL,
-                content_hash TEXT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS asset_metadata (
-                asset_uid TEXT PRIMARY KEY,
-                tags_json TEXT NOT NULL DEFAULT '[]',
-                metadata_status TEXT NOT NULL,
-                vector_state TEXT NOT NULL DEFAULT 'pending',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            """;
-
-        await command.ExecuteNonQueryAsync(ct);
-        await EnsureColumnAsync(connection, "asset_description_vectors", "content_hash", "TEXT NULL", ct);
-    }
-
-    private SqliteConnection CreateConnection()
-    {
-        return new SqliteConnection($"Data Source={DatabasePath}");
-    }
-
     private static void AddParameter(SqliteCommand command, string name, object? value)
     {
         command.Parameters.AddWithValue(name, value ?? DBNull.Value);
@@ -178,39 +126,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         var vector = new float[bytes.Length / sizeof(float)];
         Buffer.BlockCopy(bytes, 0, vector, 0, bytes.Length);
         return vector;
-    }
-
-    private static async Task EnsureColumnAsync(
-        SqliteConnection connection,
-        string tableName,
-        string columnName,
-        string definition,
-        CancellationToken ct)
-    {
-        await using var pragma = connection.CreateCommand();
-        pragma.CommandText = $"PRAGMA table_info({tableName});";
-
-        var exists = false;
-        await using (var reader = await pragma.ExecuteReaderAsync(ct))
-        {
-            while (await reader.ReadAsync(ct))
-            {
-                if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
-                {
-                    exists = true;
-                    break;
-                }
-            }
-        }
-
-        if (exists)
-        {
-            return;
-        }
-
-        await using var alter = connection.CreateCommand();
-        alter.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {definition};";
-        await alter.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task UpdateAssetMetadataAsync(

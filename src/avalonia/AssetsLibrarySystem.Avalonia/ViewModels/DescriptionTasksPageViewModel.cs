@@ -13,6 +13,7 @@ using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
+using AssetsLibrarySystem.Application.Services.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -21,6 +22,9 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 public sealed class DescriptionTasksPageViewModel : ObservableObject
 {
+    private static IDatabaseWriteQueue DesignTimeWriteQueue { get; } = new DatabaseWriteQueue();
+    private static IAssetDatabase DesignTimeAssetDatabase { get; } = new SqliteAssetDatabase();
+
     private BackendSessionService BackendSessionService { get; }
     private LibraryCatalogService LibraryCatalogService { get; }
     private IAssetDescriptionService? AssetDescriptionService { get; }
@@ -36,8 +40,8 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
             new BackendSessionService(),
             new LibraryCatalogService(),
             null,
-            new AssetDescriptionStore(),
-            new AssetDescriptionVectorStore(),
+            new AssetDescriptionStore(DesignTimeWriteQueue, DesignTimeAssetDatabase),
+            new AssetDescriptionVectorStore(DesignTimeWriteQueue, DesignTimeAssetDatabase),
             new AssetTextVectorizationService(),
             null,
             new BackgroundTaskService(),

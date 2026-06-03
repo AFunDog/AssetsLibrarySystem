@@ -101,6 +101,9 @@ public partial class App : global::Avalonia.Application
         builder.RegisterType<DatabaseWriteQueue>()
             .As<IDatabaseWriteQueue>()
             .SingleInstance();
+        builder.RegisterType<SqliteAssetDatabase>()
+            .As<IAssetDatabase>()
+            .SingleInstance();
         builder.RegisterType<AssetLibraryService>()
             .As<IAssetLibraryService>()
             .SingleInstance();

@@ -64,36 +64,34 @@
 优先级：P0  
 复杂度：中等  
 影响范围：Application 服务、Console、Avalonia
+状态：已完成
 
 问题：
 
-- `AssetLibraryService`、`AssetDescriptionStore`、`AssetDescriptionVectorStore` 都直接创建连接、建表、迁移字段、拼 SQL。
-- `EnsureSchemaAsync` 分散在多个 Store 中，读操作前也可能触发 schema 写队列。
-- `asset_metadata` schema 在多个地方重复创建。
-- 当前写队列解决了并发写问题，但没有解决“数据库访问职责分散”的问题。
+- 已修复：`AssetLibraryService`、`AssetDescriptionStore`、`AssetDescriptionVectorStore` 不再各自创建数据库路径和 schema。
+- 已修复：新增 `IAssetDatabase` / `SqliteAssetDatabase`，集中负责数据库路径、连接打开、PRAGMA、schema 初始化和迁移字段。
+- 已修复：`asset_metadata`、`asset_descriptions`、`asset_description_vectors`、`assets` schema 已集中在统一数据库服务中。
+- 已修复：读路径不再通过写队列触发 Store 私有 `EnsureSchemaAsync`，统一由 `SqliteAssetDatabase` 的一次性 schema 初始化保护。
 
 风险：
 
-- 后续 schema 变更容易漏改。
-- 一次数据库迁移可能需要同时改多个服务。
-- 读写优化难以统一落地。
+- schema 变更入口已集中，后续迁移漏改风险降低。
+- SQLite 小查询、小写入和扫描快照优化仍属于 P0-3，不在本项内完成。
 
 建议：
 
-- 新建 `AssetDatabase` 或 `SqliteAssetDatabase`，统一负责：
-  - 数据库路径
-  - SQLite 连接工厂
-  - WAL / busy_timeout / foreign_keys 等 PRAGMA
-  - schema 初始化
-  - 一次性迁移
-- Store 不再直接建表，只做仓储查询和保存。
-- `asset_metadata`、`asset_descriptions`、`asset_description_vectors`、`assets` schema 由一个 migrator 统一管理。
+- 已完成：新建 `SqliteAssetDatabase`，统一负责数据库路径、SQLite 连接工厂、WAL / busy_timeout / foreign_keys 等 PRAGMA、schema 初始化和迁移字段。
+- 已完成：Store 不再直接建表，只做仓储查询和保存。
+- 已完成：`asset_metadata`、`asset_descriptions`、`asset_description_vectors`、`assets` schema 由统一数据库服务管理。
+- 后续如 schema 继续复杂化，可将 `SqliteAssetDatabase` 内的 schema SQL 再拆成专门 migrator。
 
 参考文件：
 
 - `src/avalonia/AssetsLibrarySystem.Application/Services/AssetLibrary/AssetLibraryService.cs`
 - `src/avalonia/AssetsLibrarySystem.Application/Services/AssetDescription/AssetDescriptionStore.cs`
 - `src/avalonia/AssetsLibrarySystem.Application/Services/AssetDescription/AssetDescriptionVectorStore.cs`
+- `src/avalonia/AssetsLibrarySystem.Application/Services/Infrastructure/IAssetDatabase.cs`
+- `src/avalonia/AssetsLibrarySystem.Application/Services/Infrastructure/SqliteAssetDatabase.cs`
 - `src/avalonia/AssetsLibrarySystem.Application/Services/Infrastructure/DatabaseWriteQueue.cs`
 
 ### 3. 优化素材扫描的数据库访问策略
@@ -199,21 +197,22 @@
 优先级：P1  
 复杂度：低  
 影响范围：Application Store
+状态：已完成
 
 问题：
 
-- `AssetDescriptionStore` 和 `AssetDescriptionVectorStore` 都有静态 `FallbackWriteQueue`。
-- DI 场景下不需要 fallback。
+- 已修复：`AssetDescriptionStore` 和 `AssetDescriptionVectorStore` 的静态 `FallbackWriteQueue` 已移除。
+- 已修复：两个 Store 不再提供无参构造，运行时必须显式注入 `IDatabaseWriteQueue` 和 `IAssetDatabase`。
 
 风险：
 
-- 设计时或测试时可能产生隐藏后台 worker。
-- 生命周期不可控，不利于单元测试。
+- Store 内部不再产生隐藏后台 worker。
+- 设计时构造改为在 ViewModel 中显式提供设计时写队列和数据库服务，后续仍建议继续改为 XAML `Design.DataContext`。
 
 建议：
 
-- 删除无参构造和静态 fallback。
-- 测试或设计时明确注入 fake/no-op queue。
+- 已完成：删除无参构造和静态 fallback。
+- 已完成：设计时路径明确注入依赖。
 
 参考文件：
 
@@ -338,12 +337,12 @@
 
 1. 扫描时每个文件都可能打开 SQLite 连接并做多次查询。
 2. 写队列虽然串行化写入，但大量小写入仍会造成排队。
-3. `EnsureSchemaAsync` 出现在读路径中，可能导致读操作间接进入写队列。
+3. schema 初始化已集中，但首次数据库访问仍会做一次 schema 检查和迁移。
 4. 大素材库构建树时每次状态变化都可能重建整棵树。
 
 ### 推荐优化方向
 
-1. 启动或扫描前统一初始化 schema，读路径不再建表。
+1. 启动阶段可主动调用 `IAssetDatabase.EnsureSchemaAsync`，避免首次页面操作承担 schema 初始化成本。
 2. 扫描阶段使用数据库快照和内存索引。
 3. 扫描结束后批量写入变更集。
 4. 图标树投影可以做增量刷新，至少避免每个素材状态变化都全量重建。
@@ -352,7 +351,7 @@
 ## 推荐实施顺序
 
 1. `P0-1`：先调整 Application 命名空间和模型边界。已完成。
-2. `P0-2`：建立统一数据库访问层和 migrator。
+2. `P0-2`：建立统一数据库访问层和 migrator。已完成。
 3. `P0-3`：用数据库快照重写扫描读写路径。
 4. `P0-4`：抽取描述、向量化、索引重建共享用例。
 5. `P1-5`：清理 ViewModel 无参构造。
