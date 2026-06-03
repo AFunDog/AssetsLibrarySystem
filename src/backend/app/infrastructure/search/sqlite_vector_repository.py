@@ -44,19 +44,25 @@ class SqliteVectorRepository:
         has_metadata_table = self._has_table("asset_metadata")
         has_description_table = self._has_table("asset_descriptions")
 
-        asset_name_expr = "v.asset_name"
-        asset_type_expr = "v.asset_type"
-        asset_path_expr = "v.asset_path"
-        description_expr = "v.description"
+        asset_name_expr = "''"
+        asset_type_expr = "''"
+        asset_path_expr = "''"
+        description_expr = "''"
         tags_expr = "'[]'"
         generated_at_expr = "NULL"
+
+        if has_description_table:
+            asset_name_expr = "d.asset_name"
+            asset_type_expr = "d.asset_type"
+            asset_path_expr = "d.asset_path"
+            description_expr = "d.description"
 
         joins: list[str] = []
         if has_assets_table:
             joins.append("LEFT JOIN assets AS a ON a.asset_uid = v.asset_id")
-            asset_name_expr = "COALESCE(a.asset_name, v.asset_name)"
-            asset_type_expr = "COALESCE(a.asset_type, v.asset_type)"
-            asset_path_expr = "COALESCE(a.current_path, v.asset_path)"
+            asset_name_expr = f"COALESCE(a.asset_name, {asset_name_expr})"
+            asset_type_expr = f"COALESCE(a.asset_type, {asset_type_expr})"
+            asset_path_expr = f"COALESCE(a.current_path, {asset_path_expr})"
 
         if has_metadata_table:
             joins.append("LEFT JOIN asset_metadata AS m ON m.asset_uid = v.asset_id")
@@ -71,8 +77,7 @@ class SqliteVectorRepository:
             rows = connection.execute(
                 f"""
                 SELECT
-                    v.rowid AS vector_id,
-                    asset_id,
+                    v.asset_id AS asset_id,
                     {asset_name_expr} AS asset_name,
                     {asset_type_expr} AS asset_type,
                     {asset_path_expr} AS asset_path,
@@ -84,15 +89,15 @@ class SqliteVectorRepository:
                     vector_dim,
                     vector_blob,
                     vectorized_at
-                FROM asset_description_vectors
+                FROM asset_description_vectors AS v
                 {' '.join(joins)}
-                ORDER BY vectorized_at, asset_id
+                ORDER BY vectorized_at, v.asset_id
                 """
             ).fetchall()
 
         records: list[IndexedAssetVectorRecord] = []
-        for row in rows:
-            updated_at = datetime.fromisoformat(row["vectorized_at"])
+        for index, row in enumerate(rows, start=1):
+            updated_at = self._parse_datetime(row["vectorized_at"])
             vector = np.frombuffer(row["vector_blob"], dtype=np.float32, count=int(row["vector_dim"])).copy()
             generated_at_value = row["generated_at"]
             try:
@@ -101,7 +106,7 @@ class SqliteVectorRepository:
                 tags = []
             records.append(
                 IndexedAssetVectorRecord(
-                    doc_id=int(row["vector_id"]),
+                    doc_id=index,
                     asset_id=str(row["asset_id"]),
                     asset_name=str(row["asset_name"]),
                     asset_format=str(row["asset_type"]),
@@ -109,7 +114,7 @@ class SqliteVectorRepository:
                     description=str(row["description"]),
                     tags=[str(item) for item in tags] if isinstance(tags, list) else [],
                     source_store_path=row["description_store_path"],
-                    generated_at=datetime.fromisoformat(generated_at_value) if generated_at_value else None,
+                    generated_at=self._parse_datetime(generated_at_value) if generated_at_value else None,
                     embedding_model=str(row["embedding_model"]),
                     vector=vector,
                     updated_at=updated_at,
@@ -161,3 +166,25 @@ class SqliteVectorRepository:
                 (table_name,),
             ).fetchone()
         return row is not None
+
+    @staticmethod
+    def _parse_datetime(value: str) -> datetime:
+        normalized = value.strip()
+        if normalized.endswith("Z"):
+            normalized = normalized[:-1] + "+00:00"
+
+        if "." in normalized:
+            head, tail = normalized.split(".", 1)
+            offset_index = tail.find("+")
+            if offset_index == -1:
+                offset_index = tail.find("-")
+            if offset_index == -1:
+                fraction = tail
+                offset = ""
+            else:
+                fraction = tail[:offset_index]
+                offset = tail[offset_index:]
+            fraction = (fraction[:6]).ljust(6, "0")
+            normalized = f"{head}.{fraction}{offset}"
+
+        return datetime.fromisoformat(normalized)
