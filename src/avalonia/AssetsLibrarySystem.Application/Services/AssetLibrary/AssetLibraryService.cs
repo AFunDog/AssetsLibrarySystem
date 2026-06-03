@@ -261,8 +261,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
             }
         }
 
-        UpsertAssetLocation(connection, assetRecord.AssetUid, normalizedPath, scanAt);
-
         var metadataTags = ReadMetadataTags(connection, assetRecord.AssetUid);
         var tags = BuildTags(assetType, extension, metadataTags);
         var summary = BuildSummary(assetType, fileInfo.Length, fileInfo.LastWriteTime, assetRecord.AssetUid, assetRecord.Status);
@@ -421,47 +419,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
         command.ExecuteNonQuery();
     }
 
-    private void UpsertAssetLocation(SqliteConnection connection, string assetUid, string currentPath, DateTimeOffset scanAt)
-    {
-        using var resetCommand = connection.CreateCommand();
-        resetCommand.CommandText = """
-            UPDATE asset_locations
-            SET is_current = 0
-            WHERE asset_uid = $asset_uid
-              AND path <> $path;
-            """;
-        AddParameter(resetCommand, "$asset_uid", assetUid);
-        AddParameter(resetCommand, "$path", currentPath);
-        resetCommand.ExecuteNonQuery();
-
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT INTO asset_locations (
-                asset_uid,
-                path,
-                first_seen_at,
-                last_seen_at,
-                is_current
-            )
-            VALUES (
-                $asset_uid,
-                $path,
-                $first_seen_at,
-                $last_seen_at,
-                1
-            )
-            ON CONFLICT(asset_uid, path) DO UPDATE SET
-                last_seen_at = excluded.last_seen_at,
-                is_current = 1;
-            """;
-
-        AddParameter(command, "$asset_uid", assetUid);
-        AddParameter(command, "$path", currentPath);
-        AddParameter(command, "$first_seen_at", scanAt.ToString("O"));
-        AddParameter(command, "$last_seen_at", scanAt.ToString("O"));
-        command.ExecuteNonQuery();
-    }
-
     private string[] ReadMetadataTags(SqliteConnection connection, string assetUid)
     {
         using var command = connection.CreateCommand();
@@ -607,18 +564,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 updated_at TEXT NOT NULL
             );
 
-            CREATE TABLE IF NOT EXISTS asset_locations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                asset_uid TEXT NOT NULL,
-                path TEXT NOT NULL,
-                first_seen_at TEXT NOT NULL,
-                last_seen_at TEXT NOT NULL,
-                is_current INTEGER NOT NULL DEFAULT 0,
-                UNIQUE(asset_uid, path)
-            );
-
-            CREATE INDEX IF NOT EXISTS ix_asset_locations_uid_current
-                ON asset_locations(asset_uid, is_current);
             """;
         command.ExecuteNonQuery();
     }

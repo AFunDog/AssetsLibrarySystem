@@ -174,7 +174,7 @@ image001.png.uid
 - `created_at`
 - `updated_at`
 
-并通过 `asset_locations` 记录历史位置，通过 `asset_metadata` 补充描述、标签和向量状态。
+并通过 `asset_metadata` 补充标签和向量状态。
 
 ### 6.2 Search Request
 
@@ -247,3 +247,7 @@ image001.png.uid
 - 真实桌面端扫描持久化
 - 更完整的批量索引维护
 - 真实 RAG
+
+## 9. 衍生文档
+
+- `docs/schema_optimization_plan.md`：数据库与搜索链路的优化清单，按优先级和修改复杂度排序。

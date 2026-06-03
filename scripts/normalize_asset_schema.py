@@ -4,6 +4,7 @@
 This script removes duplicated text copies from:
 - asset_metadata.description_text
 - asset_description_vectors.asset_name / asset_type / asset_path / description
+- asset_locations
 
 The authoritative description remains in asset_descriptions, and the
 authoritative asset identity remains in assets.
@@ -46,6 +47,7 @@ def main() -> int:
         with connection:
             rebuild_asset_metadata(connection)
             rebuild_asset_description_vectors(connection)
+            drop_asset_locations(connection)
 
     print("Normalization completed.")
     return 0
@@ -75,6 +77,7 @@ def get_table_columns(connection: sqlite3.Connection) -> dict[str, set[str]]:
         "asset_description_vectors",
         "asset_descriptions",
         "assets",
+        "asset_locations",
     ]
     result: dict[str, set[str]] = {}
     for table_name in table_names:
@@ -92,6 +95,7 @@ def is_already_normalized(columns: dict[str, set[str]]) -> bool:
         and "asset_name" not in vector_columns
         and "asset_type" not in vector_columns
         and "asset_path" not in vector_columns
+        and "asset_locations" not in columns
     )
 
 
@@ -188,6 +192,10 @@ def rebuild_asset_description_vectors(connection: sqlite3.Connection) -> None:
     )
     connection.execute("DROP TABLE asset_description_vectors;")
     connection.execute("ALTER TABLE asset_description_vectors_new RENAME TO asset_description_vectors;")
+
+
+def drop_asset_locations(connection: sqlite3.Connection) -> None:
+    connection.execute("DROP TABLE IF EXISTS asset_locations;")
 
 
 def existing_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
