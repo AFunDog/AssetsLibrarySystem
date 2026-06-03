@@ -47,6 +47,7 @@ class SqliteVectorRepository:
         asset_name_expr = "v.asset_name"
         asset_type_expr = "v.asset_type"
         asset_path_expr = "v.asset_path"
+        description_expr = "v.description"
         tags_expr = "'[]'"
         generated_at_expr = "NULL"
 
@@ -63,6 +64,7 @@ class SqliteVectorRepository:
 
         if has_description_table:
             joins.append("LEFT JOIN asset_descriptions AS d ON d.asset_id = v.asset_id")
+            description_expr = "d.description"
             generated_at_expr = "d.generated_at"
 
         with self._connect() as connection:
@@ -74,7 +76,7 @@ class SqliteVectorRepository:
                     {asset_name_expr} AS asset_name,
                     {asset_type_expr} AS asset_type,
                     {asset_path_expr} AS asset_path,
-                    v.description,
+                    {description_expr} AS description,
                     {tags_expr} AS tags_json,
                     v.description_store_path,
                     {generated_at_expr} AS generated_at,

@@ -395,7 +395,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
         command.CommandText = """
             INSERT INTO asset_metadata (
                 asset_uid,
-                description_text,
                 tags_json,
                 metadata_status,
                 vector_state,
@@ -404,7 +403,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
             )
             VALUES (
                 $asset_uid,
-                NULL,
                 '[]',
                 $metadata_status,
                 'pending',
@@ -602,7 +600,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
             CREATE TABLE IF NOT EXISTS asset_metadata (
                 asset_uid TEXT PRIMARY KEY,
-                description_text TEXT NULL,
                 tags_json TEXT NOT NULL DEFAULT '[]',
                 metadata_status TEXT NOT NULL,
                 vector_state TEXT NOT NULL DEFAULT 'pending',

@@ -182,7 +182,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
 
             CREATE TABLE IF NOT EXISTS asset_metadata (
                 asset_uid TEXT PRIMARY KEY,
-                description_text TEXT NULL,
                 tags_json TEXT NOT NULL DEFAULT '[]',
                 metadata_status TEXT NOT NULL,
                 vector_state TEXT NOT NULL DEFAULT 'pending',
@@ -262,7 +261,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         command.CommandText = """
             INSERT INTO asset_metadata (
                 asset_uid,
-                description_text,
                 tags_json,
                 metadata_status,
                 vector_state,
@@ -271,7 +269,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             )
             VALUES (
                 $asset_uid,
-                $description_text,
                 '[]',
                 'described',
                 'pending',
@@ -279,13 +276,11 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 $updated_at
             )
             ON CONFLICT(asset_uid) DO UPDATE SET
-                description_text = excluded.description_text,
                 metadata_status = excluded.metadata_status,
                 updated_at = excluded.updated_at;
             """;
 
         AddParameter(command, "$asset_uid", document.AssetUid);
-        AddParameter(command, "$description_text", document.Description);
         AddParameter(command, "$created_at", document.GeneratedAt.ToString("O"));
         AddParameter(command, "$updated_at", document.GeneratedAt.ToString("O"));
         await command.ExecuteNonQueryAsync(ct);

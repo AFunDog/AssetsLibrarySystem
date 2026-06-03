@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Infrastructure;
@@ -28,10 +27,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         command.CommandText = """
             INSERT INTO asset_description_vectors (
                 asset_id,
-                asset_name,
-                asset_type,
-                asset_path,
-                description,
                 description_store_path,
                 embedding_model,
                 vector_dim,
@@ -41,10 +36,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             )
             VALUES (
                 $asset_id,
-                $asset_name,
-                $asset_type,
-                $asset_path,
-                $description,
                 $description_store_path,
                 $embedding_model,
                 $vector_dim,
@@ -53,10 +44,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 $content_hash
             )
             ON CONFLICT(asset_id) DO UPDATE SET
-                asset_name = excluded.asset_name,
-                asset_type = excluded.asset_type,
-                asset_path = excluded.asset_path,
-                description = excluded.description,
                 description_store_path = excluded.description_store_path,
                 embedding_model = excluded.embedding_model,
                 vector_dim = excluded.vector_dim,
@@ -66,10 +53,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             """;
 
         AddParameter(command, "$asset_id", document.AssetUid);
-        AddParameter(command, "$asset_name", document.AssetName);
-        AddParameter(command, "$asset_type", document.AssetType);
-        AddParameter(command, "$asset_path", document.CurrentPath);
-        AddParameter(command, "$description", document.Description);
         AddParameter(command, "$description_store_path", document.DescriptionStorePath);
         AddParameter(command, "$embedding_model", document.EmbeddingModel);
         AddParameter(command, "$vector_dim", document.VectorDim);
@@ -95,10 +78,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         command.CommandText = """
             SELECT
                 asset_id,
-                asset_name,
-                asset_type,
-                asset_path,
-                description,
                 description_store_path,
                 embedding_model,
                 vector_dim,
@@ -117,19 +96,15 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             return null;
         }
 
-        var vector = DeserializeVector(reader.GetFieldValue<byte[]>(8));
+        var vector = DeserializeVector(reader.GetFieldValue<byte[]>(4));
         return new AssetDescriptionVectorDocument(
             reader.GetString(0),
             reader.GetString(1),
             reader.GetString(2),
-            reader.GetString(3),
-            reader.GetString(4),
-            reader.GetString(5),
-            reader.GetString(6),
-            reader.GetInt32(7),
+            reader.GetInt32(3),
             vector,
-            DateTimeOffset.Parse(reader.GetString(9)),
-            reader.IsDBNull(10) ? null : reader.GetString(10));
+            DateTimeOffset.Parse(reader.GetString(5)),
+            reader.IsDBNull(6) ? null : reader.GetString(6));
     }
 
     private async Task EnsureSchemaAsync(CancellationToken ct)
@@ -141,10 +116,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS asset_description_vectors (
                 asset_id TEXT PRIMARY KEY,
-                asset_name TEXT NOT NULL,
-                asset_type TEXT NOT NULL,
-                asset_path TEXT NOT NULL,
-                description TEXT NOT NULL,
                 description_store_path TEXT NOT NULL,
                 embedding_model TEXT NOT NULL,
                 vector_dim INTEGER NOT NULL,
@@ -155,7 +126,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 
             CREATE TABLE IF NOT EXISTS asset_metadata (
                 asset_uid TEXT PRIMARY KEY,
-                description_text TEXT NULL,
                 tags_json TEXT NOT NULL DEFAULT '[]',
                 metadata_status TEXT NOT NULL,
                 vector_state TEXT NOT NULL DEFAULT 'pending',
@@ -234,7 +204,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         command.CommandText = """
             INSERT INTO asset_metadata (
                 asset_uid,
-                description_text,
                 tags_json,
                 metadata_status,
                 vector_state,
@@ -243,7 +212,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             )
             VALUES (
                 $asset_uid,
-                NULL,
                 '[]',
                 'described',
                 'indexed',

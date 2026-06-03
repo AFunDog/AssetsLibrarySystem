@@ -56,10 +56,6 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
 
         return new AssetDescriptionVectorDocument(
             AssetUid: vectorResponse.AssetId,
-            AssetName: vectorResponse.AssetName,
-            AssetType: vectorResponse.AssetFormat,
-            CurrentPath: vectorResponse.AssetPath,
-            Description: vectorResponse.Description,
             DescriptionStorePath: document.StorePath,
             EmbeddingModel: vectorResponse.EmbeddingModel,
             VectorDim: vectorResponse.VectorDim,
