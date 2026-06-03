@@ -12,6 +12,7 @@ namespace AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 
 public sealed class BackendLauncherService : IBackendLauncher
 {
+    private int StopCompleted;
     private BackendLauncherOptions Options { get; }
     private Process? BackendProcess { get; set; }
     private HttpClient Http { get; } = new() { Timeout = TimeSpan.FromSeconds(5) };
@@ -62,6 +63,11 @@ public sealed class BackendLauncherService : IBackendLauncher
 
     public async Task StopAsync(CancellationToken ct = default)
     {
+        if (Interlocked.Exchange(ref StopCompleted, 1) == 1)
+        {
+            return;
+        }
+
         StopHeartbeatLoop();
 
         if (BackendProcess is not { HasExited: false })

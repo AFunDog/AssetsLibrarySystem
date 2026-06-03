@@ -4,7 +4,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using AssetsLibrarySystem.Avalonia.Infrastructure;
-using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
@@ -38,7 +37,6 @@ public partial class App : Application
 
             BuildContainer();
             var shellWindowService = Container!.Resolve<IShellWindowService>();
-            var backendLauncher = Container!.ResolveOptional<IBackendLauncher>();
             var viewModel = Container!.Resolve<MainWindowViewModel>();
             var quickSearchViewModel = Container!.Resolve<QuickSearchViewModel>();
 
@@ -60,7 +58,7 @@ public partial class App : Application
             shellWindowService.AttachMainWindow(mainWindow);
             shellWindowService.AttachQuickSearchWindow(quickSearchWindow);
 
-            desktop.Exit += (_, _) => ShutdownDesktop(shellWindowService, backendLauncher);
+            desktop.Exit += (_, _) => ShutdownDesktop(shellWindowService);
 
             ShellViewModel.StartHotkey();
             Log.Information("主窗口已创建，开始初始化视图模型");
@@ -120,17 +118,12 @@ public partial class App : Application
         Container = builder.Build();
     }
 
-    private void ShutdownDesktop(IShellWindowService shellWindowService, IBackendLauncher? backendLauncher)
+    private void ShutdownDesktop(IShellWindowService shellWindowService)
     {
         try
         {
             ShellViewModel?.Dispose();
             shellWindowService.SetShuttingDown(true);
-            if (backendLauncher is not null)
-            {
-                backendLauncher.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                Log.Information("桌面端退出时已清理 Python 后端进程");
-            }
         }
         catch (Exception ex)
         {
