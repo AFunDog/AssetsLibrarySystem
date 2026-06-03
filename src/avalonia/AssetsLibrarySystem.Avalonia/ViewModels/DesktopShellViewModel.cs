@@ -121,6 +121,7 @@ public partial class DesktopShellViewModel : ObservableObject, IDisposable
         IsShuttingDown = true;
         ShellWindowService.SetShuttingDown(true);
         TrayActionHint = "正在退出应用。";
+        ShellWindowService.RequestShutdown();
     }
 
     public void Dispose()

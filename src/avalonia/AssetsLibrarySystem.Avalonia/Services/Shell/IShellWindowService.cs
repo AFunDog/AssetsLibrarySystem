@@ -17,6 +17,7 @@ public interface IShellWindowService
     void AttachQuickSearchWindow(QuickSearchWindow window);
 
     void SetShuttingDown(bool isShuttingDown);
+    void RequestShutdown();
     void ShowMainWindow();
     void ShowQuickSearchWindow();
     void ToggleQuickSearchWindow();

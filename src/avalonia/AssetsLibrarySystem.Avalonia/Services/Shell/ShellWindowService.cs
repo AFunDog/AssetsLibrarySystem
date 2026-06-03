@@ -43,6 +43,12 @@ public sealed class ShellWindowService : IShellWindowService
         IsShuttingDown = isShuttingDown;
     }
 
+    public void RequestShutdown()
+    {
+        IsShuttingDown = true;
+        Desktop?.Shutdown();
+    }
+
     public void ShowMainWindow()
     {
         ShowWindow(MainWindow);
