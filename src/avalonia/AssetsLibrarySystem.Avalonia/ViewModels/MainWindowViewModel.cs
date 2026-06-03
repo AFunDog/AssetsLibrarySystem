@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -18,6 +19,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private LibraryCatalogService LibraryCatalogService { get; }
     private IBackgroundTaskService BackgroundTaskService { get; }
 
+    [Obsolete("仅供设计器使用。运行时请通过 DI 构造。", false)]
     public MainWindowViewModel()
         : this(
             new BackendSessionService(),

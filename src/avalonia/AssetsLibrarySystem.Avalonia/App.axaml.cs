@@ -8,6 +8,7 @@ using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
+using AssetsLibrarySystem.Avalonia.Services.Shell;
 using AssetsLibrarySystem.Avalonia.ViewModels;
 using AssetsLibrarySystem.Avalonia.Views;
 using Autofac;
@@ -35,47 +36,15 @@ public partial class App : Application
         {
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-            var builder = ServiceBootstrapper.CreateBuilder();
-            builder.RegisterType<DesktopShellViewModel>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<QuickSearchViewModel>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<ActivityFeedService>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<BackendSessionService>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<LibraryCatalogService>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<OverviewPageViewModel>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<LibraryPageViewModel>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<DescriptionTasksPageViewModel>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<SettingsPageViewModel>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<MainWindowViewModel>()
-                .AsSelf()
-                .SingleInstance();
-            Container = builder.Build();
-
-            ShellViewModel = Container.Resolve<DesktopShellViewModel>();
+            BuildContainer();
+            var shellWindowService = Container!.Resolve<IShellWindowService>();
+            var backendLauncher = Container!.ResolveOptional<IBackendLauncher>();
             var viewModel = Container.Resolve<MainWindowViewModel>();
             var quickSearchViewModel = Container.Resolve<QuickSearchViewModel>();
-            var backendLauncher = Container.ResolveOptional<IBackendLauncher>();
 
+            ShellViewModel = Container.Resolve<DesktopShellViewModel>();
             DataContext = ShellViewModel;
-            ShellViewModel.AttachDesktop(desktop);
-            ShellViewModel.AttachBackendLauncher(backendLauncher);
+            shellWindowService.AttachDesktop(desktop);
 
             var mainWindow = new MainWindow
             {
@@ -88,29 +57,10 @@ public partial class App : Application
             };
 
             desktop.MainWindow = mainWindow;
-            ShellViewModel.AttachMainWindow(mainWindow);
-            ShellViewModel.AttachQuickSearchWindow(quickSearchWindow);
+            shellWindowService.AttachMainWindow(mainWindow);
+            shellWindowService.AttachQuickSearchWindow(quickSearchWindow);
 
-            desktop.Exit += (_, _) =>
-            {
-                try
-                {
-                    ShellViewModel?.Dispose();
-                    if (backendLauncher is not null)
-                    {
-                        backendLauncher.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                        Log.Information("桌面端退出时已清理 Python 后端进程");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "桌面端退出时清理 Python 后端失败");
-                }
-                finally
-                {
-                    Container?.Dispose();
-                }
-            };
+            desktop.Exit += (_, _) => ShutdownDesktop(shellWindowService, backendLauncher);
 
             ShellViewModel.StartHotkey();
             Log.Information("主窗口已创建，开始初始化视图模型");
@@ -129,5 +79,66 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private void BuildContainer()
+    {
+        var builder = ServiceBootstrapper.CreateBuilder();
+        builder.RegisterType<ShellWindowService>()
+            .As<IShellWindowService>()
+            .SingleInstance();
+        builder.RegisterType<DesktopShellViewModel>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<QuickSearchViewModel>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<ActivityFeedService>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<BackendSessionService>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<LibraryCatalogService>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<OverviewPageViewModel>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<LibraryPageViewModel>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<DescriptionTasksPageViewModel>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<SettingsPageViewModel>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<MainWindowViewModel>()
+            .AsSelf()
+            .SingleInstance();
+        Container = builder.Build();
+    }
+
+    private void ShutdownDesktop(IShellWindowService shellWindowService, IBackendLauncher? backendLauncher)
+    {
+        try
+        {
+            ShellViewModel?.Dispose();
+            shellWindowService.SetShuttingDown(true);
+            if (backendLauncher is not null)
+            {
+                backendLauncher.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                Log.Information("桌面端退出时已清理 Python 后端进程");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "桌面端退出时清理 Python 后端失败");
+        }
+        finally
+        {
+            Container?.Dispose();
+        }
     }
 }

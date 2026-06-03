@@ -1,32 +1,44 @@
 using System;
-using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.Services.Hotkey;
-using AssetsLibrarySystem.Avalonia.Views;
+using AssetsLibrarySystem.Avalonia.Services.Shell;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 public partial class DesktopShellViewModel : ObservableObject, IDisposable
 {
+    private IShellWindowService ShellWindowService { get; }
     private IBackendLauncher? BackendLauncher { get; set; }
-    private IClassicDesktopStyleApplicationLifetime? Desktop { get; set; }
     private GlobalHotkeyService? HotkeyService { get; set; }
-    private MainWindow? MainWindow { get; set; }
-    private QuickSearchWindow? QuickSearchWindow { get; set; }
     private bool IsDisposed { get; set; }
 
     public DesktopShellViewModel()
+        : this(new ShellWindowService(), null)
     {
+    }
+
+    public DesktopShellViewModel(IShellWindowService shellWindowService)
+        : this(shellWindowService, null)
+    {
+    }
+
+    public DesktopShellViewModel(IShellWindowService shellWindowService, IBackendLauncher? backendLauncher)
+    {
+        ShellWindowService = shellWindowService;
+        BackendLauncher = backendLauncher;
         TrayTitle = "Assets Library System";
         TrayStatusTitle = "Python 模型服务待连接";
         TrayStatusDetail = "快捷键 Ctrl+Shift+Space 打开快速检索";
         TrayHotkeyHint = "快速检索：Ctrl+Shift+Space（Windows）";
         TrayActionHint = "左键托盘打开快速检索，右键查看菜单。";
+        ShellWindowService.MainWindowVisibilityChanged += OnMainWindowVisibilityChanged;
+        ShellWindowService.QuickSearchWindowVisibilityChanged += OnQuickSearchWindowVisibilityChanged;
+        IsMainWindowVisible = ShellWindowService.IsMainWindowVisible;
+        IsQuickSearchVisible = ShellWindowService.IsQuickSearchWindowVisible;
+        RefreshTrayStatus();
     }
 
     [ObservableProperty]
@@ -53,29 +65,10 @@ public partial class DesktopShellViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsQuickSearchVisible { get; set; }
 
-    public void AttachDesktop(IClassicDesktopStyleApplicationLifetime desktop)
-    {
-        Desktop = desktop;
-    }
-
     public void AttachBackendLauncher(IBackendLauncher? backendLauncher)
     {
         BackendLauncher = backendLauncher;
         RefreshTrayStatus();
-    }
-
-    public void AttachMainWindow(MainWindow window)
-    {
-        MainWindow = window;
-        window.Closing += MainWindow_Closing;
-        IsMainWindowVisible = window.IsVisible;
-    }
-
-    public void AttachQuickSearchWindow(QuickSearchWindow window)
-    {
-        QuickSearchWindow = window;
-        window.Closing += QuickSearchWindow_Closing;
-        IsQuickSearchVisible = window.IsVisible;
     }
 
     public void StartHotkey()
@@ -102,55 +95,32 @@ public partial class DesktopShellViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ShowMainWindow()
     {
-        if (MainWindow is null)
-        {
-            return;
-        }
-
-        ShowWindow(MainWindow);
-        IsMainWindowVisible = true;
+        ShellWindowService.ShowMainWindow();
         TrayActionHint = "已打开主窗口。";
     }
 
     [RelayCommand]
     private void ShowQuickSearchWindow()
     {
-        if (QuickSearchWindow is null)
-        {
-            return;
-        }
-
-        ShowWindow(QuickSearchWindow);
-        QuickSearchWindow.FocusSearchBox();
-        IsQuickSearchVisible = true;
+        ShellWindowService.ShowQuickSearchWindow();
         TrayActionHint = "快速检索窗口已打开。";
     }
 
     [RelayCommand]
     private void ToggleQuickSearchWindow()
     {
-        if (QuickSearchWindow is null)
-        {
-            return;
-        }
-
-        if (QuickSearchWindow.IsVisible)
-        {
-            QuickSearchWindow.Hide();
-            IsQuickSearchVisible = false;
-            TrayActionHint = "快速检索窗口已隐藏。";
-            return;
-        }
-
-        ShowQuickSearchWindow();
+        ShellWindowService.ToggleQuickSearchWindow();
+        TrayActionHint = ShellWindowService.IsQuickSearchWindowVisible
+            ? "快速检索窗口已打开。"
+            : "快速检索窗口已隐藏。";
     }
 
     [RelayCommand]
     private void ExitApplication()
     {
         IsShuttingDown = true;
+        ShellWindowService.SetShuttingDown(true);
         TrayActionHint = "正在退出应用。";
-        Desktop?.Shutdown();
     }
 
     public void Dispose()
@@ -161,57 +131,35 @@ public partial class DesktopShellViewModel : ObservableObject, IDisposable
         }
 
         IsDisposed = true;
+        ShellWindowService.MainWindowVisibilityChanged -= OnMainWindowVisibilityChanged;
+        ShellWindowService.QuickSearchWindowVisibilityChanged -= OnQuickSearchWindowVisibilityChanged;
         HotkeyService?.Dispose();
-    }
-
-    private void MainWindow_Closing(object? sender, WindowClosingEventArgs e)
-    {
-        if (IsShuttingDown)
-        {
-            return;
-        }
-
-        e.Cancel = true;
-        HideWindow(MainWindow);
-        IsMainWindowVisible = false;
-        TrayActionHint = "主窗口已隐藏到托盘。";
-    }
-
-    private void QuickSearchWindow_Closing(object? sender, WindowClosingEventArgs e)
-    {
-        if (IsShuttingDown)
-        {
-            return;
-        }
-
-        e.Cancel = true;
-        HideWindow(QuickSearchWindow);
-        IsQuickSearchVisible = false;
-        TrayActionHint = "快速检索窗口已隐藏。";
     }
 
     private void OnHotkeyPressed(object? sender, EventArgs e)
     {
-        Dispatcher.UIThread.Post(ShowQuickSearchWindow);
+        Dispatcher.UIThread.Post(() =>
+        {
+            ShellWindowService.ShowQuickSearchWindow();
+            TrayActionHint = "快速检索窗口已打开。";
+        });
     }
 
-    private static void ShowWindow(Window window)
+    private void OnMainWindowVisibilityChanged(bool isVisible)
     {
-        if (!window.IsVisible)
+        IsMainWindowVisible = isVisible;
+        if (!IsShuttingDown)
         {
-            window.Show();
+            TrayActionHint = isVisible ? "已打开主窗口。" : "主窗口已隐藏到托盘。";
         }
-
-        if (window.WindowState == WindowState.Minimized)
-        {
-            window.WindowState = WindowState.Normal;
-        }
-
-        window.Activate();
     }
 
-    private static void HideWindow(Window? window)
+    private void OnQuickSearchWindowVisibilityChanged(bool isVisible)
     {
-        window?.Hide();
+        IsQuickSearchVisible = isVisible;
+        if (!IsShuttingDown)
+        {
+            TrayActionHint = isVisible ? "快速检索窗口已打开。" : "快速检索窗口已隐藏。";
+        }
     }
 }
