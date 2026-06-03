@@ -83,9 +83,9 @@
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <StackPanel Spacing="4">
                         <TextBlock Classes="eyebrow" Text="素材库" />
-                        <TextBlock Classes="section-title" Text="目录、检索与定位" />
+                        <TextBlock Classes="section-title" Text="目录与定位" />
                         <TextBlock Classes="section-subtitle"
-                                   Text="左侧浏览目录树，中间执行检索，右侧查看当前素材与描述结果。" />
+                                   Text="左侧浏览目录树，右侧查看当前素材与描述结果。" />
                     </StackPanel>
 
                     <!-- <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"> -->
@@ -99,7 +99,7 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" ColumnDefinitions="300,*,320" ColumnSpacing="8">
+            <Grid Grid.Row="1" ColumnDefinitions="300,*" ColumnSpacing="8">
                 <StackPanel Spacing="8">
                     <Border Classes="page-card">
                         <StackPanel Spacing="8">
@@ -193,141 +193,7 @@
                     </Border>
                 </StackPanel>
 
-                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
-                    <Border Classes="page-card">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="eyebrow" Text="检索" />
-                            <TextBlock Classes="section-title" Text="自然语言检索" />
-                            <TextBlock Classes="section-subtitle" Text="输入文本后，后端先召回再重排。" />
-
-                            <TextBox Classes="compact-input"
-                                     Text="{Binding SearchQuery, Mode=TwoWay}"
-                                     PlaceholderText="例如：紧张氛围的音乐" />
-                            <Grid ColumnDefinitions="120,120,*" ColumnSpacing="4">
-                                <TextBox Classes="compact-input"
-                                         Text="{Binding SearchCandidateTopKText, Mode=TwoWay}"
-                                         PlaceholderText="候选数" />
-                                <TextBox Grid.Column="1"
-                                         Classes="compact-input"
-                                         Text="{Binding SearchFinalTopKText, Mode=TwoWay}"
-                                         PlaceholderText="返回数" />
-                                <TextBox Grid.Column="2"
-                                         Classes="compact-input"
-                                         Text="{Binding SearchAssetFormat, Mode=TwoWay}"
-                                         PlaceholderText="可选：图片 / 视频 / 音频 / 文本" />
-                            </Grid>
-
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
-                                <Button Classes="primary-action"
-                                        Command="{Binding ExecuteSearchCommand}"
-                                        Content="执行检索" />
-                                <Button Grid.Column="1"
-                                        Classes="secondary-action"
-                                        Command="{Binding RebuildSearchIndexCommand}"
-                                        Content="重建索引" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
-                        <Border Classes="sub-card">
-                            <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="状态" />
-                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding SearchStatus}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Grid.Column="1" Classes="sub-card">
-                            <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="索引" />
-                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding SearchIndexSummary}" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-
-                    <Border Grid.Row="2" Classes="page-card">
-                        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
-                            <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="结果" />
-                                <TextBlock Classes="section-title" Text="检索结果" />
-                                <TextBlock Classes="section-subtitle"
-                                           Text="按重排分数排序，点击卡片即可在资源管理器中定位。" />
-                            </StackPanel>
-
-                            <Border Grid.Row="1" Classes="sub-card">
-                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding SearchIndexDetail}" />
-                            </Border>
-
-                            <ScrollViewer Grid.Row="2"
-                                          VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Disabled">
-                                <ItemsControl ItemsSource="{Binding SearchResults}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Spacing="4" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="models:AssetSearchDocument">
-                                            <Button Classes="result-action"
-                                                    Click="RevealSearchResult_Click"
-                                                    CommandParameter="{Binding}">
-                                                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
-                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                        <StackPanel Spacing="2">
-                                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                                       FontWeight="SemiBold"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       Text="{Binding AssetName}" />
-                                                            <TextBlock
-                                                                Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                                Text="{Binding AssetType}" />
-                                                        </StackPanel>
-                                                        <StackPanel Grid.Column="1"
-                                                                    VerticalAlignment="Center"
-                                                                    HorizontalAlignment="Right"
-                                                                    Spacing="1">
-                                                            <TextBlock Foreground="{DynamicResource AppAccentBrush}"
-                                                                       Text="{Binding CombinedScore, StringFormat=combo {0:0.0000}}" />
-                                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                                       Text="{Binding RerankScore, StringFormat=rerank {0:0.0000}}" />
-                                                        </StackPanel>
-                                                    </Grid>
-                                                    <TextBlock Grid.Row="1"
-                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               Text="{Binding AssetPath}" />
-                                                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                                   TextWrapping="Wrap"
-                                                                   Text="{Binding Description}" />
-                                                        <TextBlock Grid.Column="1"
-                                                                   Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                                   VerticalAlignment="Bottom"
-                                                                   Text="{Binding VectorDistance, StringFormat=dist {0:0.0000}}" />
-                                                    </Grid>
-                                                </Grid>
-                                            </Button>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                        </Grid>
-                    </Border>
-
-                    <Border Grid.Row="3" Classes="page-card">
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   TextWrapping="Wrap"
-                                   Text="{Binding SearchIndexDetail}" />
-                    </Border>
-                </Grid>
-
-                <Grid Grid.Column="2" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
                     <Border Classes="page-card">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="eyebrow" Text="已选素材" />
