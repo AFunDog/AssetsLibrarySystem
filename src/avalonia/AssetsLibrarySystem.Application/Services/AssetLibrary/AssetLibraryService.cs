@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -10,6 +11,7 @@ using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Models;
 using Microsoft.Data.Sqlite;
+using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
 
@@ -122,18 +124,30 @@ public sealed class AssetLibraryService : IAssetLibraryService
         using var connection = CreateMetadataConnection();
         connection.Open();
 
+        var stats = new ScanHashStats();
         var scanAt = DateTimeOffset.UtcNow;
-        return EnumerateSupportedFiles(rootPath)
+        var records = EnumerateSupportedFiles(rootPath)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .Select(path => ImportOrRefreshAsset(connection, library, path, scanAt))
+            .Select(path => ImportOrRefreshAsset(connection, library, path, scanAt, stats))
             .ToList();
+
+        Log.Debug(
+            "素材库扫描 hash 统计: libraryId={LibraryId}, libraryName={LibraryName}, totalFiles={TotalFiles}, recomputedHashCount={RecomputedHashCount}, reusedHashCount={ReusedHashCount}",
+            library.Id,
+            library.Name,
+            records.Count,
+            stats.RecomputedHashCount,
+            stats.ReusedHashCount);
+
+        return records;
     }
 
     private ManagedAssetRecord ImportOrRefreshAsset(
         SqliteConnection connection,
         LibraryWorkspace library,
         string fullPath,
-        DateTimeOffset scanAt)
+        DateTimeOffset scanAt,
+        ScanHashStats stats)
     {
         var normalizedPath = Path.GetFullPath(fullPath);
         var relativePath = Path.GetRelativePath(library.RootPath, normalizedPath);
@@ -154,7 +168,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             assetRecord = TryGetAssetByUid(connection, sidecarUid!);
             if (assetRecord is null)
             {
-                currentHash = GetContentHash(normalizedPath, fileInfo);
+                currentHash = GetContentHash(normalizedPath, fileInfo, stats);
                 assetRecord = CreateOrUpdateAsset(
                     connection,
                     library,
@@ -175,6 +189,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             else if (CanReuseStoredHash(assetRecord, fileInfo))
             {
                 currentHash = assetRecord.ContentHash;
+                stats.ReusedHashCount++;
                 CacheContentHash(normalizedPath, fileInfo, currentHash);
                 assetRecord = CreateOrUpdateAsset(
                     connection,
@@ -198,7 +213,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             }
             else
             {
-                currentHash = GetContentHash(normalizedPath, fileInfo);
+                currentHash = GetContentHash(normalizedPath, fileInfo, stats);
                 if (string.Equals(assetRecord.ContentHash, currentHash, StringComparison.OrdinalIgnoreCase))
                 {
                     assetRecord = CreateOrUpdateAsset(
@@ -247,7 +262,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         }
         else
         {
-            currentHash = GetContentHash(normalizedPath, fileInfo);
+            currentHash = GetContentHash(normalizedPath, fileInfo, stats);
             assetRecord = TryGetAssetByContentHash(connection, currentHash);
             if (assetRecord is not null)
             {
@@ -551,7 +566,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             reader.GetString(5),
             reader.GetString(6),
             reader.GetInt64(7),
-            DateTime.Parse(reader.GetString(8)),
+            DateTimeOffset.Parse(reader.GetString(8), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind).UtcDateTime,
             reader.GetString(9),
             DateTimeOffset.Parse(reader.GetString(10)),
             DateTimeOffset.Parse(reader.GetString(11)),
@@ -681,15 +696,17 @@ public sealed class AssetLibraryService : IAssetLibraryService
         return assetPath + ".uid";
     }
 
-    private string GetContentHash(string path, FileInfo fileInfo)
+    private string GetContentHash(string path, FileInfo fileInfo, ScanHashStats stats)
     {
         if (ContentHashCache.TryGetValue(path, out var cached) &&
             cached.Length == fileInfo.Length &&
             cached.LastWriteTimeUtc == fileInfo.LastWriteTimeUtc)
         {
+            stats.ReusedHashCount++;
             return cached.Hash;
         }
 
+        stats.RecomputedHashCount++;
         var hash = ComputeContentHash(path);
         CacheContentHash(path, fileInfo, hash);
         return hash;
@@ -886,6 +903,12 @@ public sealed class AssetLibraryService : IAssetLibraryService
         public string Uid { get; set; } = string.Empty;
         public int Version { get; set; }
         public string CreatedBy { get; set; } = string.Empty;
+    }
+
+    private sealed class ScanHashStats
+    {
+        public int RecomputedHashCount { get; set; }
+        public int ReusedHashCount { get; set; }
     }
 
     private sealed record CachedUidSidecar(long Length, DateTime LastWriteTimeUtc, string? Uid);

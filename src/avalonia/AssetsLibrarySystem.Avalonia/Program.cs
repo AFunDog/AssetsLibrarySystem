@@ -45,7 +45,8 @@ sealed class Program
         var baseDir = AppContext.BaseDirectory;
         var loggerConfig = new ConfigurationBuilder()
             .SetBasePath(baseDir)
-            .AddJsonFile(Path.Combine(baseDir, "serilog.json"), optional: true, reloadOnChange: false)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
+            .AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: false)
             .AddEnvironmentVariables(prefix: "ALS_")
             .Build();
 
