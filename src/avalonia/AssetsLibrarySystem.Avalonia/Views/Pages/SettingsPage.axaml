@@ -119,6 +119,17 @@
                                            Text="{Binding SearchModelStatusDetail}" />
                             </Border>
 
+                            <StackPanel Spacing="4">
+                                <CheckBox Content="下次启动自动预热 embedding 模型"
+                                          IsChecked="{Binding AutoWarmupEmbeddingModel, Mode=TwoWay}" />
+                                <CheckBox Content="下次启动自动预热 rerank 模型"
+                                          IsChecked="{Binding AutoWarmupRerankModel, Mode=TwoWay}" />
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           FontSize="12"
+                                           Text="{Binding SettingsStatusMessage}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
                             <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                                 <Button Background="{DynamicResource AppSoftSurfaceBrush}"
                                         Foreground="{DynamicResource AppTextBrush}"

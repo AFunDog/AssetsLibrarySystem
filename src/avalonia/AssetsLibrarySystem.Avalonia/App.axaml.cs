@@ -8,6 +8,7 @@ using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
 using AssetsLibrarySystem.Avalonia.Services.Shell;
+using AssetsLibrarySystem.Avalonia.Services.Settings;
 using AssetsLibrarySystem.Avalonia.ViewModels;
 using AssetsLibrarySystem.Avalonia.Views;
 using Autofac;
@@ -99,6 +100,9 @@ public partial class App : Application
             .SingleInstance();
         builder.RegisterType<ActivityFeedService>()
             .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<UserSettingsService>()
+            .As<IUserSettingsService>()
             .SingleInstance();
         builder.RegisterType<BackendSessionService>()
             .AsSelf()

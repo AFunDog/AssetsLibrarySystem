@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -15,6 +16,7 @@ public partial class QuickSearchWindow : Window
     {
         InitializeComponent();
         Opened += (_, _) => FocusSearchBox();
+        Deactivated += QuickSearchWindow_Deactivated;
         Closing += QuickSearchWindow_Closing;
     }
 
@@ -31,6 +33,16 @@ public partial class QuickSearchWindow : Window
             e.Cancel = true;
             Hide();
         }
+    }
+
+    private void QuickSearchWindow_Deactivated(object? sender, EventArgs e)
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        Hide();
     }
 
     private void CloseWindow_Click(object? sender, RoutedEventArgs e)

@@ -5,6 +5,7 @@ using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
+using AssetsLibrarySystem.Avalonia.Services.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -14,21 +15,36 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 {
     private BackendSessionService BackendSessionService { get; }
     private LibraryCatalogService LibraryCatalogService { get; }
+    private IUserSettingsService UserSettingsService { get; }
+    private bool IsLoadingSettings { get; set; }
 
     public SettingsPageViewModel()
-        : this(new BackendSessionService(), new LibraryCatalogService(), new ActivityFeedService())
+        : this(
+            new BackendSessionService(),
+            new LibraryCatalogService(),
+            new ActivityFeedService(),
+            new UserSettingsService())
     {
     }
 
     public SettingsPageViewModel(
         BackendSessionService backendSessionService,
         LibraryCatalogService libraryCatalogService,
-        ActivityFeedService activityFeedService)
+        ActivityFeedService activityFeedService,
+        IUserSettingsService userSettingsService)
     {
         BackendSessionService = backendSessionService;
         LibraryCatalogService = libraryCatalogService;
+        UserSettingsService = userSettingsService;
         ActivityFeed = activityFeedService.Entries;
         PromptDraft = "请基于当前素材生成一段准确、简洁、全面的中文描述。";
+        SettingsStatusMessage = "勾选后会保存到本地，并在下次启动时自动预热对应模型。";
+
+        IsLoadingSettings = true;
+        AutoWarmupEmbeddingModel = UserSettingsService.AutoWarmupEmbeddingModel;
+        AutoWarmupRerankModel = UserSettingsService.AutoWarmupRerankModel;
+        IsLoadingSettings = false;
+
         SubmitPromptCommand = new RelayCommand(SubmitPrompt);
         RefreshModelStatusCommand = new AsyncRelayCommand(RefreshModelStatusAsync);
         CloseEmbeddingModelCommand = new AsyncRelayCommand(() => CloseModelAsync("embedding"));
@@ -40,6 +56,15 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string PromptDraft { get; set; }
+
+    [ObservableProperty]
+    public partial bool AutoWarmupEmbeddingModel { get; set; }
+
+    [ObservableProperty]
+    public partial bool AutoWarmupRerankModel { get; set; }
+
+    [ObservableProperty]
+    public partial string SettingsStatusMessage { get; set; }
 
     public string OperatorNotice => LibraryCatalogService.OperatorNotice;
     public string BackendStatusTitle => BackendSessionService.BackendStatusTitle;
@@ -54,6 +79,32 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public IAsyncRelayCommand RefreshModelStatusCommand { get; }
     public IAsyncRelayCommand CloseEmbeddingModelCommand { get; }
     public IAsyncRelayCommand CloseRerankModelCommand { get; }
+
+    partial void OnAutoWarmupEmbeddingModelChanged(bool value)
+    {
+        if (IsLoadingSettings)
+        {
+            return;
+        }
+
+        UserSettingsService.AutoWarmupEmbeddingModel = value;
+        SettingsStatusMessage = value
+            ? "已启用 embedding 自动预热，下次启动生效。"
+            : "已关闭 embedding 自动预热，下次启动生效。";
+    }
+
+    partial void OnAutoWarmupRerankModelChanged(bool value)
+    {
+        if (IsLoadingSettings)
+        {
+            return;
+        }
+
+        UserSettingsService.AutoWarmupRerankModel = value;
+        SettingsStatusMessage = value
+            ? "已启用 rerank 自动预热，下次启动生效。"
+            : "已关闭 rerank 自动预热，下次启动生效。";
+    }
 
     private void SubmitPrompt()
     {

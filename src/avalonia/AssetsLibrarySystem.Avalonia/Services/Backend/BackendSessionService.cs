@@ -6,6 +6,7 @@ using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
+using AssetsLibrarySystem.Avalonia.Services.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Serilog;
 
@@ -16,10 +17,11 @@ public sealed partial class BackendSessionService : ObservableObject
     private IBackendLauncher? BackendLauncher { get; }
     private IAssetSearchService? AssetSearchService { get; }
     private IBackgroundTaskService? BackgroundTaskService { get; }
+    private IUserSettingsService UserSettings { get; }
     private ActivityFeedService ActivityFeedService { get; }
 
     public BackendSessionService()
-        : this(null, null, null, new ActivityFeedService())
+        : this(null, null, null, new ActivityFeedService(), new UserSettingsService())
     {
     }
 
@@ -27,12 +29,14 @@ public sealed partial class BackendSessionService : ObservableObject
         IBackendLauncher? backendLauncher,
         IAssetSearchService? assetSearchService,
         IBackgroundTaskService? backgroundTaskService,
-        ActivityFeedService activityFeedService)
+        ActivityFeedService activityFeedService,
+        IUserSettingsService userSettingsService)
     {
         BackendLauncher = backendLauncher;
         AssetSearchService = assetSearchService;
         BackgroundTaskService = backgroundTaskService;
         ActivityFeedService = activityFeedService;
+        UserSettings = userSettingsService;
         AiCapabilities = [];
 
         BackendStatusTitle = "Python 模型服务待连接";
@@ -133,34 +137,76 @@ public sealed partial class BackendSessionService : ObservableObject
 
             if (AssetSearchService is not null)
             {
-                UpdateTask(taskId, "正在预热模型", "预热向量模型与重排序模型");
-                BackendStatusStage = "正在预热模型 [1/2]";
-                BackendStatusDetail = "正在预热向量模型与重排序模型，减少第一次检索等待。";
+                var shouldWarmEmbedding = UserSettings.AutoWarmupEmbeddingModel;
+                var shouldWarmRerank = UserSettings.AutoWarmupRerankModel;
 
-                try
+                if (shouldWarmEmbedding || shouldWarmRerank)
                 {
-                    Log.Information("开始预热向量模型与重排序模型。");
-                    var embeddingWarmup = await AssetSearchService.WarmupEmbeddingAsync(BackendEndpoint);
-                    var rerankWarmup = await AssetSearchService.WarmupRerankAsync(BackendEndpoint);
-                    BackendStatusStage = "模型加载完毕 [2/2]";
-                    BackendStatusDetail = $"检索模型已预热：{embeddingWarmup.ModelName} / {rerankWarmup.ModelName}";
-                    Log.Information(
-                        "检索模型预热完成，embedding={EmbeddingModel}, rerank={RerankModel}",
-                        embeddingWarmup.ModelName,
-                        rerankWarmup.ModelName);
-                    ActivityFeedService.Add($"检索模型预热完成：{embeddingWarmup.ModelName} / {rerankWarmup.ModelName}");
-                    CompleteTask(taskId, "模型加载完毕", BackendStatusDetail);
-                }
-                catch (Exception ex)
-                {
-                    BackendStatusStage = "模型预热失败 [2/2]";
-                    BackendStatusDetail = $"模型预热失败：{ex.Message}";
-                    Log.Warning(ex, "检索模型预热失败。");
-                    ActivityFeedService.Add($"检索模型预热失败：{ex.Message}");
-                    FailTask(taskId, "模型预热失败", ex.Message);
-                }
+                    UpdateTask(taskId, "正在预热模型", "按设置预热选定的本地搜索模型");
+                    BackendStatusStage = "正在预热模型 [1/2]";
+                    BackendStatusDetail = "正在按设置预热本地搜索模型，减少第一次检索等待。";
 
-                await RefreshSearchModelStatusAsync(suppressErrors: true);
+                    try
+                    {
+                        Log.Information(
+                            "开始按设置预热本地搜索模型，autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}",
+                            shouldWarmEmbedding,
+                            shouldWarmRerank);
+
+                        AssetSearchWarmupDocument? embeddingWarmup = null;
+                        AssetSearchWarmupDocument? rerankWarmup = null;
+
+                        if (shouldWarmEmbedding)
+                        {
+                            embeddingWarmup = await AssetSearchService.WarmupEmbeddingAsync(BackendEndpoint);
+                        }
+
+                        if (shouldWarmRerank)
+                        {
+                            rerankWarmup = await AssetSearchService.WarmupRerankAsync(BackendEndpoint);
+                        }
+
+                        BackendStatusStage = shouldWarmEmbedding && shouldWarmRerank
+                            ? "模型加载完毕 [2/2]"
+                            : "模型部分加载 [1/2]";
+                        BackendStatusDetail = shouldWarmEmbedding && shouldWarmRerank
+                            ? $"检索模型已预热：{embeddingWarmup?.ModelName} / {rerankWarmup?.ModelName}"
+                            : $"已按设置预热：{embeddingWarmup?.ModelName ?? rerankWarmup?.ModelName}";
+
+                        Log.Information(
+                            "检索模型按设置预热完成，embeddingEnabled={EmbeddingEnabled}, rerankEnabled={RerankEnabled}, embeddingModel={EmbeddingModel}, rerankModel={RerankModel}",
+                            shouldWarmEmbedding,
+                            shouldWarmRerank,
+                            embeddingWarmup?.ModelName ?? string.Empty,
+                            rerankWarmup?.ModelName ?? string.Empty);
+
+                        ActivityFeedService.Add(
+                            shouldWarmEmbedding && shouldWarmRerank
+                                ? $"检索模型预热完成：{embeddingWarmup?.ModelName} / {rerankWarmup?.ModelName}"
+                                : $"检索模型按设置预热：{embeddingWarmup?.ModelName ?? rerankWarmup?.ModelName}");
+                        CompleteTask(taskId, "模型加载完毕", BackendStatusDetail);
+                    }
+                    catch (Exception ex)
+                    {
+                        BackendStatusStage = "模型预热失败 [2/2]";
+                        BackendStatusDetail = $"模型预热失败：{ex.Message}";
+                        Log.Warning(ex, "检索模型预热失败。");
+                        ActivityFeedService.Add($"检索模型预热失败：{ex.Message}");
+                        FailTask(taskId, "模型预热失败", ex.Message);
+                    }
+
+                    await RefreshSearchModelStatusAsync(suppressErrors: true);
+                }
+                else
+                {
+                    BackendStatusStage = "模型已连接 [1/2]";
+                    BackendStatusDetail = "已连接到 Python 模型服务，未启用本地搜索模型自动预热。";
+                    SearchModelStatusTitle = "本地搜索模型自动预热已关闭";
+                    SearchModelStatusStage = "等待手动触发 [0/2]";
+                    SearchModelStatusDetail = "可在设置页勾选 embedding / rerank 自动预热，下次启动生效。";
+                    Log.Information("本地搜索模型自动预热已关闭，跳过 warmup。");
+                    CompleteTask(taskId, "模型已连接", BackendStatusDetail);
+                }
             }
             else
             {
@@ -198,14 +244,14 @@ public sealed partial class BackendSessionService : ObservableObject
         AiCapabilities.Add(new AiCapabilityRecord("关闭模型", "/api/v1/search/models/close", "主动释放指定本地搜索模型，便于在空闲时腾出显存。"));
     }
 
-    public async Task RefreshSearchModelStatusAsync(bool suppressErrors = false)
+    public async Task<AssetSearchModelStatusDocument?> RefreshSearchModelStatusAsync(bool suppressErrors = false)
     {
         if (AssetSearchService is null)
         {
             SearchModelStatusTitle = "本地搜索模型未注入";
             SearchModelStatusStage = "桌面端未注册检索服务 [0/2]";
             SearchModelStatusDetail = "当前只有后端连接状态，没有本地搜索模型控制能力。";
-            return;
+            return null;
         }
 
         try
@@ -223,13 +269,22 @@ public sealed partial class BackendSessionService : ObservableObject
                 status.EmbeddingLoaded,
                 status.RerankLoaded,
                 status.Device);
+            return status;
         }
-        catch (Exception ex) when (suppressErrors)
+        catch (Exception ex)
         {
             SearchModelStatusTitle = "本地搜索模型状态获取失败";
             SearchModelStatusStage = "状态刷新失败";
             SearchModelStatusDetail = ex.Message;
-            Log.Debug(ex, "本地搜索模型状态刷新失败（已抑制错误）。");
+
+            if (suppressErrors)
+            {
+                Log.Debug(ex, "本地搜索模型状态刷新失败（已抑制错误）。");
+                return null;
+            }
+
+            Log.Warning(ex, "本地搜索模型状态刷新失败。");
+            throw;
         }
     }
 
