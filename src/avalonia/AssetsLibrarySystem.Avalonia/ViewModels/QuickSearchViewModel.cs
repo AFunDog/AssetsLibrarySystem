@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -25,14 +26,20 @@ public partial class QuickSearchViewModel : ObservableObject
         BackendLauncher = backendLauncher;
         AssetSearchService = assetSearchService;
         SearchResults = new ObservableCollection<AssetSearchDocument>();
+        SearchAssetFormats = ["全部", "文本", "图片", "视频", "音频"];
         SearchStatus = "输入素材描述并按回车检索，点击卡片可定位到素材文件。";
         SearchQuery = string.Empty;
+        SearchAssetFormat = "全部";
     }
 
     public ObservableCollection<AssetSearchDocument> SearchResults { get; }
+    public IReadOnlyList<string> SearchAssetFormats { get; }
 
     [ObservableProperty]
     public partial string SearchQuery { get; set; }
+
+    [ObservableProperty]
+    public partial string SearchAssetFormat { get; set; }
 
     [ObservableProperty]
     public partial string SearchStatus { get; set; }
@@ -67,7 +74,7 @@ public partial class QuickSearchViewModel : ObservableObject
                 SearchQuery,
                 20,
                 5,
-                null);
+                SearchAssetFormat == "全部" ? null : SearchAssetFormat);
 
             SearchResults.Clear();
             foreach (var item in response.Results)

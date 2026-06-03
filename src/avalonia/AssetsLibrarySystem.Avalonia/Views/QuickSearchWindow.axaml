@@ -26,6 +26,7 @@
 
     <Design.DataContext>
         <vm:QuickSearchViewModel SearchQuery="紧张氛围的音乐"
+                                 SearchAssetFormat="全部"
                                  SearchStatus="按 Enter 执行检索，方向键浏览历史。">
             <vm:QuickSearchViewModel.SearchResults>
                 <models:AssetSearchDocument AssetId="asset-001"
@@ -62,7 +63,7 @@
             <Border Grid.Row="0"
                     Background="{DynamicResource SystemAltLowColor}"
                     Padding="12,10">
-                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                <Grid ColumnDefinitions="Auto,*,120" ColumnSpacing="8">
                     <lucide:LucideIcon HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        Size="16"
@@ -98,6 +99,33 @@
 
                         </TextBox.Styles>
                     </TextBox>
+
+                    <ComboBox Grid.Column="2"
+                              SelectedItem="{Binding SearchAssetFormat, Mode=TwoWay}"
+                              ItemsSource="{Binding SearchAssetFormats}"
+                              Background="Transparent"
+                              BorderBrush="Transparent"
+                              Foreground="{DynamicResource AppTextBrush}"
+                              VerticalContentAlignment="Center"
+                              HorizontalContentAlignment="Stretch">
+                        <ComboBox.Styles>
+                            <Style Selector="ComboBox /template/ Border#PART_BorderElement">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Style>
+                            <Style Selector="ComboBox:focus /template/ Border#PART_BorderElement">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Style>
+                            <Style Selector="ComboBox:pointerover /template/ Border#PART_BorderElement">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Style>
+                        </ComboBox.Styles>
+                    </ComboBox>
                 </Grid>
             </Border>
 
