@@ -122,7 +122,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     private async Task<List<ManagedAssetRecord>> BuildRecordsForDirectoryAsync(LibraryWorkspace library, CancellationToken ct)
     {
-        EnsureMetadataSchema();
+        await EnsureMetadataSchemaAsync(ct);
 
         var stats = new ScanHashStats();
         var scanAt = DateTimeOffset.UtcNow;
@@ -187,7 +187,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
             {
                 currentHash = GetContentHash(normalizedPath, fileInfo, stats);
                 assetRecord = await CreateOrUpdateAssetAsync(
-                    connection,
                     library,
                     assetUid: sidecarUid!,
                     assetName: fileInfo.Name,
@@ -199,7 +198,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                     modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
                     status: "ok",
                     scanAt: scanAt);
-                await EnsureAssetMetadataAsync(connection, sidecarUid!, "pending", scanAt, ct);
+                await EnsureAssetMetadataAsync(sidecarUid!, "pending", scanAt, ct);
                 stage = "已迁入";
                 aiState = "待生成描述与向量";
             }
@@ -225,7 +224,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 else
                 {
                     assetRecord = await CreateOrUpdateAssetAsync(
-                        connection,
                         library,
                         assetUid: assetRecord.AssetUid,
                         assetName: fileInfo.Name,
@@ -240,7 +238,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         createdAt: assetRecord.CreatedAt,
                         createdBy: assetRecord.CreatedBy,
                         uidVersion: assetRecord.UidVersion);
-                    await EnsureAssetMetadataAsync(connection, assetRecord.AssetUid, "ready", scanAt, ct);
+                    await EnsureAssetMetadataAsync(assetRecord.AssetUid, "ready", scanAt, ct);
                 }
                 stage = "已同步";
                 aiState = "身份已确认";
@@ -267,7 +265,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
                     else
                     {
                         assetRecord = await CreateOrUpdateAssetAsync(
-                            connection,
                             library,
                             assetUid: assetRecord.AssetUid,
                             assetName: fileInfo.Name,
@@ -282,7 +279,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                             createdAt: assetRecord.CreatedAt,
                             createdBy: assetRecord.CreatedBy,
                             uidVersion: assetRecord.UidVersion);
-                        await EnsureAssetMetadataAsync(connection, assetRecord.AssetUid, "ready", scanAt, ct);
+                        await EnsureAssetMetadataAsync(assetRecord.AssetUid, "ready", scanAt, ct);
                     }
                     stage = "已同步";
                     aiState = "身份已确认";
@@ -290,7 +287,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 else
                 {
                     assetRecord = await CreateOrUpdateAssetAsync(
-                        connection,
                         library,
                         assetUid: assetRecord.AssetUid,
                         assetName: fileInfo.Name,
@@ -305,7 +301,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         createdAt: assetRecord.CreatedAt,
                         createdBy: assetRecord.CreatedBy,
                         uidVersion: assetRecord.UidVersion);
-                    await EnsureAssetMetadataAsync(connection, assetRecord.AssetUid, "changed", scanAt, ct);
+                    await EnsureAssetMetadataAsync(assetRecord.AssetUid, "changed", scanAt, ct);
                     stage = "内容已变化";
                     aiState = "等待版本处理策略";
                 }
@@ -335,7 +331,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 else
                 {
                     assetRecord = await CreateOrUpdateAssetAsync(
-                        connection,
                         library,
                         assetUid: assetRecord.AssetUid,
                         assetName: fileInfo.Name,
@@ -350,7 +345,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         createdAt: assetRecord.CreatedAt,
                         createdBy: assetRecord.CreatedBy,
                         uidVersion: assetRecord.UidVersion);
-                    await EnsureAssetMetadataAsync(connection, assetRecord.AssetUid, "ready", scanAt, ct);
+                    await EnsureAssetMetadataAsync(assetRecord.AssetUid, "ready", scanAt, ct);
                 }
                 stage = "已识别";
                 aiState = "按内容指纹补写 uid";
@@ -360,7 +355,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 var assetUid = GenerateAssetUid();
                 WriteUidSidecar(sidecarPath, assetUid);
                 assetRecord = await CreateOrUpdateAssetAsync(
-                    connection,
                     library,
                     assetUid: assetUid,
                     assetName: fileInfo.Name,
@@ -372,7 +366,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                     modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
                     status: "ok",
                     scanAt: scanAt);
-                await EnsureAssetMetadataAsync(connection, assetUid, "pending", scanAt, ct);
+                await EnsureAssetMetadataAsync(assetUid, "pending", scanAt, ct);
                 stage = "新素材";
                 aiState = "待生成描述与向量";
             }
@@ -404,7 +398,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
     }
 
     private Task<AssetDbRecord> CreateOrUpdateAssetAsync(
-        SqliteConnection _connection,
         LibraryWorkspace library,
         string assetUid,
         string assetName,
@@ -511,7 +504,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         }, ct).AsTask();
     }
 
-    private Task EnsureAssetMetadataAsync(SqliteConnection _connection, string assetUid, string metadataStatus, DateTimeOffset scanAt, CancellationToken ct)
+    private Task EnsureAssetMetadataAsync(string assetUid, string metadataStatus, DateTimeOffset scanAt, CancellationToken ct)
     {
         return WriteQueue.EnqueueAsync(async token =>
         {
@@ -678,7 +671,16 @@ public sealed class AssetLibraryService : IAssetLibraryService
             reader.GetInt32(13));
     }
 
-    private void EnsureMetadataSchema()
+    private Task EnsureMetadataSchemaAsync(CancellationToken ct)
+    {
+        return WriteQueue.EnqueueAsync(token =>
+        {
+            EnsureMetadataSchemaCore();
+            return Task.CompletedTask;
+        }, ct).AsTask();
+    }
+
+    private void EnsureMetadataSchemaCore()
     {
         using var connection = CreateMetadataConnection();
         connection.Open();

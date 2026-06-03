@@ -13,6 +13,8 @@ namespace AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 
 public sealed class AssetDescriptionStore : IAssetDescriptionStore
 {
+    private static IDatabaseWriteQueue FallbackWriteQueue { get; } = new DatabaseWriteQueue();
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -24,7 +26,7 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
     private IDatabaseWriteQueue WriteQueue { get; }
 
     public AssetDescriptionStore()
-        : this(new DatabaseWriteQueue())
+        : this(FallbackWriteQueue)
     {
     }
 
@@ -38,7 +40,7 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
     {
         await WriteQueue.EnqueueAsync(async token =>
         {
-            await EnsureSchemaAsync(token);
+            await EnsureSchemaCoreAsync(token);
 
             await using var connection = CreateConnection();
             await connection.OpenAsync(token);
@@ -168,6 +170,11 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
     }
 
     private async Task EnsureSchemaAsync(CancellationToken ct)
+    {
+        await WriteQueue.EnqueueAsync(EnsureSchemaCoreAsync, ct);
+    }
+
+    private async Task EnsureSchemaCoreAsync(CancellationToken ct)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(ct);

@@ -10,11 +10,13 @@ namespace AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 
 public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 {
+    private static IDatabaseWriteQueue FallbackWriteQueue { get; } = new DatabaseWriteQueue();
+
     public string DatabasePath { get; }
     private IDatabaseWriteQueue WriteQueue { get; }
 
     public AssetDescriptionVectorStore()
-        : this(new DatabaseWriteQueue())
+        : this(FallbackWriteQueue)
     {
     }
 
@@ -28,7 +30,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
     {
         await WriteQueue.EnqueueAsync(async token =>
         {
-            await EnsureSchemaAsync(token);
+            await EnsureSchemaCoreAsync(token);
 
             await using var connection = CreateConnection();
             await connection.OpenAsync(token);
@@ -119,6 +121,11 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
     }
 
     private async Task EnsureSchemaAsync(CancellationToken ct)
+    {
+        await WriteQueue.EnqueueAsync(EnsureSchemaCoreAsync, ct);
+    }
+
+    private async Task EnsureSchemaCoreAsync(CancellationToken ct)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(ct);

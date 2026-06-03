@@ -15,9 +15,8 @@ public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
         AllowSynchronousContinuations = false
     });
 
-    private readonly CancellationTokenSource _shutdown = new();
     private readonly Task _worker;
-    private bool _disposed;
+    private int _disposed;
 
     public DatabaseWriteQueue()
     {
@@ -35,7 +34,7 @@ public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
 
     public ValueTask<T> EnqueueAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken cancellationToken = default)
     {
-        if (_disposed)
+        if (Volatile.Read(ref _disposed) != 0)
         {
             throw new ObjectDisposedException(nameof(DatabaseWriteQueue));
         }
@@ -56,14 +55,12 @@ public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
 
-        _disposed = true;
         _queue.Writer.TryComplete();
-        _shutdown.Cancel();
 
         try
         {
@@ -76,19 +73,15 @@ public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
         {
             Log.Warning(ex, "数据库写队列在关闭时出现异常。");
         }
-        finally
-        {
-            _shutdown.Dispose();
-        }
     }
 
     private async Task ProcessQueueAsync()
     {
         try
         {
-            await foreach (var item in _queue.Reader.ReadAllAsync(_shutdown.Token).ConfigureAwait(false))
+            await foreach (var item in _queue.Reader.ReadAllAsync().ConfigureAwait(false))
             {
-                await item.ExecuteAsync(_shutdown.Token).ConfigureAwait(false);
+                await item.ExecuteAsync().ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
@@ -98,13 +91,14 @@ public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
 
     private interface IQueuedWrite
     {
-        Task ExecuteAsync(CancellationToken shutdownToken);
+        Task ExecuteAsync();
     }
 
     private sealed class QueuedWrite<T> : IQueuedWrite
     {
         private readonly Func<CancellationToken, Task<T>> _work;
         private readonly CancellationToken _callerToken;
+        private readonly CancellationTokenRegistration _cancellationRegistration;
         private readonly TaskCompletionSource<T> _taskCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public QueuedWrite(Func<CancellationToken, Task<T>> work, CancellationToken callerToken)
@@ -114,29 +108,28 @@ public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
 
             if (_callerToken.CanBeCanceled)
             {
-                _callerToken.Register(() => _taskCompletionSource.TrySetCanceled(_callerToken));
+                _cancellationRegistration = _callerToken.Register(() => _taskCompletionSource.TrySetCanceled(_callerToken));
             }
         }
 
         public Task<T> Task => _taskCompletionSource.Task;
 
-        public async Task ExecuteAsync(CancellationToken shutdownToken)
+        public async Task ExecuteAsync()
         {
-            if (_taskCompletionSource.Task.IsCompleted)
-            {
-                return;
-            }
-
-            if (_callerToken.IsCancellationRequested)
-            {
-                _taskCompletionSource.TrySetCanceled(_callerToken);
-                return;
-            }
-
             try
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(shutdownToken, _callerToken);
-                var result = await _work(linkedCts.Token).ConfigureAwait(false);
+                if (_taskCompletionSource.Task.IsCompleted)
+                {
+                    return;
+                }
+
+                if (_callerToken.IsCancellationRequested)
+                {
+                    _taskCompletionSource.TrySetCanceled(_callerToken);
+                    return;
+                }
+
+                var result = await _work(_callerToken).ConfigureAwait(false);
                 _taskCompletionSource.TrySetResult(result);
             }
             catch (OperationCanceledException oce) when (_callerToken.IsCancellationRequested)
@@ -146,6 +139,10 @@ public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
             catch (Exception ex)
             {
                 _taskCompletionSource.TrySetException(ex);
+            }
+            finally
+            {
+                _cancellationRegistration.Dispose();
             }
         }
     }
