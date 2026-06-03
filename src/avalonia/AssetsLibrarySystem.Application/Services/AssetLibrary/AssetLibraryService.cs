@@ -126,6 +126,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
         var stats = new ScanHashStats();
         var scanAt = DateTimeOffset.UtcNow;
+        var descriptionTableExists = DescriptionTableExists();
         var records = new ConcurrentBag<ManagedAssetRecord>();
         var paths = EnumerateSupportedFiles(library.RootPath)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -137,7 +138,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount)
         }, async (path, token) =>
         {
-            var record = await ImportOrRefreshAssetAsync(library, path, scanAt, stats, token);
+            var record = await ImportOrRefreshAssetAsync(library, path, scanAt, descriptionTableExists, stats, token);
             records.Add(record);
         });
 
@@ -161,6 +162,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         LibraryWorkspace library,
         string fullPath,
         DateTimeOffset scanAt,
+        bool descriptionTableExists,
         ScanHashStats stats,
         CancellationToken ct)
     {
@@ -372,6 +374,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             }
         }
 
+        var isDescribed = descriptionTableExists && HasDescription(connection, assetRecord.AssetUid, normalizedPath, assetRecord.ContentHash);
         var metadataTags = ReadMetadataTags(connection, assetRecord.AssetUid);
         var tags = BuildTags(assetType, extension, metadataTags);
         var summary = BuildSummary(assetType, fileInfo.Length, fileInfo.LastWriteTime, assetRecord.AssetUid, assetRecord.Status);
@@ -390,10 +393,11 @@ public sealed class AssetLibraryService : IAssetLibraryService
             FileSize = fileInfo.Length,
             ModifiedTimeUtc = fileInfo.LastWriteTimeUtc,
             HasUidSidecar = hasUidSidecar,
+            IsDescribed = isDescribed,
             Summary = summary,
             Tags = new(tags),
             Stage = stage,
-            AiState = aiState
+            AiState = isDescribed ? "已生成描述" : aiState
         };
     }
 
@@ -678,6 +682,49 @@ public sealed class AssetLibraryService : IAssetLibraryService
             EnsureMetadataSchemaCore();
             return Task.CompletedTask;
         }, ct).AsTask();
+    }
+
+    private static bool HasDescription(SqliteConnection connection, string assetUid, string currentPath, string contentHash)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT 1
+            FROM asset_descriptions
+            WHERE asset_id = $asset_uid
+               OR asset_path = $current_path
+               OR (
+                    $content_hash <> ''
+                    AND content_hash IS NOT NULL
+                    AND content_hash = $content_hash
+               )
+            LIMIT 1;
+            """;
+        AddParameter(command, "$asset_uid", assetUid);
+        AddParameter(command, "$current_path", currentPath);
+        AddParameter(command, "$content_hash", contentHash ?? string.Empty);
+
+        return command.ExecuteScalar() is not null;
+    }
+
+    private bool DescriptionTableExists()
+    {
+        using var connection = CreateMetadataConnection();
+        connection.Open();
+        return TableExists(connection, "asset_descriptions");
+    }
+
+    private static bool TableExists(SqliteConnection connection, string tableName)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table'
+              AND name = $table_name
+            LIMIT 1;
+            """;
+        AddParameter(command, "$table_name", tableName);
+        return command.ExecuteScalar() is not null;
     }
 
     private void EnsureMetadataSchemaCore()

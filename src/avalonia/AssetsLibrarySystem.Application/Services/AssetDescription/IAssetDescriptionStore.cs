@@ -11,4 +11,6 @@ public interface IAssetDescriptionStore
     Task SaveAsync(AssetDescriptionDocument document, CancellationToken ct = default);
 
     Task<AssetDescriptionDocument?> TryGetAsync(string assetId, CancellationToken ct = default);
+
+    Task<AssetDescriptionDocument?> TryGetForAssetAsync(ManagedAssetRecord asset, CancellationToken ct = default);
 }

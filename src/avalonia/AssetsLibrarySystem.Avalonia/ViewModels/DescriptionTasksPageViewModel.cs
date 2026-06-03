@@ -171,7 +171,7 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
 
             foreach (var asset in assets)
             {
-                var descriptionDocument = await AssetDescriptionStore.TryGetAsync(asset.Id);
+                var descriptionDocument = await AssetDescriptionStore.TryGetForAssetAsync(asset);
                 if (descriptionDocument is null)
                 {
                     skipCount++;

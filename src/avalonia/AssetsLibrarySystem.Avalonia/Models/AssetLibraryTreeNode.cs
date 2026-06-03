@@ -16,6 +16,8 @@ public sealed class AssetLibraryTreeNode
     public string CategorySummary { get; set; } = string.Empty;
     public string TypeLabel { get; init; } = string.Empty;
     public string StatusLabel { get; init; } = string.Empty;
+    public string DescriptionProgressLabel { get; set; } = string.Empty;
+    public string SizeLabel { get; init; } = string.Empty;
     public string PathLabel { get; init; } = string.Empty;
     public string Summary { get; init; } = string.Empty;
     public string IconKind { get; init; } = "Folder";

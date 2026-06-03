@@ -25,7 +25,7 @@ public sealed partial class LibraryCatalogService
 
         try
         {
-            var document = await AssetDescriptionStore.TryGetAsync(asset.Id);
+            var document = await AssetDescriptionStore.TryGetForAssetAsync(asset);
             if (document is null)
             {
                 ResetSelectedAssetDescription();

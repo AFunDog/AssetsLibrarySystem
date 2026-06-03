@@ -52,14 +52,37 @@ public sealed partial class ManagedAssetRecord : ObservableObject
     public long FileSize { get; init; }
     public DateTimeOffset ModifiedTimeUtc { get; init; }
     public bool HasUidSidecar { get; init; }
+    public bool IsDescribed { get; init; }
     public string Summary { get; init; } = string.Empty;
     public ObservableCollection<string> Tags { get; init; } = new();
+    public string DescriptionStatusLabel => IsDescribed ? "已描述" : "未描述";
+    public string FileSizeLabel => FormatFileSize(FileSize);
 
     [ObservableProperty]
     public partial string Stage { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial string AiState { get; set; } = string.Empty;
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024d:F1} KB";
+        }
+
+        if (bytes < 1024L * 1024 * 1024)
+        {
+            return $"{bytes / 1024d / 1024:F1} MB";
+        }
+
+        return $"{bytes / 1024d / 1024 / 1024:F1} GB";
+    }
 }
 
 public sealed record AiCapabilityRecord(string Name, string Endpoint, string Summary);

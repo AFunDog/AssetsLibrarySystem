@@ -152,6 +152,65 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             return null;
         }
 
+        return ReadDocument(reader);
+    }
+
+    public async Task<AssetDescriptionDocument?> TryGetForAssetAsync(ManagedAssetRecord asset, CancellationToken ct = default)
+    {
+        await EnsureSchemaAsync(ct);
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(ct);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                asset_id,
+                asset_name,
+                asset_type,
+                asset_path,
+                store_path,
+                description,
+                backend_endpoint,
+                mode,
+                generated_at,
+                token_usage_json,
+                prompt,
+                system_prompt,
+                content_hash,
+                metadata_status
+            FROM asset_descriptions
+            WHERE asset_id = $asset_uid
+               OR asset_path = $current_path
+               OR (
+                    $content_hash <> ''
+                    AND content_hash IS NOT NULL
+                    AND content_hash = $content_hash
+               )
+            ORDER BY
+                CASE
+                    WHEN asset_id = $asset_uid THEN 0
+                    WHEN asset_path = $current_path THEN 1
+                    ELSE 2
+                END,
+                generated_at DESC
+            LIMIT 1;
+            """;
+        AddParameter(command, "$asset_uid", asset.AssetUid);
+        AddParameter(command, "$current_path", asset.CurrentPath);
+        AddParameter(command, "$content_hash", asset.ContentHash ?? string.Empty);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+        {
+            return null;
+        }
+
+        return ReadDocument(reader);
+    }
+
+    private static AssetDescriptionDocument ReadDocument(SqliteDataReader reader)
+    {
         return new AssetDescriptionDocument(
             reader.GetString(0),
             reader.GetString(1),

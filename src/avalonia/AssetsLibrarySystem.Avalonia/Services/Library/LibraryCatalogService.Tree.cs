@@ -124,6 +124,7 @@ public sealed partial class LibraryCatalogService
             CategorySummary = BuildCategorySummary(libraryAssets.Select(asset => asset.AssetType)),
             TypeLabel = "素材库",
             StatusLabel = library.SyncMode,
+            DescriptionProgressLabel = BuildDescriptionProgressLabel(libraryAssets.Count(asset => asset.IsDescribed), libraryAssets.Count),
             PathLabel = library.RootPath,
             Summary = library.Summary,
             IconKind = "Folder",
@@ -165,10 +166,12 @@ public sealed partial class LibraryCatalogService
             currentNode.Children.Add(new AssetLibraryTreeNode
             {
                 DisplayName = asset.Name,
-                MetaLabel = asset.AssetType,
+                MetaLabel = asset.DescriptionStatusLabel,
                 CategorySummary = asset.Stage,
                 TypeLabel = asset.AssetType,
-                StatusLabel = asset.Stage,
+                StatusLabel = asset.FileSizeLabel,
+                DescriptionProgressLabel = asset.DescriptionStatusLabel,
+                SizeLabel = asset.FileSizeLabel,
                 PathLabel = asset.RelativePath,
                 Summary = asset.Summary,
                 IconKind = "File",
@@ -196,7 +199,9 @@ public sealed partial class LibraryCatalogService
         }
 
         var assetNodes = EnumerateAssetNodes(node).ToList();
-        node.MetaLabel = BuildCountLabel(assetNodes.Count);
+        var describedCount = assetNodes.Count(assetNode => assetNode.Asset?.IsDescribed == true);
+        node.MetaLabel = BuildDescriptionProgressLabel(describedCount, assetNodes.Count);
+        node.DescriptionProgressLabel = node.MetaLabel;
         node.CategorySummary = BuildCategorySummary(assetNodes.Select(assetNode => assetNode.TypeLabel));
     }
 
@@ -220,6 +225,11 @@ public sealed partial class LibraryCatalogService
     private static string BuildCountLabel(int count)
     {
         return count == 0 ? "空目录" : $"{count} 项";
+    }
+
+    private static string BuildDescriptionProgressLabel(int describedCount, int totalCount)
+    {
+        return totalCount == 0 ? "0/0 已描述" : $"{describedCount}/{totalCount} 已描述";
     }
 
     private static string BuildCategorySummary(IEnumerable<string> categories)

@@ -142,18 +142,17 @@
                             <ItemsControl ItemsSource="{Binding CurrentExplorerItems}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <WrapPanel ItemWidth="160"
-                                                   ItemHeight="160"
+                                        <WrapPanel 
                                                    Orientation="Horizontal" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="models:AssetLibraryTreeNode">
                                         <Button Classes="secondary-action"
-                                                Margin="0,0,8,8"
+                                                Margin="0,0,12,12"
                                                 Padding="12"
-                                                MinWidth="160"
-                                                MinHeight="160"
+                                                CornerRadius="8"
+                                                Width="180"
                                                 HorizontalAlignment="Stretch"
                                                 VerticalContentAlignment="Stretch"
                                                 Click="OpenExplorerItem_Click"
@@ -177,7 +176,7 @@
                                                         HorizontalAlignment="Left">
                                                     <lucide:LucideIcon Kind="{Binding IconKind}" Size="28" />
                                                 </Border>
-                                                <StackPanel Spacing="2">
+                                                <StackPanel Spacing="2" >
                                                     <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                                                FontWeight="SemiBold"
                                                                TextTrimming="CharacterEllipsis"
