@@ -10,6 +10,7 @@ using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Application.Services.BackendLauncher;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
+using AssetsLibrarySystem.Application.UseCases.AssetOperations;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
@@ -127,6 +128,15 @@ public partial class App : global::Avalonia.Application
             .SingleInstance();
         builder.RegisterType<BackgroundTaskService>()
             .As<IBackgroundTaskService>()
+            .SingleInstance();
+        builder.RegisterType<DescribeAssetsUseCase>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<VectorizeDescriptionsUseCase>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<RebuildSearchIndexUseCase>()
+            .AsSelf()
             .SingleInstance();
         builder.RegisterType<ShellWindowService>()
             .As<IShellWindowService>()

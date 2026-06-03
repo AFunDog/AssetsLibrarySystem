@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -7,11 +8,10 @@ using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
-using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
-using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Avalonia.Services.Library;
+using AssetsLibrarySystem.Application.UseCases.AssetOperations;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Serilog;
@@ -23,8 +23,8 @@ public sealed partial class LibraryPageViewModel : ObservableObject
     private BackendSessionService BackendSessionService { get; }
     private LibraryCatalogService LibraryCatalogService { get; }
     private IAssetSearchService? AssetSearchService { get; }
-    private IAssetDescriptionService? AssetDescriptionService { get; }
-    private IBackgroundTaskService? BackgroundTaskService { get; }
+    private DescribeAssetsUseCase? DescribeAssetsUseCase { get; }
+    private RebuildSearchIndexUseCase? RebuildSearchIndexUseCase { get; }
 
     public LibraryPageViewModel()
         : this(
@@ -32,7 +32,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             new LibraryCatalogService(),
             null,
             null,
-            new BackgroundTaskService(),
+            null,
             new ActivityFeedService())
     {
     }
@@ -41,15 +41,15 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         BackendSessionService backendSessionService,
         LibraryCatalogService libraryCatalogService,
         IAssetSearchService? assetSearchService,
-        IAssetDescriptionService? assetDescriptionService,
-        IBackgroundTaskService? backgroundTaskService,
+        DescribeAssetsUseCase? describeAssetsUseCase,
+        RebuildSearchIndexUseCase? rebuildSearchIndexUseCase,
         ActivityFeedService activityFeedService)
     {
         BackendSessionService = backendSessionService;
         LibraryCatalogService = libraryCatalogService;
         AssetSearchService = assetSearchService;
-        AssetDescriptionService = assetDescriptionService;
-        BackgroundTaskService = backgroundTaskService;
+        DescribeAssetsUseCase = describeAssetsUseCase;
+        RebuildSearchIndexUseCase = rebuildSearchIndexUseCase;
         ActivityFeed = activityFeedService.Entries;
         SearchResults = [];
 
@@ -72,7 +72,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         Log.Debug(
             "LibraryPageViewModel 已创建，searchServiceRegistered={HasSearchService}, descriptionServiceRegistered={HasDescriptionService}",
             AssetSearchService is not null,
-            AssetDescriptionService is not null);
+            DescribeAssetsUseCase is not null);
     }
 
     [ObservableProperty]
@@ -242,7 +242,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             return;
         }
 
-        if (AssetDescriptionService is null)
+        if (DescribeAssetsUseCase is null)
         {
             LibraryCatalogService.SetOperatorNotice("描述服务未注册，当前无法调用后端。");
             Log.Warning("右键加入描述任务失败：描述服务未注册，assetCount={AssetCount}", assets.Count);
@@ -258,10 +258,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             node.FullPath,
             assets.Count);
 
-        foreach (var asset in assets)
-        {
-            await DescribeAssetAsync(asset);
-        }
+        await DescribeAssetsAsync(assets);
     }
 
     private async Task ExecuteSearchAsync()
@@ -351,7 +348,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
 
     private async Task RebuildSearchIndexAsync()
     {
-        if (AssetSearchService is null)
+        if (RebuildSearchIndexUseCase is null)
         {
             SearchIndexSummary = "检索服务未注册，无法重建索引。";
             LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
@@ -368,7 +365,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         try
         {
             await BackendSessionService.EnsureRunningAsync();
-            var response = await AssetSearchService.ReindexAsync(BackendSessionService.BaseUrl);
+            var response = await RebuildSearchIndexUseCase.ExecuteAsync(BackendSessionService.BaseUrl);
             SearchIndexSummary = $"索引已重建：{response.DocumentCount} 条，{response.VectorDim} 维。";
             SearchIndexDetail = $"数据库：{response.DatabasePath}\n索引：{response.IndexPath}\n元数据：{response.MetadataPath}\n模型：{string.Join(", ", response.EmbeddingModels)}";
             LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
@@ -390,7 +387,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         }
     }
 
-    private async Task DescribeAssetAsync(ManagedAssetRecord asset)
+    private async Task DescribeAssetsAsync(IReadOnlyList<ManagedAssetRecord> assets)
     {
         if (!BackendSessionService.IsBackendReady)
         {
@@ -398,46 +395,32 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             return;
         }
 
-        if (AssetDescriptionService is null)
+        if (DescribeAssetsUseCase is null)
         {
             LibraryCatalogService.SetOperatorNotice("描述服务未注册，当前无法调用后端。");
             return;
         }
 
-        LibraryCatalogService.MarkAssetDescriptionQueued(asset);
-        var taskId = BackgroundTaskService?.BeginTask("素材描述", $"正在生成素材描述：{asset.Name}", asset.LocalPath);
+        await DescribeAssetsUseCase.ExecuteAsync(
+            assets,
+            BackendSessionService.BaseUrl,
+            progress: progress =>
+            {
+                if (progress.Kind == DescribeAssetProgressKind.Queued)
+                {
+                    LibraryCatalogService.MarkAssetDescriptionQueued(progress.Asset);
+                }
+                else if (progress.Kind == DescribeAssetProgressKind.Completed && progress.Document is not null)
+                {
+                    LibraryCatalogService.CompleteAssetDescription(progress.Asset, progress.Document);
+                }
+                else if (progress.Kind == DescribeAssetProgressKind.Failed && progress.Error is not null)
+                {
+                    LibraryCatalogService.FailAssetDescription(progress.Asset, progress.Error.Message);
+                }
 
-        try
-        {
-            var document = await AssetDescriptionService.DescribeAsync(asset, BackendSessionService.BaseUrl, null, null);
-            LibraryCatalogService.CompleteAssetDescription(asset, document);
-            CompleteTask(taskId, $"描述完成：{asset.Name}", document.StorePath);
-        }
-        catch (Exception ex)
-        {
-            LibraryCatalogService.FailAssetDescription(asset, ex.Message);
-            FailTask(taskId, $"描述失败：{asset.Name}", ex.Message);
-        }
-    }
-
-    private void CompleteTask(string? taskId, string? stageText = null, string? detailText = null)
-    {
-        if (string.IsNullOrWhiteSpace(taskId))
-        {
-            return;
-        }
-
-        BackgroundTaskService?.CompleteTask(taskId, stageText, detailText);
-    }
-
-    private void FailTask(string? taskId, string stageText, string detailText)
-    {
-        if (string.IsNullOrWhiteSpace(taskId))
-        {
-            return;
-        }
-
-        BackgroundTaskService?.FailTask(taskId, detailText, stageText);
+                return Task.CompletedTask;
+            });
     }
 
     private void OnDependencyPropertyChanged(object? sender, PropertyChangedEventArgs e)

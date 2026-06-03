@@ -133,33 +133,35 @@
 优先级：P0  
 复杂度：中等  
 影响范围：Avalonia、Console、Application
+状态：已完成
 
 问题：
 
-- `LibraryPageViewModel` 有右键加入描述任务逻辑。
-- `DescriptionTasksPageViewModel` 有批量描述、单项描述、向量化、索引重建逻辑。
-- `ConsoleCommandRunner` 也有描述、目录描述、向量化、搜索、重建索引逻辑。
+- 已修复：`LibraryPageViewModel` 不再直接调用描述服务或后台任务服务，右键描述任务委托给 `DescribeAssetsUseCase`。
+- 已修复：`DescriptionTasksPageViewModel` 不再直接执行描述、向量化和索引重建业务循环，改为调用共享用例。
+- 已修复：`ConsoleCommandRunner` 的描述、目录描述、向量化和重建索引流程已改为调用共享用例，保留参数解析和输出格式职责。
+- 保留：素材搜索请求仍由 UI/Console 直接调用 `IAssetSearchService`，因为当前搜索命令本身没有跨入口复杂策略，暂不强行包装。
 
 风险：
 
-- 同一个能力在 UI 和 Console 中语义漂移。
-- 后续增加“跳过已描述”“失败重试”“批量并发限制”“取消任务”等策略时，需要多处同步修改。
+- 描述、向量化、索引重建的核心执行语义已集中，后续增加跳过策略、失败重试、并发限制时优先改用例。
+- UI 仍负责页面选区、状态回填和活动日志；Console 仍负责参数解析和输出。
 
 建议：
 
-- 在 Application 层新增共享用例：
-  - `DescribeAssetsUseCase`
-  - `VectorizeDescriptionsUseCase`
-  - `RebuildSearchIndexUseCase`
-  - `RevealAssetLocationService` 或桌面端专用 `IFileRevealService`
-- Avalonia ViewModel 只负责选择范围、调用用例、展示状态。
-- Console 只负责解析参数、调用同一套用例、打印结果。
+- 已完成：在 Application 层新增 `DescribeAssetsUseCase`、`VectorizeDescriptionsUseCase`、`RebuildSearchIndexUseCase`。
+- 已完成：Avalonia ViewModel 只负责选择范围、调用用例、展示状态和活动日志。
+- 已完成：Console 只负责解析参数、调用同一套用例、打印结果。
+- 暂未处理：`RevealAssetLocationService` 或桌面端专用 `IFileRevealService`，这属于文件定位 UI 行为，后续可在壳层服务整理时处理。
 
 参考文件：
 
 - `src/avalonia/AssetsLibrarySystem.Avalonia/ViewModels/LibraryPageViewModel.cs`
 - `src/avalonia/AssetsLibrarySystem.Avalonia/ViewModels/DescriptionTasksPageViewModel.cs`
 - `src/avalonia/AssetsLibrarySystem.Console/ConsoleCommandRunner.cs`
+- `src/avalonia/AssetsLibrarySystem.Application/UseCases/AssetOperations/DescribeAssetsUseCase.cs`
+- `src/avalonia/AssetsLibrarySystem.Application/UseCases/AssetOperations/VectorizeDescriptionsUseCase.cs`
+- `src/avalonia/AssetsLibrarySystem.Application/UseCases/AssetOperations/RebuildSearchIndexUseCase.cs`
 
 ## P1：建议尽快处理
 
@@ -353,7 +355,7 @@
 1. `P0-1`：先调整 Application 命名空间和模型边界。已完成。
 2. `P0-2`：建立统一数据库访问层和 migrator。已完成。
 3. `P0-3`：用数据库快照重写扫描读写路径。
-4. `P0-4`：抽取描述、向量化、索引重建共享用例。
+4. `P0-4`：抽取描述、向量化、索引重建共享用例。已完成。
 5. `P1-5`：清理 ViewModel 无参构造。
 6. `P1-7`：统一后端会话和快速搜索后端启动路径。
 7. `P1-8`：继续拆分 `LibraryCatalogService`。

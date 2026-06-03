@@ -8,6 +8,7 @@ using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Application.Services.BackendLauncher;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
+using AssetsLibrarySystem.Application.UseCases.AssetOperations;
 using Autofac;
 using Microsoft.Extensions.Configuration;
 using Serilog;
@@ -56,17 +57,27 @@ internal static class Program
             builder.RegisterType<BackgroundTaskService>()
                 .As<IBackgroundTaskService>()
                 .SingleInstance();
+            builder.RegisterType<DescribeAssetsUseCase>()
+                .AsSelf()
+                .SingleInstance();
+            builder.RegisterType<VectorizeDescriptionsUseCase>()
+                .AsSelf()
+                .SingleInstance();
+            builder.RegisterType<RebuildSearchIndexUseCase>()
+                .AsSelf()
+                .SingleInstance();
             var container = builder.Build();
             using var scope = container;
 
             var runner = new ConsoleCommandRunner(
                 scope.Resolve<IAssetLibraryService>(),
-                scope.Resolve<IAssetDescriptionService>(),
                 scope.Resolve<IAssetDescriptionStore>(),
                 scope.Resolve<IAssetDescriptionVectorStore>(),
-                scope.Resolve<IAssetTextVectorizationService>(),
                 scope.Resolve<IAssetSearchService>(),
-                scope.Resolve<IBackendLauncher>());
+                scope.Resolve<IBackendLauncher>(),
+                scope.Resolve<DescribeAssetsUseCase>(),
+                scope.Resolve<VectorizeDescriptionsUseCase>(),
+                scope.Resolve<RebuildSearchIndexUseCase>());
 
             return await runner.RunAsync(args);
         }

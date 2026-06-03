@@ -8,35 +8,39 @@ using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetLibrary;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Application.Services.BackendLauncher;
+using AssetsLibrarySystem.Application.UseCases.AssetOperations;
 
 namespace AssetsLibrarySystem.ConsoleHost;
 
 public sealed class ConsoleCommandRunner
 {
     private IAssetLibraryService LibraryService { get; }
-    private IAssetDescriptionService DescriptionService { get; }
     private IAssetDescriptionStore DescriptionStore { get; }
     private IAssetDescriptionVectorStore VectorStore { get; }
-    private IAssetTextVectorizationService TextVectorizationService { get; }
     private IAssetSearchService AssetSearchService { get; }
     private IBackendLauncher BackendLauncher { get; }
+    private DescribeAssetsUseCase DescribeAssetsUseCase { get; }
+    private VectorizeDescriptionsUseCase VectorizeDescriptionsUseCase { get; }
+    private RebuildSearchIndexUseCase RebuildSearchIndexUseCase { get; }
 
     public ConsoleCommandRunner(
         IAssetLibraryService libraryService,
-        IAssetDescriptionService descriptionService,
         IAssetDescriptionStore descriptionStore,
         IAssetDescriptionVectorStore vectorStore,
-        IAssetTextVectorizationService textVectorizationService,
         IAssetSearchService assetSearchService,
-        IBackendLauncher backendLauncher)
+        IBackendLauncher backendLauncher,
+        DescribeAssetsUseCase describeAssetsUseCase,
+        VectorizeDescriptionsUseCase vectorizeDescriptionsUseCase,
+        RebuildSearchIndexUseCase rebuildSearchIndexUseCase)
     {
         LibraryService = libraryService;
-        DescriptionService = descriptionService;
         DescriptionStore = descriptionStore;
         VectorStore = vectorStore;
-        TextVectorizationService = textVectorizationService;
         AssetSearchService = assetSearchService;
         BackendLauncher = backendLauncher;
+        DescribeAssetsUseCase = describeAssetsUseCase;
+        VectorizeDescriptionsUseCase = vectorizeDescriptionsUseCase;
+        RebuildSearchIndexUseCase = rebuildSearchIndexUseCase;
     }
 
     public async Task<int> RunAsync(string[] args)
@@ -307,38 +311,42 @@ public sealed class ConsoleCommandRunner
         Console.WriteLine($"描述目标：{targetLabel}");
         Console.WriteLine($"素材数量：{targetAssets.Count}");
 
-        var successCount = 0;
-        var failureCount = 0;
-
         await BackendLauncher.StartAsync();
         try
         {
-            for (var index = 0; index < targetAssets.Count; index++)
-            {
-                var asset = targetAssets[index];
-                Console.WriteLine($"[{index + 1}/{targetAssets.Count}] 开始描述：{asset.RelativePath}");
+            var currentIndex = 0;
+            var result = await DescribeAssetsUseCase.ExecuteAsync(
+                targetAssets,
+                BackendLauncher.BaseUrl,
+                prompt,
+                systemPrompt,
+                progress =>
+                {
+                    if (progress.Kind == DescribeAssetProgressKind.Queued)
+                    {
+                        currentIndex++;
+                        Console.WriteLine($"[{currentIndex}/{targetAssets.Count}] 开始描述：{progress.Asset.RelativePath}");
+                    }
+                    else if (progress.Kind == DescribeAssetProgressKind.Completed && progress.Document is not null)
+                    {
+                        Console.WriteLine($"[{currentIndex}/{targetAssets.Count}] 完成：{progress.Asset.RelativePath}");
+                        PrintDescriptionResult(progress.Document);
+                    }
+                    else if (progress.Kind == DescribeAssetProgressKind.Failed && progress.Error is not null)
+                    {
+                        Console.Error.WriteLine($"[{currentIndex}/{targetAssets.Count}] 失败：{progress.Asset.RelativePath} | {progress.Error.Message}");
+                    }
 
-                try
-                {
-                    var document = await DescribeSingleAssetAsync(asset, prompt, systemPrompt);
-                    successCount++;
-                    Console.WriteLine($"[{index + 1}/{targetAssets.Count}] 完成：{asset.RelativePath}");
-                    PrintDescriptionResult(document);
-                }
-                catch (Exception ex)
-                {
-                    failureCount++;
-                    Console.Error.WriteLine($"[{index + 1}/{targetAssets.Count}] 失败：{asset.RelativePath} | {ex.Message}");
-                }
-            }
+                    return Task.CompletedTask;
+                });
+
+            Console.WriteLine($"批量描述结束：成功 {result.SuccessCount}，失败 {result.FailureCount}");
+            return result.FailureCount == 0 ? 0 : 1;
         }
         finally
         {
             await BackendLauncher.StopAsync();
         }
-
-        Console.WriteLine($"批量描述结束：成功 {successCount}，失败 {failureCount}");
-        return failureCount == 0 ? 0 : 1;
     }
 
     private async Task<int> VectorizeMissingDescriptionsAsync(string[] args)
@@ -362,6 +370,7 @@ public sealed class ConsoleCommandRunner
             {
                 Console.Error.WriteLine("当前没有登记的素材库。");
             }
+
             return 1;
         }
 
@@ -396,40 +405,46 @@ public sealed class ConsoleCommandRunner
             return 0;
         }
 
-        var successCount = 0;
-        var failureCount = 0;
+        var libraryByAssetId = pending.ToDictionary(item => item.Asset.Id, item => item.Library);
+        var currentIndex = 0;
 
         await BackendLauncher.StartAsync();
         try
         {
-            for (var index = 0; index < pending.Count; index++)
-            {
-                var (library, asset, description) = pending[index];
-                Console.WriteLine($"[{index + 1}/{pending.Count}] 开始向量化：{library.Name} / {asset.RelativePath}");
+            var result = await VectorizeDescriptionsUseCase.ExecuteAsync(
+                pending.Select(item => item.Asset).ToList(),
+                BackendLauncher.BaseUrl,
+                progress =>
+                {
+                    if (progress.Kind == VectorizeDescriptionProgressKind.Completed)
+                    {
+                        currentIndex++;
+                        var library = libraryByAssetId[progress.Asset.Id];
+                        Console.WriteLine($"[{currentIndex}/{pending.Count}] 完成：{library.Name} / {progress.Asset.RelativePath}");
+                    }
+                    else if (progress.Kind == VectorizeDescriptionProgressKind.Skipped)
+                    {
+                        currentIndex++;
+                        var library = libraryByAssetId[progress.Asset.Id];
+                        Console.WriteLine($"[{currentIndex}/{pending.Count}] 跳过：{library.Name} / {progress.Asset.RelativePath} | {progress.SkipReason}");
+                    }
+                    else if (progress.Kind == VectorizeDescriptionProgressKind.Failed && progress.Error is not null)
+                    {
+                        currentIndex++;
+                        var library = libraryByAssetId[progress.Asset.Id];
+                        Console.Error.WriteLine($"[{currentIndex}/{pending.Count}] 失败：{library.Name} / {progress.Asset.RelativePath} | {progress.Error.Message}");
+                    }
 
-                try
-                {
-                    var vectorDocument = await TextVectorizationService.VectorizeAsync(
-                        description,
-                        BackendLauncher.BaseUrl);
-                    await VectorStore.SaveAsync(vectorDocument);
-                    successCount++;
-                    Console.WriteLine($"[{index + 1}/{pending.Count}] 完成：{library.Name} / {asset.RelativePath}");
-                }
-                catch (Exception ex)
-                {
-                    failureCount++;
-                    Console.Error.WriteLine($"[{index + 1}/{pending.Count}] 失败：{library.Name} / {asset.RelativePath} | {ex.Message}");
-                }
-            }
+                    return Task.CompletedTask;
+                });
+
+            Console.WriteLine($"向量化结束：成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}");
+            return result.FailureCount == 0 ? 0 : 1;
         }
         finally
         {
             await BackendLauncher.StopAsync();
         }
-
-        Console.WriteLine($"向量化结束：成功 {successCount}，失败 {failureCount}");
-        return failureCount == 0 ? 0 : 1;
     }
 
     private async Task<int> SearchAssetsAsync(string[] args)
@@ -485,7 +500,7 @@ public sealed class ConsoleCommandRunner
         await BackendLauncher.StartAsync();
         try
         {
-            var response = await AssetSearchService.ReindexAsync(BackendLauncher.BaseUrl);
+            var response = await RebuildSearchIndexUseCase.ExecuteAsync(BackendLauncher.BaseUrl);
             Console.WriteLine("向量索引重建完成。");
             Console.WriteLine($"- 素材描述数: {response.DocumentCount}");
             Console.WriteLine($"- 向量维度: {response.VectorDim}");
@@ -597,11 +612,34 @@ public sealed class ConsoleCommandRunner
         string? prompt,
         string? systemPrompt)
     {
-        return await DescriptionService.DescribeAsync(
-            asset,
+        AssetDescriptionDocument? completedDocument = null;
+        Exception? failure = null;
+
+        await DescribeAssetsUseCase.ExecuteAsync(
+            [asset],
             BackendLauncher.BaseUrl,
             prompt,
-            systemPrompt);
+            systemPrompt,
+            progress =>
+            {
+                if (progress.Kind == DescribeAssetProgressKind.Completed)
+                {
+                    completedDocument = progress.Document;
+                }
+                else if (progress.Kind == DescribeAssetProgressKind.Failed)
+                {
+                    failure = progress.Error;
+                }
+
+                return Task.CompletedTask;
+            });
+
+        if (completedDocument is not null)
+        {
+            return completedDocument;
+        }
+
+        throw failure ?? new InvalidOperationException("素材描述失败。");
     }
 
     private static void PrintDescriptionResult(AssetDescriptionDocument document)

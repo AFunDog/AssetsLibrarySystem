@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -9,12 +10,10 @@ using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
-using AssetsLibrarySystem.Application.Services.AssetDescription;
-using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
-using AssetsLibrarySystem.Application.Services.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Services.Library;
+using AssetsLibrarySystem.Application.UseCases.AssetOperations;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -22,16 +21,11 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 public sealed class DescriptionTasksPageViewModel : ObservableObject
 {
-    private static IDatabaseWriteQueue DesignTimeWriteQueue { get; } = new DatabaseWriteQueue();
-    private static IAssetDatabase DesignTimeAssetDatabase { get; } = new SqliteAssetDatabase();
-
     private BackendSessionService BackendSessionService { get; }
     private LibraryCatalogService LibraryCatalogService { get; }
-    private IAssetDescriptionService? AssetDescriptionService { get; }
-    private IAssetDescriptionStore? AssetDescriptionStore { get; }
-    private IAssetDescriptionVectorStore? AssetDescriptionVectorStore { get; }
-    private IAssetTextVectorizationService? AssetTextVectorizationService { get; }
-    private IAssetSearchService? AssetSearchService { get; }
+    private DescribeAssetsUseCase? DescribeAssetsUseCase { get; }
+    private VectorizeDescriptionsUseCase? VectorizeDescriptionsUseCase { get; }
+    private RebuildSearchIndexUseCase? RebuildSearchIndexUseCase { get; }
     private IBackgroundTaskService BackgroundTaskService { get; }
     private ObservableCollection<BackgroundTaskEntry> SourceTasks => BackgroundTaskService.Tasks;
 
@@ -40,9 +34,7 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
             new BackendSessionService(),
             new LibraryCatalogService(),
             null,
-            new AssetDescriptionStore(DesignTimeWriteQueue, DesignTimeAssetDatabase),
-            new AssetDescriptionVectorStore(DesignTimeWriteQueue, DesignTimeAssetDatabase),
-            new AssetTextVectorizationService(),
+            null,
             null,
             new BackgroundTaskService(),
             new ActivityFeedService())
@@ -52,21 +44,17 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
     public DescriptionTasksPageViewModel(
         BackendSessionService backendSessionService,
         LibraryCatalogService libraryCatalogService,
-        IAssetDescriptionService? assetDescriptionService,
-        IAssetDescriptionStore? assetDescriptionStore,
-        IAssetDescriptionVectorStore? assetDescriptionVectorStore,
-        IAssetTextVectorizationService? assetTextVectorizationService,
-        IAssetSearchService? assetSearchService,
+        DescribeAssetsUseCase? describeAssetsUseCase,
+        VectorizeDescriptionsUseCase? vectorizeDescriptionsUseCase,
+        RebuildSearchIndexUseCase? rebuildSearchIndexUseCase,
         IBackgroundTaskService backgroundTaskService,
         ActivityFeedService activityFeedService)
     {
         BackendSessionService = backendSessionService;
         LibraryCatalogService = libraryCatalogService;
-        AssetDescriptionService = assetDescriptionService;
-        AssetDescriptionStore = assetDescriptionStore;
-        AssetDescriptionVectorStore = assetDescriptionVectorStore;
-        AssetTextVectorizationService = assetTextVectorizationService;
-        AssetSearchService = assetSearchService;
+        DescribeAssetsUseCase = describeAssetsUseCase;
+        VectorizeDescriptionsUseCase = vectorizeDescriptionsUseCase;
+        RebuildSearchIndexUseCase = rebuildSearchIndexUseCase;
         BackgroundTaskService = backgroundTaskService;
         ActivityFeed = activityFeedService.Entries;
         DescriptionTasks = [];
@@ -141,7 +129,7 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
             return;
         }
 
-        await DescribeAssetAsync(asset);
+        await DescribeAssetsAsync([asset]);
     }
 
     private async Task VectorizeSelectedDescriptionAsync()
@@ -159,7 +147,7 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
             return;
         }
 
-        if (AssetDescriptionStore is null || AssetDescriptionVectorStore is null || AssetTextVectorizationService is null)
+        if (VectorizeDescriptionsUseCase is null)
         {
             LibraryCatalogService.SetOperatorNotice("向量化服务未注册，当前无法执行手动向量化。");
             return;
@@ -170,44 +158,30 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
 
         try
         {
-            var successCount = 0;
-            var skipCount = 0;
-            var failCount = 0;
+            var result = await VectorizeDescriptionsUseCase.ExecuteAsync(
+                assets,
+                BackendSessionService.BaseUrl,
+                progress =>
+                {
+                    if (progress.Kind == VectorizeDescriptionProgressKind.Skipped)
+                    {
+                        ActivityFeed.Insert(0, $"跳过向量化：{progress.Asset.Name}（{progress.SkipReason}）");
+                    }
+                    else if (progress.Kind == VectorizeDescriptionProgressKind.Completed)
+                    {
+                        ActivityFeed.Insert(0, $"向量化完成：{progress.Asset.Name}");
+                    }
+                    else if (progress.Kind == VectorizeDescriptionProgressKind.Failed && progress.Error is not null)
+                    {
+                        ActivityFeed.Insert(0, $"向量化失败：{progress.Asset.Name} -> {progress.Error.Message}");
+                    }
 
-            foreach (var asset in assets)
-            {
-                var descriptionDocument = await AssetDescriptionStore.TryGetForAssetAsync(asset);
-                if (descriptionDocument is null)
-                {
-                    skipCount++;
-                    ActivityFeed.Insert(0, $"跳过向量化：{asset.Name}（尚未生成描述）");
-                    continue;
-                }
-
-                if (await AssetDescriptionVectorStore.TryGetAsync(asset.Id) is not null)
-                {
-                    skipCount++;
-                    ActivityFeed.Insert(0, $"跳过向量化：{asset.Name}（向量已存在）");
-                    continue;
-                }
-
-                try
-                {
-                    var vectorDocument = await AssetTextVectorizationService.VectorizeAsync(descriptionDocument, BackendSessionService.BaseUrl);
-                    await AssetDescriptionVectorStore.SaveAsync(vectorDocument);
-                    successCount++;
-                    ActivityFeed.Insert(0, $"向量化完成：{asset.Name}");
-                }
-                catch (Exception ex)
-                {
-                    failCount++;
-                    ActivityFeed.Insert(0, $"向量化失败：{asset.Name} -> {ex.Message}");
-                }
-            }
+                    return Task.CompletedTask;
+                });
 
             LibraryCatalogService.SetOperatorNotice(
-                $"批量向量化完成：成功 {successCount}，跳过 {skipCount}，失败 {failCount}。");
-            ActivityFeed.Insert(0, $"批量向量化完成：成功 {successCount}，跳过 {skipCount}，失败 {failCount}");
+                $"批量向量化完成：成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}。");
+            ActivityFeed.Insert(0, $"批量向量化完成：成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}");
         }
         catch (Exception ex)
         {
@@ -218,7 +192,7 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
 
     private async Task RebuildSearchIndexAsync()
     {
-        if (AssetSearchService is null)
+        if (RebuildSearchIndexUseCase is null)
         {
             LibraryCatalogService.SetOperatorNotice("检索服务未注册，当前无法重建索引。");
             return;
@@ -235,7 +209,7 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
 
         try
         {
-            var response = await AssetSearchService.ReindexAsync(BackendSessionService.BaseUrl);
+            var response = await RebuildSearchIndexUseCase.ExecuteAsync(BackendSessionService.BaseUrl);
             LibraryCatalogService.SetOperatorNotice($"索引已重建：{response.DocumentCount} 条，{response.VectorDim} 维。");
             ActivityFeed.Insert(0, $"索引重建完成：{response.DocumentCount} 条素材描述。");
         }
@@ -261,7 +235,7 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
             return;
         }
 
-        if (AssetDescriptionService is null)
+        if (DescribeAssetsUseCase is null)
         {
             LibraryCatalogService.SetOperatorNotice("描述服务未注册，当前无法调用后端。");
             return;
@@ -270,13 +244,10 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
         LibraryCatalogService.SetOperatorNotice($"已将 {assets.Count} 个素材排入后端描述任务。");
         ActivityFeed.Insert(0, $"批量描述任务排队，共 {assets.Count} 个素材");
 
-        foreach (var asset in assets)
-        {
-            await DescribeAssetAsync(asset);
-        }
+        await DescribeAssetsAsync(assets);
     }
 
-    private async Task DescribeAssetAsync(ManagedAssetRecord asset)
+    private async Task DescribeAssetsAsync(IReadOnlyList<ManagedAssetRecord> assets)
     {
         if (!BackendSessionService.IsBackendReady)
         {
@@ -284,26 +255,32 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
             return;
         }
 
-        if (AssetDescriptionService is null)
+        if (DescribeAssetsUseCase is null)
         {
             LibraryCatalogService.SetOperatorNotice("描述服务未注册，当前无法调用后端。");
             return;
         }
 
-        LibraryCatalogService.MarkAssetDescriptionQueued(asset);
-        var taskId = BackgroundTaskService.BeginTask("素材描述", $"正在生成素材描述：{asset.Name}", asset.LocalPath);
+        await DescribeAssetsUseCase.ExecuteAsync(
+            assets,
+            BackendSessionService.BaseUrl,
+            progress: progress =>
+            {
+                if (progress.Kind == DescribeAssetProgressKind.Queued)
+                {
+                    LibraryCatalogService.MarkAssetDescriptionQueued(progress.Asset);
+                }
+                else if (progress.Kind == DescribeAssetProgressKind.Completed && progress.Document is not null)
+                {
+                    LibraryCatalogService.CompleteAssetDescription(progress.Asset, progress.Document);
+                }
+                else if (progress.Kind == DescribeAssetProgressKind.Failed && progress.Error is not null)
+                {
+                    LibraryCatalogService.FailAssetDescription(progress.Asset, progress.Error.Message);
+                }
 
-        try
-        {
-            var document = await AssetDescriptionService.DescribeAsync(asset, BackendSessionService.BaseUrl, null, null);
-            LibraryCatalogService.CompleteAssetDescription(asset, document);
-            BackgroundTaskService.CompleteTask(taskId, $"描述完成：{asset.Name}", document.StorePath);
-        }
-        catch (Exception ex)
-        {
-            LibraryCatalogService.FailAssetDescription(asset, ex.Message);
-            BackgroundTaskService.FailTask(taskId, ex.Message, $"描述失败：{asset.Name}");
-        }
+                return Task.CompletedTask;
+            });
     }
 
     private void OnDependencyPropertyChanged(object? sender, PropertyChangedEventArgs e)
