@@ -4,6 +4,12 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Application.Services.AssetDescription;
+using AssetsLibrarySystem.Application.Services.AssetLibrary;
+using AssetsLibrarySystem.Application.Services.AssetSearch;
+using AssetsLibrarySystem.Application.Services.BackendLauncher;
+using AssetsLibrarySystem.Application.Services.BackgroundTasks;
+using AssetsLibrarySystem.Application.Services.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
@@ -88,7 +94,37 @@ public partial class App : global::Avalonia.Application
     private void BuildContainer()
     {
         Log.Debug("开始构建 Avalonia 依赖容器。");
-        var builder = ServiceBootstrapper.CreateBuilder();
+        var builder = new ContainerBuilder();
+        builder.RegisterInstance(ApplicationConfigurationFactory.CreateConfiguration())
+            .As<Microsoft.Extensions.Configuration.IConfiguration>()
+            .SingleInstance();
+        builder.RegisterType<DatabaseWriteQueue>()
+            .As<IDatabaseWriteQueue>()
+            .SingleInstance();
+        builder.RegisterType<AssetLibraryService>()
+            .As<IAssetLibraryService>()
+            .SingleInstance();
+        builder.RegisterType<AssetDescriptionStore>()
+            .As<IAssetDescriptionStore>()
+            .SingleInstance();
+        builder.RegisterType<AssetDescriptionVectorStore>()
+            .As<IAssetDescriptionVectorStore>()
+            .SingleInstance();
+        builder.RegisterType<AssetDescriptionService>()
+            .As<IAssetDescriptionService>()
+            .SingleInstance();
+        builder.RegisterType<AssetTextVectorizationService>()
+            .As<IAssetTextVectorizationService>()
+            .SingleInstance();
+        builder.RegisterType<AssetSearchService>()
+            .As<IAssetSearchService>()
+            .SingleInstance();
+        builder.RegisterType<BackendLauncherService>()
+            .As<IBackendLauncher>()
+            .SingleInstance();
+        builder.RegisterType<BackgroundTaskService>()
+            .As<IBackgroundTaskService>()
+            .SingleInstance();
         builder.RegisterType<ShellWindowService>()
             .As<IShellWindowService>()
             .SingleInstance();

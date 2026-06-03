@@ -2,6 +2,12 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Application.Services.AssetDescription;
+using AssetsLibrarySystem.Application.Services.AssetLibrary;
+using AssetsLibrarySystem.Application.Services.AssetSearch;
+using AssetsLibrarySystem.Application.Services.BackendLauncher;
+using AssetsLibrarySystem.Application.Services.BackgroundTasks;
+using AssetsLibrarySystem.Application.Services.Infrastructure;
 using Autofac;
 using Microsoft.Extensions.Configuration;
 using Serilog;
@@ -16,18 +22,48 @@ internal static class Program
 
         try
         {
-            var builder = ServiceBootstrapper.CreateBuilder();
+            var builder = new ContainerBuilder();
+            builder.RegisterInstance(ApplicationConfigurationFactory.CreateConfiguration())
+                .As<IConfiguration>()
+                .SingleInstance();
+            builder.RegisterType<DatabaseWriteQueue>()
+                .As<IDatabaseWriteQueue>()
+                .SingleInstance();
+            builder.RegisterType<AssetLibraryService>()
+                .As<IAssetLibraryService>()
+                .SingleInstance();
+            builder.RegisterType<AssetDescriptionStore>()
+                .As<IAssetDescriptionStore>()
+                .SingleInstance();
+            builder.RegisterType<AssetDescriptionVectorStore>()
+                .As<IAssetDescriptionVectorStore>()
+                .SingleInstance();
+            builder.RegisterType<AssetDescriptionService>()
+                .As<IAssetDescriptionService>()
+                .SingleInstance();
+            builder.RegisterType<AssetTextVectorizationService>()
+                .As<IAssetTextVectorizationService>()
+                .SingleInstance();
+            builder.RegisterType<AssetSearchService>()
+                .As<IAssetSearchService>()
+                .SingleInstance();
+            builder.RegisterType<BackendLauncherService>()
+                .As<IBackendLauncher>()
+                .SingleInstance();
+            builder.RegisterType<BackgroundTaskService>()
+                .As<IBackgroundTaskService>()
+                .SingleInstance();
             var container = builder.Build();
             using var scope = container;
 
             var runner = new ConsoleCommandRunner(
-                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetLibrary.IAssetLibraryService>(),
-                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetDescription.IAssetDescriptionService>(),
-                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetDescription.IAssetDescriptionStore>(),
-                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetDescription.IAssetDescriptionVectorStore>(),
-                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetDescription.IAssetTextVectorizationService>(),
-                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetSearch.IAssetSearchService>(),
-                scope.Resolve<AssetsLibrarySystem.Application.Services.BackendLauncher.IBackendLauncher>());
+                scope.Resolve<IAssetLibraryService>(),
+                scope.Resolve<IAssetDescriptionService>(),
+                scope.Resolve<IAssetDescriptionStore>(),
+                scope.Resolve<IAssetDescriptionVectorStore>(),
+                scope.Resolve<IAssetTextVectorizationService>(),
+                scope.Resolve<IAssetSearchService>(),
+                scope.Resolve<IBackendLauncher>());
 
             return await runner.RunAsync(args);
         }

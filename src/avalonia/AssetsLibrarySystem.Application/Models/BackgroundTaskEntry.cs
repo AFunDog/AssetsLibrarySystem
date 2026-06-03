@@ -1,31 +1,50 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-
 namespace AssetsLibrarySystem.Application.Models;
 
-public sealed partial class BackgroundTaskEntry : ObservableObject
+public sealed class BackgroundTaskEntry : ObservableModel
 {
     public required string Id { get; init; }
 
     public long Sequence { get; set; }
 
-    [ObservableProperty]
-    public partial string Title { get; set; }
+    public string Title
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    public partial string StageText { get; set; }
+    public string StageText
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    public partial string DetailText { get; set; }
+    public string DetailText
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    public partial string StatusText { get; set; }
+    public string StatusText
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    public partial string StartedAtText { get; set; }
+    public string StartedAtText
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    public partial string TimelineText { get; set; }
+    public string TimelineText
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    public partial bool IsActive { get; set; }
+    public bool IsActive
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 }

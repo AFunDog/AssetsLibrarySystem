@@ -3,11 +3,10 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using AssetsLibrarySystem.Application.Models;
-using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AssetsLibrarySystem.Application.Services.BackgroundTasks;
 
-public sealed partial class BackgroundTaskService : ObservableObject, IBackgroundTaskService
+public sealed class BackgroundTaskService : ObservableModel, IBackgroundTaskService
 {
     private const int MaxCompletedTaskHistory = 20;
 
@@ -16,11 +15,17 @@ public sealed partial class BackgroundTaskService : ObservableObject, IBackgroun
 
     public ObservableCollection<BackgroundTaskEntry> Tasks { get; } = [];
 
-    [ObservableProperty]
-    public partial bool HasActiveTaskSummary { get; set; }
+    public bool HasActiveTaskSummary
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 
-    [ObservableProperty]
-    public partial string ActiveTaskSummary { get; set; } = string.Empty;
+    public string ActiveTaskSummary
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
     public string BeginTask(string title, string stageText, string? detailText = null)
     {

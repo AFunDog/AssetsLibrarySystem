@@ -1,36 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Autofac;
-using AssetsLibrarySystem.Application.Services.AssetDescription;
-using AssetsLibrarySystem.Application.Services.AssetLibrary;
-using AssetsLibrarySystem.Application.Services.AssetSearch;
-using AssetsLibrarySystem.Application.Services.BackendLauncher;
-using AssetsLibrarySystem.Application.Services.BackgroundTasks;
-using AssetsLibrarySystem.Application.Services.Infrastructure;
 using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Application.Infrastructure;
 
-public static class ServiceBootstrapper
+public static class ApplicationConfigurationFactory
 {
-    public static ContainerBuilder CreateBuilder()
-    {
-        var builder = new ContainerBuilder();
-        builder.RegisterInstance(CreateConfiguration()).As<IConfiguration>().SingleInstance();
-        builder.RegisterType<DatabaseWriteQueue>().As<IDatabaseWriteQueue>().SingleInstance();
-        builder.RegisterType<AssetLibraryService>().As<IAssetLibraryService>().SingleInstance();
-        builder.RegisterType<AssetDescriptionStore>().As<IAssetDescriptionStore>().SingleInstance();
-        builder.RegisterType<AssetDescriptionVectorStore>().As<IAssetDescriptionVectorStore>().SingleInstance();
-        builder.RegisterType<AssetDescriptionService>().As<IAssetDescriptionService>().SingleInstance();
-        builder.RegisterType<AssetTextVectorizationService>().As<IAssetTextVectorizationService>().SingleInstance();
-        builder.RegisterType<AssetSearchService>().As<IAssetSearchService>().SingleInstance();
-        builder.RegisterType<BackendLauncherService>().As<IBackendLauncher>().SingleInstance();
-        builder.RegisterType<BackgroundTaskService>().As<IBackgroundTaskService>().SingleInstance();
-        return builder;
-    }
-
-    private static IConfiguration CreateConfiguration()
+    public static IConfiguration CreateConfiguration()
     {
         var baseDir = AppContext.BaseDirectory;
         var appsettingsPath = Path.Combine(baseDir, "appsettings.json");

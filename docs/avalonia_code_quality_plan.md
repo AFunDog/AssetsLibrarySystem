@@ -25,35 +25,39 @@
 优先级：P0  
 复杂度：中等  
 影响范围：`AssetsLibrarySystem.Application`
-状态：已完成第一阶段
+状态：已完成
 
 问题：
 
 - 已修复：`AssetsLibrarySystem.Application.csproj` 的 `RootNamespace` 已改为 `AssetsLibrarySystem.Application`。
 - 已修复：Application 项目内的模型、服务、基础设施命名空间已收敛为 `AssetsLibrarySystem.Application.*`。
 - 已修复：Avalonia 与 Console 现在通过 `AssetsLibrarySystem.Application.*` 引用共享服务和模型。
-- 待继续：Application 项目仍引用 `CommunityToolkit.Mvvm`、`Autofac` 等不该优先出现在纯应用层的依赖。
+- 已修复：Application 项目已移除 `CommunityToolkit.Mvvm`、`Autofac` 包引用。
+- 已修复：原 `ServiceBootstrapper` 已收敛为 `ApplicationConfigurationFactory`，只负责配置创建，不再持有容器注册。
+- 已修复：Application 内需要通知变更的模型改为基于 `INotifyPropertyChanged` 的轻量 `ObservableModel`，不再依赖 MVVM Toolkit。
 
 风险：
 
 - 命名空间边界已收紧，Console 不再被迫引用 Avalonia 服务命名空间。
-- 仍需继续区分应用模型和 UI 展示模型，否则 Application 仍可能携带桌面端状态模型。
-- `ServiceBootstrapper` 仍位于 Application 项目，后续需要进一步拆分共享注册和 UI/Console 专属注册。
+- Console 与 Avalonia 的容器依赖已分别留在宿主项目，不再从 Application 传递。
+- 仍需继续区分应用模型和 UI 展示模型，但这部分已转入后续“用例拆分”和“LibraryCatalogService 拆分”处理，不再阻塞 P0-1。
 
 建议：
 
 - 已完成：将 Application 项目根命名空间改为 `AssetsLibrarySystem.Application`。
 - 已完成：将 Application 服务、模型、基础设施命名空间迁移为 `AssetsLibrarySystem.Application.*`。
 - 已保留：`AssetLibraryTreeNode` 作为 Avalonia UI 投影模型继续放在 Avalonia 项目。
-- 继续将模型分为应用模型和 UI 展示模型。
-- 将 `ObservableObject` 相关模型逐步移出 Application，放到 Avalonia 项目或专门的 presentation model。
+- 已完成：移除 Application 对 `ObservableObject` / `[ObservableProperty]` 的依赖。
+- 已完成：将容器注册下沉到 Avalonia / Console 宿主。
+- 继续将模型进一步分为应用模型和 UI 展示模型。
 - Application 层只保留用例、接口、DTO、纯模型和基础设施抽象。
 
 参考文件：
 
 - `src/avalonia/AssetsLibrarySystem.Application/AssetsLibrarySystem.Application.csproj`
 - `src/avalonia/AssetsLibrarySystem.Application/Models/DesktopRecords.cs`
-- `src/avalonia/AssetsLibrarySystem.Application/Infrastructure/ServiceBootstrapper.cs`
+- `src/avalonia/AssetsLibrarySystem.Application/Infrastructure/ApplicationConfigurationFactory.cs`
+- `src/avalonia/AssetsLibrarySystem.Application/Models/ObservableModel.cs`
 
 ### 2. 收敛 SQLite 访问层
 
@@ -313,18 +317,18 @@
 
 问题：
 
-- `ServiceBootstrapper` 放在 Application 项目，但同时服务 Avalonia 和 Console。
-- Avalonia 专属注册在 `App.axaml.cs`，共享注册在 Application，两者边界可以更清晰。
+- 已完成：`ServiceBootstrapper` 不再位于 Application 项目，Application 只保留配置创建逻辑。
+- 当前 Avalonia 和 Console 分别注册共享应用服务，边界清晰，但注册代码存在重复。
 
 建议：
 
-- Application 项目保留共享服务注册扩展，例如 `RegisterApplicationServices`。
+- 如后续要减少重复，可在宿主层新增共享注册扩展，例如 `RegisterApplicationServices`，但不要放回 Application 项目。
 - Avalonia 项目注册 UI 服务和 ViewModel。
 - Console 项目注册命令类和控制台输出服务。
 
 参考文件：
 
-- `src/avalonia/AssetsLibrarySystem.Application/Infrastructure/ServiceBootstrapper.cs`
+- `src/avalonia/AssetsLibrarySystem.Application/Infrastructure/ApplicationConfigurationFactory.cs`
 - `src/avalonia/AssetsLibrarySystem.Avalonia/App.axaml.cs`
 - `src/avalonia/AssetsLibrarySystem.Console/Program.cs`
 
@@ -347,7 +351,7 @@
 
 ## 推荐实施顺序
 
-1. `P0-1`：先调整 Application 命名空间和模型边界。命名空间收敛已完成，模型依赖瘦身继续保留为后续清理项。
+1. `P0-1`：先调整 Application 命名空间和模型边界。已完成。
 2. `P0-2`：建立统一数据库访问层和 migrator。
 3. `P0-3`：用数据库快照重写扫描读写路径。
 4. `P0-4`：抽取描述、向量化、索引重建共享用例。

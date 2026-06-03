@@ -1,12 +1,11 @@
 using System;
 using System.Collections.ObjectModel;
-using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AssetsLibrarySystem.Application.Models;
 
 public sealed record DashboardMetric(string Label, string Value, string Hint);
 
-public sealed partial class LibraryWorkspace : ObservableObject
+public sealed class LibraryWorkspace : ObservableModel
 {
     public LibraryWorkspace()
     {
@@ -26,17 +25,26 @@ public sealed partial class LibraryWorkspace : ObservableObject
     public string Name { get; init; } = string.Empty;
     public string RootPath { get; init; } = string.Empty;
 
-    [ObservableProperty]
-    public partial string Summary { get; set; } = string.Empty;
+    public string Summary
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    public partial string SyncMode { get; set; } = string.Empty;
+    public string SyncMode
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    public partial int AssetCount { get; set; }
+    public int AssetCount
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 }
 
-public sealed partial class ManagedAssetRecord : ObservableObject
+public sealed class ManagedAssetRecord : ObservableModel
 {
     public string AssetUid { get; init; } = string.Empty;
     public string Id => AssetUid;
@@ -58,11 +66,17 @@ public sealed partial class ManagedAssetRecord : ObservableObject
     public string DescriptionStatusLabel => IsDescribed ? "已描述" : "未描述";
     public string FileSizeLabel => FormatFileSize(FileSize);
 
-    [ObservableProperty]
-    public partial string Stage { get; set; } = string.Empty;
+    public string Stage
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
-    [ObservableProperty]
-    public partial string AiState { get; set; } = string.Empty;
+    public string AiState
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
 
     private static string FormatFileSize(long bytes)
     {
