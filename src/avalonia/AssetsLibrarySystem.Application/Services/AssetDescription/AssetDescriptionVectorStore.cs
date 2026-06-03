@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Avalonia.Services.Infrastructure;
 using Microsoft.Data.Sqlite;
 
 namespace AssetsLibrarySystem.Avalonia.Services.AssetDescription;
@@ -10,21 +11,30 @@ namespace AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 {
     public string DatabasePath { get; }
+    private IDatabaseWriteQueue WriteQueue { get; }
 
     public AssetDescriptionVectorStore()
+        : this(new DatabaseWriteQueue())
     {
+    }
+
+    public AssetDescriptionVectorStore(IDatabaseWriteQueue writeQueue)
+    {
+        WriteQueue = writeQueue;
         DatabasePath = SharedDataPathHelper.GetDataFilePath("asset_descriptions.db");
     }
 
     public async Task SaveAsync(AssetDescriptionVectorDocument document, CancellationToken ct = default)
     {
-        await EnsureSchemaAsync(ct);
+        await WriteQueue.EnqueueAsync(async token =>
+        {
+            await EnsureSchemaAsync(token);
 
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(ct);
+            await using var connection = CreateConnection();
+            await connection.OpenAsync(token);
 
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
             INSERT INTO asset_description_vectors (
                 asset_id,
                 description_store_path,
@@ -52,19 +62,20 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 content_hash = excluded.content_hash;
             """;
 
-        AddParameter(command, "$asset_id", document.AssetUid);
-        AddParameter(command, "$description_store_path", document.DescriptionStorePath);
-        AddParameter(command, "$embedding_model", document.EmbeddingModel);
-        AddParameter(command, "$vector_dim", document.VectorDim);
-        command.Parameters.Add(new SqliteParameter("$vector_blob", SqliteType.Blob)
-        {
-            Value = SerializeVector(document.Vector),
-        });
-        AddParameter(command, "$vectorized_at", document.VectorizedAt.ToString("O"));
-        AddParameter(command, "$content_hash", (object?)document.ContentHash ?? DBNull.Value);
+            AddParameter(command, "$asset_id", document.AssetUid);
+            AddParameter(command, "$description_store_path", document.DescriptionStorePath);
+            AddParameter(command, "$embedding_model", document.EmbeddingModel);
+            AddParameter(command, "$vector_dim", document.VectorDim);
+            command.Parameters.Add(new SqliteParameter("$vector_blob", SqliteType.Blob)
+            {
+                Value = SerializeVector(document.Vector),
+            });
+            AddParameter(command, "$vectorized_at", document.VectorizedAt.ToString("O"));
+            AddParameter(command, "$content_hash", (object?)document.ContentHash ?? DBNull.Value);
 
-        await command.ExecuteNonQueryAsync(ct);
-        await UpdateAssetMetadataAsync(connection, document, ct);
+            await command.ExecuteNonQueryAsync(token);
+            await UpdateAssetMetadataAsync(connection, document, token);
+        }, ct);
     }
 
     public async Task<AssetDescriptionVectorDocument?> TryGetAsync(string assetId, CancellationToken ct = default)

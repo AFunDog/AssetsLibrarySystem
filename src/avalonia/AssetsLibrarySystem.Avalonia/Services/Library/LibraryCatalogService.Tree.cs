@@ -126,6 +126,7 @@ public sealed partial class LibraryCatalogService
             StatusLabel = library.SyncMode,
             PathLabel = library.RootPath,
             Summary = library.Summary,
+            IconKind = "Folder",
             FullPath = library.RootPath,
             Kind = AssetLibraryTreeNodeKind.Library,
             Library = library
@@ -148,6 +149,7 @@ public sealed partial class LibraryCatalogService
                         TypeLabel = "目录",
                         PathLabel = folderKey,
                         Summary = $"目录 · {folderKey}",
+                        IconKind = "Folder",
                         FullPath = Path.Combine(library.RootPath, folderKey.Replace('/', Path.DirectorySeparatorChar)),
                         Kind = AssetLibraryTreeNodeKind.Directory,
                         Library = library
@@ -169,6 +171,7 @@ public sealed partial class LibraryCatalogService
                 StatusLabel = asset.Stage,
                 PathLabel = asset.RelativePath,
                 Summary = asset.Summary,
+                IconKind = "File",
                 FullPath = asset.LocalPath,
                 Kind = AssetLibraryTreeNodeKind.File,
                 Library = library,
@@ -239,6 +242,152 @@ public sealed partial class LibraryCatalogService
         }
 
         SelectedAssetTreeNode = FindLibraryTreeNode(library.Id);
+    }
+
+    private void UpdateExplorerView(AssetLibraryTreeNode? node)
+    {
+        var container = GetExplorerContainerNode(node);
+
+        CurrentExplorerItems.Clear();
+        if (container is null)
+        {
+            ExplorerTitle = "素材库";
+            ExplorerSummary = "选择一个素材库后，中央区域会显示该库下的目录和文件。";
+            ExplorerPath = "未选择";
+            CanNavigateUp = false;
+
+            foreach (var libraryRoot in AssetTreeRoots)
+            {
+                CurrentExplorerItems.Add(libraryRoot);
+            }
+
+            return;
+        }
+
+        foreach (var item in container.Children)
+        {
+            CurrentExplorerItems.Add(item);
+        }
+
+        ExplorerTitle = container.DisplayName;
+        ExplorerSummary = container.Kind == AssetLibraryTreeNodeKind.Library
+            ? container.Summary
+            : $"{container.MetaLabel} · {container.CategorySummary}";
+        ExplorerPath = container.FullPath;
+        CanNavigateUp = container.Kind != AssetLibraryTreeNodeKind.Library && FindParentTreeNode(container) is not null;
+    }
+
+    private void OpenExplorerItem(AssetLibraryTreeNode? node)
+    {
+        if (node is null)
+        {
+            return;
+        }
+
+        SelectedAssetTreeNode = node;
+    }
+
+    private void NavigateUp()
+    {
+        var container = GetExplorerContainerNode(SelectedAssetTreeNode);
+        if (container is null)
+        {
+            return;
+        }
+
+        if (container.Kind == AssetLibraryTreeNodeKind.Library)
+        {
+            SelectedAssetTreeNode = null;
+            return;
+        }
+
+        var parent = FindParentTreeNode(container);
+        if (parent is not null)
+        {
+            SelectedAssetTreeNode = parent;
+        }
+    }
+
+    private AssetLibraryTreeNode? GetExplorerContainerNode(AssetLibraryTreeNode? node)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        if (node.Kind != AssetLibraryTreeNodeKind.File)
+        {
+            return node;
+        }
+
+        return FindParentTreeNode(node);
+    }
+
+    private AssetLibraryTreeNode? FindParentTreeNode(AssetLibraryTreeNode node)
+    {
+        if (node.Kind == AssetLibraryTreeNodeKind.Library)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(node.FullPath))
+        {
+            return null;
+        }
+
+        var parentPath = Path.GetDirectoryName(node.FullPath);
+        if (string.IsNullOrWhiteSpace(parentPath))
+        {
+            return null;
+        }
+
+        return FindTreeNodeByPath(parentPath);
+    }
+
+    private AssetLibraryTreeNode? FindTreeNodeByPath(string path)
+    {
+        var normalizedPath = NormalizePath(path);
+        foreach (var root in AssetTreeRoots)
+        {
+            var match = FindTreeNodeByPathRecursive(root, normalizedPath);
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private AssetLibraryTreeNode? FindTreeNodeByPathRecursive(AssetLibraryTreeNode node, string normalizedPath)
+    {
+        if (string.Equals(NormalizePath(node.FullPath), normalizedPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return node;
+        }
+
+        foreach (var child in node.Children)
+        {
+            var match = FindTreeNodeByPathRecursive(child, normalizedPath);
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private static string NormalizePath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch
+        {
+            return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
     }
 
     private AssetLibraryTreeNode? FindLibraryTreeNode(string libraryId)

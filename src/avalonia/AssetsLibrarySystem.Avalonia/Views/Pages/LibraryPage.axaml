@@ -83,9 +83,9 @@
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <StackPanel Spacing="4">
                         <TextBlock Classes="eyebrow" Text="素材库" />
-                        <TextBlock Classes="section-title" Text="目录与定位" />
+                        <TextBlock Classes="section-title" Text="素材库资源管理器" />
                         <TextBlock Classes="section-subtitle"
-                                   Text="左侧浏览目录树，右侧查看当前素材与描述结果。" />
+                                   Text="左侧切换素材库，中央用大图标浏览当前库和目录，右侧查看选中素材的详情。" />
                     </StackPanel>
 
                     <!-- <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"> -->
@@ -99,7 +99,7 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" ColumnDefinitions="300,*" ColumnSpacing="8">
+            <Grid Grid.Row="1" ColumnDefinitions="280,*,320" ColumnSpacing="8">
                 <StackPanel Spacing="8">
                     <Border Classes="page-card">
                         <StackPanel Spacing="8">
@@ -120,80 +120,139 @@
                     </Border>
 
                     <Border Classes="page-card">
-                        <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                        <StackPanel Spacing="8">
                             <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="目录树" />
-                                <TextBlock Classes="section-title" Text="当前素材库结构" />
+                                <TextBlock Classes="eyebrow" Text="素材库列表" />
+                                <TextBlock Classes="section-title" Text="快速访问" />
                             </StackPanel>
 
-                            <ScrollViewer Grid.Row="1"
-                                          VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Auto">
-                                <TreeView Classes="tree-root"
-                                          AutoScrollToSelectedItem="True"
-
-                                          ItemsSource="{Binding AssetTreeRoots}"
-                                          SelectedItem="{Binding SelectedAssetTreeNode, Mode=TwoWay}">
-                                    <TreeView.Styles>
-                                        <Style
-                                            Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
-                                            <Setter Property="Background" Value="Transparent" />
-                                        </Style>
-                                        <Style
-                                            Selector="TreeViewItem:pointerover /template/ Border#PART_LayoutRoot">
-                                            <Setter Property="Background" Value="Transparent" />
-                                        </Style>
-
-                                        <Style Selector="Border.tree-item">
-                                            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-                                            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-                                            <Setter Property="BorderThickness" Value="1" />
-                                            <Setter Property="CornerRadius" Value="4" />
-                                            <Setter Property="Padding" Value="8" />
-                                        </Style>
-                                    </TreeView.Styles>
-                                    <TreeView.ItemTemplate>
-                                        <TreeDataTemplate x:DataType="models:AssetLibraryTreeNode"
-                                                          ItemsSource="{Binding Children}">
-                                            <Border Classes="tree-item">
-                                                <Border.ContextMenu>
-                                                    <ContextMenu>
-                                                        <MenuItem Header="在文件资源管理器中显示"
-                                                                  Click="RevealInExplorer_Click"
-                                                                  CommandParameter="{Binding}" />
-                                                    </ContextMenu>
-                                                </Border.ContextMenu>
-                                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="540">
+                                <ItemsControl ItemsSource="{Binding Libraries}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Classes="secondary-action"
+                                                    Margin="0,0,0,4"
+                                                    Click="SelectLibrary_Click"
+                                                    CommandParameter="{Binding}">
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                                                     <Border Background="{DynamicResource AppAccentSurfaceBrush}"
                                                             BorderBrush="{DynamicResource AppAccentBrush}"
                                                             BorderThickness="1"
                                                             CornerRadius="4"
-                                                            Width="20"
-                                                            Height="20">
-                                                        <lucide:LucideIcon Kind="Folder" Size="12" />
+                                                            Width="28"
+                                                            Height="28">
+                                                        <lucide:LucideIcon Kind="Folder" Size="14" />
                                                     </Border>
                                                     <StackPanel Grid.Column="1" Spacing="2">
                                                         <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                                                    FontWeight="SemiBold"
-                                                                   Text="{Binding DisplayName}" />
+                                                                   Text="{Binding Name}" />
                                                         <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                                   Text="{Binding PathLabel}" />
+                                                                   FontSize="11"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Text="{Binding RootPath}" />
                                                     </StackPanel>
-                                                    <TextBlock Grid.Column="2"
-                                                               Foreground="{DynamicResource AppAccentBrush}"
-                                                               VerticalAlignment="Center"
-                                                               Text="{Binding MetaLabel}" />
                                                 </Grid>
-                                            </Border>
-                                        </TreeDataTemplate>
-                                    </TreeView.ItemTemplate>
-                                </TreeView>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </ScrollViewer>
-                        </Grid>
+                        </StackPanel>
                     </Border>
                 </StackPanel>
 
-                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                    <Border Classes="page-card">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <Button Classes="secondary-action"
+                                    Command="{Binding NavigateUpCommand}"
+                                    IsEnabled="{Binding CanNavigateUp}"
+                                    Content="上一级" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="eyebrow" Text="资源管理器" />
+                                <TextBlock Classes="section-title" Text="{Binding ExplorerTitle}" />
+                                <TextBlock Classes="section-subtitle" Text="{Binding ExplorerSummary}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Classes="eyebrow" Text="当前位置" HorizontalAlignment="Right" />
+                                <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="Right"
+                                           Text="{Binding ExplorerPath}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="1" Classes="sub-card">
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="大图标视图，点击文件夹继续进入，点击文件可在右侧查看详情。" />
+                    </Border>
+
+                    <Border Grid.Row="2" Classes="page-card">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding CurrentExplorerItems}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel ItemWidth="160"
+                                                   ItemHeight="160"
+                                                   Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:AssetLibraryTreeNode">
+                                        <Button Classes="secondary-action"
+                                                Margin="0,0,8,8"
+                                                Padding="12"
+                                                MinWidth="160"
+                                                MinHeight="160"
+                                                HorizontalAlignment="Stretch"
+                                                VerticalContentAlignment="Stretch"
+                                                Click="OpenExplorerItem_Click"
+                                                CommandParameter="{Binding}">
+                                            <StackPanel Spacing="8">
+                                                <Border Background="{DynamicResource AppAccentSurfaceBrush}"
+                                                        BorderBrush="{DynamicResource AppAccentBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="8"
+                                                        Padding="14"
+                                                        HorizontalAlignment="Left">
+                                                    <lucide:LucideIcon Kind="{Binding IconKind}" Size="28" />
+                                                </Border>
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding DisplayName}" />
+                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               FontSize="11"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding TypeLabel}" />
+                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               FontSize="11"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding PathLabel}" />
+                                                </StackPanel>
+                                                <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                           FontSize="11"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Text="{Binding MetaLabel}" />
+                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                           FontSize="11"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Text="{Binding StatusLabel}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+
+                <Grid Grid.Column="2" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
                     <Border Classes="page-card">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="eyebrow" Text="已选素材" />

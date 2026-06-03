@@ -18,6 +18,7 @@ public sealed class AssetLibraryTreeNode
     public string StatusLabel { get; init; } = string.Empty;
     public string PathLabel { get; init; } = string.Empty;
     public string Summary { get; init; } = string.Empty;
+    public string IconKind { get; init; } = "Folder";
     public string FullPath { get; init; } = string.Empty;
     public AssetLibraryTreeNodeKind Kind { get; init; }
     public LibraryWorkspace? Library { get; init; }

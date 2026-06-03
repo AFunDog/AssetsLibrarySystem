@@ -7,6 +7,7 @@ using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
 using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
+using AssetsLibrarySystem.Avalonia.Services.Infrastructure;
 using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Avalonia.Infrastructure;
@@ -17,6 +18,7 @@ public static class ServiceBootstrapper
     {
         var builder = new ContainerBuilder();
         builder.RegisterInstance(CreateConfiguration()).As<IConfiguration>().SingleInstance();
+        builder.RegisterType<DatabaseWriteQueue>().As<IDatabaseWriteQueue>().SingleInstance();
         builder.RegisterType<AssetLibraryService>().As<IAssetLibraryService>().SingleInstance();
         builder.RegisterType<AssetDescriptionStore>().As<IAssetDescriptionStore>().SingleInstance();
         builder.RegisterType<AssetDescriptionVectorStore>().As<IAssetDescriptionVectorStore>().SingleInstance();

@@ -43,10 +43,15 @@ public sealed partial class LibraryCatalogService : ObservableObject
         Metrics = [];
         AssetTreeRoots = [];
         Libraries = [];
+        CurrentExplorerItems = [];
 
         WorkspaceTitle = "本地素材工作台";
         WorkspaceSummary = "先登记素材库目录，再扫描本地文件，桌面端负责目录和元数据展示。";
         AssetSummary = "当前还没有扫描结果。选择一个素材库后，点击“扫描当前素材库”加载文件。";
+        ExplorerTitle = "素材库";
+        ExplorerSummary = "选择一个素材库或目录后，中央区域会显示当前内容。";
+        ExplorerPath = "尚未选择";
+        CanNavigateUp = false;
         OperatorNotice = "先在桌面端选择一个文件夹并登记为素材库目录，再触发扫描。";
         SelectedAssetName = "尚未选择素材";
         SelectedAssetLibrary = "请先添加并扫描一个素材库";
@@ -65,6 +70,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
     public ObservableCollection<DashboardMetric> Metrics { get; }
     public ObservableCollection<AssetLibraryTreeNode> AssetTreeRoots { get; }
     public ObservableCollection<LibraryWorkspace> Libraries { get; }
+    public ObservableCollection<AssetLibraryTreeNode> CurrentExplorerItems { get; }
 
     [ObservableProperty]
     public partial LibraryWorkspace? SelectedLibrary { get; set; }
@@ -83,6 +89,18 @@ public sealed partial class LibraryCatalogService : ObservableObject
 
     [ObservableProperty]
     public partial string AssetSummary { get; set; }
+
+    [ObservableProperty]
+    public partial string ExplorerTitle { get; set; }
+
+    [ObservableProperty]
+    public partial string ExplorerSummary { get; set; }
+
+    [ObservableProperty]
+    public partial string ExplorerPath { get; set; }
+
+    [ObservableProperty]
+    public partial bool CanNavigateUp { get; set; }
 
     [ObservableProperty]
     public partial string OperatorNotice { get; set; }
@@ -155,6 +173,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
     partial void OnSelectedAssetTreeNodeChanged(AssetLibraryTreeNode? value)
     {
         ApplyTreeSelection(value);
+        UpdateExplorerView(value);
         UpdateDescriptionSelectionSummary();
     }
 
@@ -196,6 +215,29 @@ public sealed partial class LibraryCatalogService : ObservableObject
         OperatorNotice = $"已登记素材库“{library.Name}”，下一步请执行扫描。";
         RebuildMetrics();
         await ScanLibraryAsync(library);
+    }
+
+    public void SelectLibrary(LibraryWorkspace? library)
+    {
+        Log.Information("用户操作: 选择素材库，libraryId={LibraryId}, libraryName={LibraryName}", library?.Id ?? "none", library?.Name ?? "none");
+
+        if (library is null)
+        {
+            SelectedLibrary = null;
+            SelectedAssetTreeNode = null;
+            OperatorNotice = "请先选择一个素材库。";
+            return;
+        }
+
+        SelectedLibrary = library;
+        SelectedAssetTreeNode = FindLibraryTreeNode(library.Id);
+        OperatorNotice = $"已切换到素材库“{library.Name}”。";
+        ActivityFeedService.Add($"切换素材库：{library.Name}");
+    }
+
+    public void NavigateUpExplorer()
+    {
+        NavigateUp();
     }
 
     public Task RefreshSelectedLibraryAsync()

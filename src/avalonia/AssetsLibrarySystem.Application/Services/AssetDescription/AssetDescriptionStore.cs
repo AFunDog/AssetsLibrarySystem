@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Avalonia.Services.Infrastructure;
 using Microsoft.Data.Sqlite;
 
 namespace AssetsLibrarySystem.Avalonia.Services.AssetDescription;
@@ -20,21 +21,30 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
     };
 
     public string DatabasePath { get; }
+    private IDatabaseWriteQueue WriteQueue { get; }
 
     public AssetDescriptionStore()
+        : this(new DatabaseWriteQueue())
     {
+    }
+
+    public AssetDescriptionStore(IDatabaseWriteQueue writeQueue)
+    {
+        WriteQueue = writeQueue;
         DatabasePath = SharedDataPathHelper.GetDataFilePath("asset_descriptions.db");
     }
 
     public async Task SaveAsync(AssetDescriptionDocument document, CancellationToken ct = default)
     {
-        await EnsureSchemaAsync(ct);
+        await WriteQueue.EnqueueAsync(async token =>
+        {
+            await EnsureSchemaAsync(token);
 
-        await using var connection = CreateConnection();
-        await connection.OpenAsync(ct);
+            await using var connection = CreateConnection();
+            await connection.OpenAsync(token);
 
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
             INSERT INTO asset_descriptions (
                 asset_id,
                 asset_name,
@@ -83,24 +93,25 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 metadata_status = excluded.metadata_status;
             """;
 
-        AddParameter(command, "$asset_id", document.AssetUid);
-        AddParameter(command, "$asset_name", document.AssetName);
-        AddParameter(command, "$asset_type", document.AssetType);
-        AddParameter(command, "$asset_path", document.CurrentPath);
-        AddParameter(command, "$store_path", document.StorePath);
-        AddParameter(command, "$description", document.Description);
-        AddParameter(command, "$backend_endpoint", document.BackendEndpoint);
-        AddParameter(command, "$mode", document.Mode);
-        AddParameter(command, "$generated_at", document.GeneratedAt.ToString("O"));
-        AddParameter(command, "$token_usage_json", SerializeTokenUsage(document.TokenUsage));
-        AddParameter(command, "$prompt", (object?)document.Prompt ?? DBNull.Value);
-        AddParameter(command, "$system_prompt", (object?)document.SystemPrompt ?? DBNull.Value);
-        AddParameter(command, "$content_hash", (object?)document.ContentHash ?? DBNull.Value);
-        AddParameter(command, "$metadata_status", document.MetadataStatus);
+            AddParameter(command, "$asset_id", document.AssetUid);
+            AddParameter(command, "$asset_name", document.AssetName);
+            AddParameter(command, "$asset_type", document.AssetType);
+            AddParameter(command, "$asset_path", document.CurrentPath);
+            AddParameter(command, "$store_path", document.StorePath);
+            AddParameter(command, "$description", document.Description);
+            AddParameter(command, "$backend_endpoint", document.BackendEndpoint);
+            AddParameter(command, "$mode", document.Mode);
+            AddParameter(command, "$generated_at", document.GeneratedAt.ToString("O"));
+            AddParameter(command, "$token_usage_json", SerializeTokenUsage(document.TokenUsage));
+            AddParameter(command, "$prompt", (object?)document.Prompt ?? DBNull.Value);
+            AddParameter(command, "$system_prompt", (object?)document.SystemPrompt ?? DBNull.Value);
+            AddParameter(command, "$content_hash", (object?)document.ContentHash ?? DBNull.Value);
+            AddParameter(command, "$metadata_status", document.MetadataStatus);
 
-        await command.ExecuteNonQueryAsync(ct);
+            await command.ExecuteNonQueryAsync(token);
 
-        await UpdateAssetMetadataAsync(connection, document, ct);
+            await UpdateAssetMetadataAsync(connection, document, token);
+        }, ct);
     }
 
     public async Task<AssetDescriptionDocument?> TryGetAsync(string assetId, CancellationToken ct = default)

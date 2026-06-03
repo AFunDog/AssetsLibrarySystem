@@ -48,6 +48,9 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         ScanSelectedLibraryCommand = new AsyncRelayCommand(() => LibraryCatalogService.ScanSelectedLibraryAsync());
         ExecuteSearchCommand = new AsyncRelayCommand(ExecuteSearchAsync);
         RebuildSearchIndexCommand = new AsyncRelayCommand(RebuildSearchIndexAsync);
+        OpenLibraryCommand = new RelayCommand<LibraryWorkspace?>(SelectLibrary);
+        OpenExplorerItemCommand = new RelayCommand<AssetLibraryTreeNode?>(OpenExplorerItem);
+        NavigateUpCommand = new RelayCommand(NavigateUp);
 
         BackendSessionService.PropertyChanged += OnDependencyPropertyChanged;
         LibraryCatalogService.PropertyChanged += OnDependencyPropertyChanged;
@@ -79,7 +82,13 @@ public sealed partial class LibraryPageViewModel : ObservableObject
     public string BackendStatusStage => BackendSessionService.BackendStatusStage;
     public string WorkspaceTitle => LibraryCatalogService.WorkspaceTitle;
     public string WorkspaceSummary => LibraryCatalogService.WorkspaceSummary;
+    public ObservableCollection<LibraryWorkspace> Libraries => LibraryCatalogService.Libraries;
     public ObservableCollection<AssetLibraryTreeNode> AssetTreeRoots => LibraryCatalogService.AssetTreeRoots;
+    public ObservableCollection<AssetLibraryTreeNode> CurrentExplorerItems => LibraryCatalogService.CurrentExplorerItems;
+    public string ExplorerTitle => LibraryCatalogService.ExplorerTitle;
+    public string ExplorerSummary => LibraryCatalogService.ExplorerSummary;
+    public string ExplorerPath => LibraryCatalogService.ExplorerPath;
+    public bool CanNavigateUp => LibraryCatalogService.CanNavigateUp;
     public AssetLibraryTreeNode? SelectedAssetTreeNode
     {
         get => LibraryCatalogService.SelectedAssetTreeNode;
@@ -107,6 +116,9 @@ public sealed partial class LibraryPageViewModel : ObservableObject
     public IAsyncRelayCommand ScanSelectedLibraryCommand { get; }
     public IAsyncRelayCommand ExecuteSearchCommand { get; }
     public IAsyncRelayCommand RebuildSearchIndexCommand { get; }
+    public IRelayCommand<LibraryWorkspace?> OpenLibraryCommand { get; }
+    public IRelayCommand<AssetLibraryTreeNode?> OpenExplorerItemCommand { get; }
+    public IRelayCommand NavigateUpCommand { get; }
 
     public Task AddLibraryDirectoryAsync(string folderPath)
     {
@@ -157,6 +169,31 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         LibraryCatalogService.SetOperatorNotice($"已在文件资源管理器中显示：{path}");
         ActivityFeed.Insert(0, $"搜索结果定位：{result.AssetName}");
         Log.Information("搜索结果定位成功: assetName={AssetName}, assetPath={AssetPath}", result.AssetName, path);
+    }
+
+    private void OpenExplorerItem(AssetLibraryTreeNode? node)
+    {
+        if (node is null)
+        {
+            return;
+        }
+
+        LibraryCatalogService.SelectedAssetTreeNode = node;
+    }
+
+    private void NavigateUp()
+    {
+        LibraryCatalogService.NavigateUpExplorer();
+    }
+
+    public void SelectLibrary(LibraryWorkspace? library)
+    {
+        if (library is null)
+        {
+            return;
+        }
+
+        LibraryCatalogService.SelectLibrary(library);
     }
 
     private async Task ExecuteSearchAsync()

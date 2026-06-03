@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Avalonia.Services.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Serilog;
 
@@ -47,11 +48,13 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     private string LibraryStorePath { get; }
     private string MetadataDatabasePath { get; }
+    private IDatabaseWriteQueue WriteQueue { get; }
     private ConcurrentDictionary<string, CachedUidSidecar> UidSidecarCache { get; } = new(StringComparer.OrdinalIgnoreCase);
     private ConcurrentDictionary<string, CachedContentHash> ContentHashCache { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public AssetLibraryService()
+    public AssetLibraryService(IDatabaseWriteQueue writeQueue)
     {
+        WriteQueue = writeQueue;
         LibraryStorePath = SharedDataPathHelper.GetDataFilePath("libraries.json");
         MetadataDatabasePath = SharedDataPathHelper.GetDataFilePath("asset_descriptions.db");
     }
@@ -114,40 +117,52 @@ public sealed class AssetLibraryService : IAssetLibraryService
     public Task<IReadOnlyList<ManagedAssetRecord>> ScanLibraryAsync(LibraryWorkspace library, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        return Task.Run<IReadOnlyList<ManagedAssetRecord>>(() => BuildRecordsForDirectory(library.RootPath, library), ct);
+        return Task.Run<IReadOnlyList<ManagedAssetRecord>>(async () => await BuildRecordsForDirectoryAsync(library, ct), ct);
     }
 
-    private List<ManagedAssetRecord> BuildRecordsForDirectory(string rootPath, LibraryWorkspace library)
+    private async Task<List<ManagedAssetRecord>> BuildRecordsForDirectoryAsync(LibraryWorkspace library, CancellationToken ct)
     {
         EnsureMetadataSchema();
 
-        using var connection = CreateMetadataConnection();
-        connection.Open();
-
         var stats = new ScanHashStats();
         var scanAt = DateTimeOffset.UtcNow;
-        var records = EnumerateSupportedFiles(rootPath)
+        var records = new ConcurrentBag<ManagedAssetRecord>();
+        var paths = EnumerateSupportedFiles(library.RootPath)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .Select(path => ImportOrRefreshAsset(connection, library, path, scanAt, stats))
+            .ToArray();
+
+        await Parallel.ForEachAsync(paths, new ParallelOptions
+        {
+            CancellationToken = ct,
+            MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount)
+        }, async (path, token) =>
+        {
+            var record = await ImportOrRefreshAssetAsync(library, path, scanAt, stats, token);
+            records.Add(record);
+        });
+
+        var orderedRecords = records
+            .OrderBy(item => item.RelativePath, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         Log.Debug(
-            "素材库扫描 hash 统计: libraryId={LibraryId}, libraryName={LibraryName}, totalFiles={TotalFiles}, recomputedHashCount={RecomputedHashCount}, reusedHashCount={ReusedHashCount}",
+            "素材库扫描 hash 统计: libraryId={LibraryId}, libraryName={LibraryName}, totalFiles={TotalFiles}, recomputedHashCount={RecomputedHashCount}, reusedHashCount={ReusedHashCount}, skippedPersistCount={SkippedPersistCount}",
             library.Id,
             library.Name,
-            records.Count,
+            orderedRecords.Count,
             stats.RecomputedHashCount,
-            stats.ReusedHashCount);
+            stats.ReusedHashCount,
+            stats.SkippedPersistCount);
 
-        return records;
+        return orderedRecords;
     }
 
-    private ManagedAssetRecord ImportOrRefreshAsset(
-        SqliteConnection connection,
+    private async Task<ManagedAssetRecord> ImportOrRefreshAssetAsync(
         LibraryWorkspace library,
         string fullPath,
         DateTimeOffset scanAt,
-        ScanHashStats stats)
+        ScanHashStats stats,
+        CancellationToken ct)
     {
         var normalizedPath = Path.GetFullPath(fullPath);
         var relativePath = Path.GetRelativePath(library.RootPath, normalizedPath);
@@ -162,6 +177,8 @@ public sealed class AssetLibraryService : IAssetLibraryService
         var currentHash = string.Empty;
         string stage = "已识别";
         string aiState = "身份已确认";
+        await using var connection = CreateMetadataConnection();
+        await connection.OpenAsync(ct);
 
         if (!string.IsNullOrWhiteSpace(sidecarUid))
         {
@@ -169,7 +186,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             if (assetRecord is null)
             {
                 currentHash = GetContentHash(normalizedPath, fileInfo, stats);
-                assetRecord = CreateOrUpdateAsset(
+                assetRecord = await CreateOrUpdateAssetAsync(
                     connection,
                     library,
                     assetUid: sidecarUid!,
@@ -182,48 +199,39 @@ public sealed class AssetLibraryService : IAssetLibraryService
                     modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
                     status: "ok",
                     scanAt: scanAt);
-                EnsureAssetMetadata(connection, sidecarUid!, "pending", scanAt);
+                await EnsureAssetMetadataAsync(connection, sidecarUid!, "pending", scanAt, ct);
                 stage = "已迁入";
                 aiState = "待生成描述与向量";
             }
             else if (CanReuseStoredHash(assetRecord, fileInfo))
             {
                 currentHash = assetRecord.ContentHash;
-                stats.ReusedHashCount++;
+                Interlocked.Increment(ref stats.ReusedHashCount);
                 CacheContentHash(normalizedPath, fileInfo, currentHash);
-                assetRecord = CreateOrUpdateAsset(
-                    connection,
-                    library,
-                    assetUid: assetRecord.AssetUid,
-                    assetName: fileInfo.Name,
-                    assetType: assetType,
-                    currentPath: normalizedPath,
-                    contentHash: currentHash,
-                    observedHash: currentHash,
-                    fileSize: fileInfo.Length,
-                    modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
-                    status: "ok",
-                    scanAt: scanAt,
-                    createdAt: assetRecord.CreatedAt,
-                    createdBy: assetRecord.CreatedBy,
-                    uidVersion: assetRecord.UidVersion);
-                EnsureAssetMetadata(connection, assetRecord.AssetUid, "ready", scanAt);
-                stage = "已同步";
-                aiState = "身份已确认";
-            }
-            else
-            {
-                currentHash = GetContentHash(normalizedPath, fileInfo, stats);
-                if (string.Equals(assetRecord.ContentHash, currentHash, StringComparison.OrdinalIgnoreCase))
+                if (IsSameAssetSnapshot(
+                        assetRecord,
+                        library.Id,
+                        fileInfo.Name,
+                        assetType,
+                        normalizedPath,
+                        currentHash,
+                        currentHash,
+                        fileInfo.Length,
+                        fileInfo.LastWriteTimeUtc,
+                        "ok"))
                 {
-                    assetRecord = CreateOrUpdateAsset(
+                    Interlocked.Increment(ref stats.SkippedPersistCount);
+                }
+                else
+                {
+                    assetRecord = await CreateOrUpdateAssetAsync(
                         connection,
                         library,
                         assetUid: assetRecord.AssetUid,
                         assetName: fileInfo.Name,
                         assetType: assetType,
                         currentPath: normalizedPath,
-                        contentHash: assetRecord.ContentHash,
+                        contentHash: currentHash,
                         observedHash: currentHash,
                         fileSize: fileInfo.Length,
                         modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
@@ -232,13 +240,56 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         createdAt: assetRecord.CreatedAt,
                         createdBy: assetRecord.CreatedBy,
                         uidVersion: assetRecord.UidVersion);
-                    EnsureAssetMetadata(connection, assetRecord.AssetUid, "ready", scanAt);
+                    await EnsureAssetMetadataAsync(connection, assetRecord.AssetUid, "ready", scanAt, ct);
+                }
+                stage = "已同步";
+                aiState = "身份已确认";
+            }
+            else
+            {
+                currentHash = GetContentHash(normalizedPath, fileInfo, stats);
+                if (string.Equals(assetRecord.ContentHash, currentHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (IsSameAssetSnapshot(
+                            assetRecord,
+                            library.Id,
+                            fileInfo.Name,
+                            assetType,
+                            normalizedPath,
+                            assetRecord.ContentHash,
+                            currentHash,
+                            fileInfo.Length,
+                            fileInfo.LastWriteTimeUtc,
+                            "ok"))
+                    {
+                        Interlocked.Increment(ref stats.SkippedPersistCount);
+                    }
+                    else
+                    {
+                        assetRecord = await CreateOrUpdateAssetAsync(
+                            connection,
+                            library,
+                            assetUid: assetRecord.AssetUid,
+                            assetName: fileInfo.Name,
+                            assetType: assetType,
+                            currentPath: normalizedPath,
+                            contentHash: assetRecord.ContentHash,
+                            observedHash: currentHash,
+                            fileSize: fileInfo.Length,
+                            modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
+                            status: "ok",
+                            scanAt: scanAt,
+                            createdAt: assetRecord.CreatedAt,
+                            createdBy: assetRecord.CreatedBy,
+                            uidVersion: assetRecord.UidVersion);
+                        await EnsureAssetMetadataAsync(connection, assetRecord.AssetUid, "ready", scanAt, ct);
+                    }
                     stage = "已同步";
                     aiState = "身份已确认";
                 }
                 else
                 {
-                    assetRecord = CreateOrUpdateAsset(
+                    assetRecord = await CreateOrUpdateAssetAsync(
                         connection,
                         library,
                         assetUid: assetRecord.AssetUid,
@@ -254,7 +305,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         createdAt: assetRecord.CreatedAt,
                         createdBy: assetRecord.CreatedBy,
                         uidVersion: assetRecord.UidVersion);
-                    EnsureAssetMetadata(connection, assetRecord.AssetUid, "changed", scanAt);
+                    await EnsureAssetMetadataAsync(connection, assetRecord.AssetUid, "changed", scanAt, ct);
                     stage = "内容已变化";
                     aiState = "等待版本处理策略";
                 }
@@ -267,23 +318,40 @@ public sealed class AssetLibraryService : IAssetLibraryService
             if (assetRecord is not null)
             {
                 WriteUidSidecar(sidecarPath, assetRecord.AssetUid);
-                assetRecord = CreateOrUpdateAsset(
-                    connection,
-                    library,
-                    assetUid: assetRecord.AssetUid,
-                    assetName: fileInfo.Name,
-                    assetType: assetType,
-                    currentPath: normalizedPath,
-                    contentHash: assetRecord.ContentHash,
-                    observedHash: currentHash,
-                    fileSize: fileInfo.Length,
-                    modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
-                    status: "ok",
-                    scanAt: scanAt,
-                    createdAt: assetRecord.CreatedAt,
-                    createdBy: assetRecord.CreatedBy,
-                    uidVersion: assetRecord.UidVersion);
-                EnsureAssetMetadata(connection, assetRecord.AssetUid, "ready", scanAt);
+                if (IsSameAssetSnapshot(
+                        assetRecord,
+                        library.Id,
+                        fileInfo.Name,
+                        assetType,
+                        normalizedPath,
+                        assetRecord.ContentHash,
+                        currentHash,
+                        fileInfo.Length,
+                        fileInfo.LastWriteTimeUtc,
+                        "ok"))
+                {
+                    Interlocked.Increment(ref stats.SkippedPersistCount);
+                }
+                else
+                {
+                    assetRecord = await CreateOrUpdateAssetAsync(
+                        connection,
+                        library,
+                        assetUid: assetRecord.AssetUid,
+                        assetName: fileInfo.Name,
+                        assetType: assetType,
+                        currentPath: normalizedPath,
+                        contentHash: assetRecord.ContentHash,
+                        observedHash: currentHash,
+                        fileSize: fileInfo.Length,
+                        modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
+                        status: "ok",
+                        scanAt: scanAt,
+                        createdAt: assetRecord.CreatedAt,
+                        createdBy: assetRecord.CreatedBy,
+                        uidVersion: assetRecord.UidVersion);
+                    await EnsureAssetMetadataAsync(connection, assetRecord.AssetUid, "ready", scanAt, ct);
+                }
                 stage = "已识别";
                 aiState = "按内容指纹补写 uid";
             }
@@ -291,7 +359,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             {
                 var assetUid = GenerateAssetUid();
                 WriteUidSidecar(sidecarPath, assetUid);
-                assetRecord = CreateOrUpdateAsset(
+                assetRecord = await CreateOrUpdateAssetAsync(
                     connection,
                     library,
                     assetUid: assetUid,
@@ -304,7 +372,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                     modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
                     status: "ok",
                     scanAt: scanAt);
-                EnsureAssetMetadata(connection, assetUid, "pending", scanAt);
+                await EnsureAssetMetadataAsync(connection, assetUid, "pending", scanAt, ct);
                 stage = "新素材";
                 aiState = "待生成描述与向量";
             }
@@ -335,8 +403,8 @@ public sealed class AssetLibraryService : IAssetLibraryService
         };
     }
 
-    private AssetDbRecord CreateOrUpdateAsset(
-        SqliteConnection connection,
+    private Task<AssetDbRecord> CreateOrUpdateAssetAsync(
+        SqliteConnection _connection,
         LibraryWorkspace library,
         string assetUid,
         string assetName,
@@ -350,13 +418,19 @@ public sealed class AssetLibraryService : IAssetLibraryService
         DateTimeOffset scanAt,
         DateTimeOffset? createdAt = null,
         string? createdBy = null,
-        int uidVersion = 1)
+        int uidVersion = 1,
+        CancellationToken ct = default)
     {
-        var actualCreatedAt = createdAt ?? scanAt;
-        var actualCreatedBy = string.IsNullOrWhiteSpace(createdBy) ? SystemCreatedBy : createdBy;
+        return WriteQueue.EnqueueAsync(async token =>
+        {
+            var actualCreatedAt = createdAt ?? scanAt;
+            var actualCreatedBy = string.IsNullOrWhiteSpace(createdBy) ? SystemCreatedBy : createdBy;
 
-        using var command = connection.CreateCommand();
-        command.CommandText = """
+            await using var connection = CreateMetadataConnection();
+            await connection.OpenAsync(token);
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
             INSERT INTO assets (
                 asset_uid,
                 library_id,
@@ -403,43 +477,49 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 uid_version = excluded.uid_version;
             """;
 
-        AddParameter(command, "$asset_uid", assetUid);
-        AddParameter(command, "$library_id", library.Id);
-        AddParameter(command, "$asset_name", assetName);
-        AddParameter(command, "$asset_type", assetType);
-        AddParameter(command, "$current_path", currentPath);
-        AddParameter(command, "$content_hash", contentHash);
-        AddParameter(command, "$observed_hash", observedHash);
-        AddParameter(command, "$file_size", fileSize);
-        AddParameter(command, "$modified_time_utc", modifiedTimeUtc.ToString("O"));
-        AddParameter(command, "$status", status);
-        AddParameter(command, "$created_at", actualCreatedAt.ToString("O"));
-        AddParameter(command, "$updated_at", scanAt.ToString("O"));
-        AddParameter(command, "$created_by", actualCreatedBy);
-        AddParameter(command, "$uid_version", uidVersion);
-        command.ExecuteNonQuery();
+            AddParameter(command, "$asset_uid", assetUid);
+            AddParameter(command, "$library_id", library.Id);
+            AddParameter(command, "$asset_name", assetName);
+            AddParameter(command, "$asset_type", assetType);
+            AddParameter(command, "$current_path", currentPath);
+            AddParameter(command, "$content_hash", contentHash);
+            AddParameter(command, "$observed_hash", observedHash);
+            AddParameter(command, "$file_size", fileSize);
+            AddParameter(command, "$modified_time_utc", modifiedTimeUtc.ToString("O"));
+            AddParameter(command, "$status", status);
+            AddParameter(command, "$created_at", actualCreatedAt.ToString("O"));
+            AddParameter(command, "$updated_at", scanAt.ToString("O"));
+            AddParameter(command, "$created_by", actualCreatedBy);
+            AddParameter(command, "$uid_version", uidVersion);
+            await command.ExecuteNonQueryAsync(token);
 
-        return new AssetDbRecord(
-            assetUid,
-            library.Id,
-            assetName,
-            assetType,
-            currentPath,
-            contentHash,
-            observedHash,
-            fileSize,
-            modifiedTimeUtc,
-            status,
-            actualCreatedAt,
-            scanAt,
-            actualCreatedBy,
-            uidVersion);
+            return new AssetDbRecord(
+                assetUid,
+                library.Id,
+                assetName,
+                assetType,
+                currentPath,
+                contentHash,
+                observedHash,
+                fileSize,
+                modifiedTimeUtc,
+                status,
+                actualCreatedAt,
+                scanAt,
+                actualCreatedBy,
+                uidVersion);
+        }, ct).AsTask();
     }
 
-    private void EnsureAssetMetadata(SqliteConnection connection, string assetUid, string metadataStatus, DateTimeOffset scanAt)
+    private Task EnsureAssetMetadataAsync(SqliteConnection _connection, string assetUid, string metadataStatus, DateTimeOffset scanAt, CancellationToken ct)
     {
-        using var command = connection.CreateCommand();
-        command.CommandText = """
+        return WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = CreateMetadataConnection();
+            await connection.OpenAsync(token);
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
             INSERT INTO asset_metadata (
                 asset_uid,
                 tags_json,
@@ -461,11 +541,35 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 updated_at = excluded.updated_at;
             """;
 
-        AddParameter(command, "$asset_uid", assetUid);
-        AddParameter(command, "$metadata_status", metadataStatus);
-        AddParameter(command, "$created_at", scanAt.ToString("O"));
-        AddParameter(command, "$updated_at", scanAt.ToString("O"));
-        command.ExecuteNonQuery();
+            AddParameter(command, "$asset_uid", assetUid);
+            AddParameter(command, "$metadata_status", metadataStatus);
+            AddParameter(command, "$created_at", scanAt.ToString("O"));
+            AddParameter(command, "$updated_at", scanAt.ToString("O"));
+            await command.ExecuteNonQueryAsync(token);
+        }, ct).AsTask();
+    }
+
+    private static bool IsSameAssetSnapshot(
+        AssetDbRecord assetRecord,
+        string libraryId,
+        string assetName,
+        string assetType,
+        string currentPath,
+        string contentHash,
+        string observedHash,
+        long fileSize,
+        DateTime modifiedTimeUtc,
+        string status)
+    {
+        return string.Equals(assetRecord.LibraryId, libraryId, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(assetRecord.AssetName, assetName, StringComparison.Ordinal) &&
+               string.Equals(assetRecord.AssetType, assetType, StringComparison.Ordinal) &&
+               string.Equals(assetRecord.CurrentPath, currentPath, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(assetRecord.ContentHash, contentHash, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(assetRecord.ObservedHash, observedHash, StringComparison.OrdinalIgnoreCase) &&
+               assetRecord.FileSize == fileSize &&
+               assetRecord.ModifiedTimeUtc == modifiedTimeUtc &&
+               string.Equals(assetRecord.Status, status, StringComparison.OrdinalIgnoreCase);
     }
 
     private string[] ReadMetadataTags(SqliteConnection connection, string assetUid)
@@ -702,11 +806,11 @@ public sealed class AssetLibraryService : IAssetLibraryService
             cached.Length == fileInfo.Length &&
             cached.LastWriteTimeUtc == fileInfo.LastWriteTimeUtc)
         {
-            stats.ReusedHashCount++;
+            Interlocked.Increment(ref stats.ReusedHashCount);
             return cached.Hash;
         }
 
-        stats.RecomputedHashCount++;
+        Interlocked.Increment(ref stats.RecomputedHashCount);
         var hash = ComputeContentHash(path);
         CacheContentHash(path, fileInfo, hash);
         return hash;
@@ -907,8 +1011,9 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     private sealed class ScanHashStats
     {
-        public int RecomputedHashCount { get; set; }
-        public int ReusedHashCount { get; set; }
+        public int RecomputedHashCount;
+        public int ReusedHashCount;
+        public int SkippedPersistCount;
     }
 
     private sealed record CachedUidSidecar(long Length, DateTime LastWriteTimeUtc, string? Uid);

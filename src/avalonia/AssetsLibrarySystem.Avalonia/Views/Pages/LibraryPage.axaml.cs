@@ -61,4 +61,28 @@ public partial class LibraryPage : UserControl
 
         viewModel.RevealSearchResultInExplorer(result);
     }
+
+    private void SelectLibrary_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button ||
+            button.CommandParameter is not LibraryWorkspace library ||
+            DataContext is not LibraryPageViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SelectLibrary(library);
+    }
+
+    private void OpenExplorerItem_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button ||
+            button.CommandParameter is not AssetLibraryTreeNode node ||
+            DataContext is not LibraryPageViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SelectedAssetTreeNode = node;
+    }
 }
