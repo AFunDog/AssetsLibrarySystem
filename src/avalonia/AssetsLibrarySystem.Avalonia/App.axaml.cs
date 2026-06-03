@@ -39,10 +39,10 @@ public partial class App : Application
             BuildContainer();
             var shellWindowService = Container!.Resolve<IShellWindowService>();
             var backendLauncher = Container!.ResolveOptional<IBackendLauncher>();
-            var viewModel = Container.Resolve<MainWindowViewModel>();
-            var quickSearchViewModel = Container.Resolve<QuickSearchViewModel>();
+            var viewModel = Container!.Resolve<MainWindowViewModel>();
+            var quickSearchViewModel = Container!.Resolve<QuickSearchViewModel>();
 
-            ShellViewModel = Container.Resolve<DesktopShellViewModel>();
+            ShellViewModel = Container!.Resolve<DesktopShellViewModel>();
             DataContext = ShellViewModel;
             shellWindowService.AttachDesktop(desktop);
 
