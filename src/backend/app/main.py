@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -6,16 +10,29 @@ from app.api.routes.internal import build_internal_router
 from app.api.routes.model import router as model_router
 from app.api.routes.search import router as search_router
 from app.core.config import settings
+from app.core.container import build_app_container
 from app.core.heartbeat import HeartbeatMonitor
 
 
 heartbeat_monitor = HeartbeatMonitor()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.container = build_app_container()
+    async with heartbeat_monitor.lifespan(app):
+        yield
+    container = getattr(app.state, "container", None)
+    if container is not None:
+        container.close()
+        app.state.container = None
+
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="桌面端素材管理系统的 Python 模型网关，当前只承担大模型 HTTP 服务。",
-    lifespan=heartbeat_monitor.lifespan,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
