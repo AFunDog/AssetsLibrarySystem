@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Application.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
+namespace AssetsLibrarySystem.Application.Services.BackgroundTasks;
 
 public sealed partial class BackgroundTaskService : ObservableObject, IBackgroundTaskService
 {

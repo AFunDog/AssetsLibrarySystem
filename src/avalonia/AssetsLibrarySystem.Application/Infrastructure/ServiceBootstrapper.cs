@@ -2,15 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Autofac;
-using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
-using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
-using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
-using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
-using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
-using AssetsLibrarySystem.Avalonia.Services.Infrastructure;
+using AssetsLibrarySystem.Application.Services.AssetDescription;
+using AssetsLibrarySystem.Application.Services.AssetLibrary;
+using AssetsLibrarySystem.Application.Services.AssetSearch;
+using AssetsLibrarySystem.Application.Services.BackendLauncher;
+using AssetsLibrarySystem.Application.Services.BackgroundTasks;
+using AssetsLibrarySystem.Application.Services.Infrastructure;
 using Microsoft.Extensions.Configuration;
 
-namespace AssetsLibrarySystem.Avalonia.Infrastructure;
+namespace AssetsLibrarySystem.Application.Infrastructure;
 
 public static class ServiceBootstrapper
 {

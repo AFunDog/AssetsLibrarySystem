@@ -4,7 +4,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Serilog;
 
-namespace AssetsLibrarySystem.Avalonia.Services.Infrastructure;
+namespace AssetsLibrarySystem.Application.Services.Infrastructure;
 
 public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
 {

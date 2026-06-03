@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
 
 namespace AssetsLibrarySystem.Avalonia.Services.Library;

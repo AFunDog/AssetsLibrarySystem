@@ -1,6 +1,6 @@
 using System;
 
-namespace AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
+namespace AssetsLibrarySystem.Application.Services.BackendLauncher;
 
 public sealed class BackendLauncherOptions
 {

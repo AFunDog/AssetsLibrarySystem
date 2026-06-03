@@ -1,11 +1,12 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
-using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
-using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
-using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
+using AssetsLibrarySystem.Application.Services.AssetSearch;
+using AssetsLibrarySystem.Application.Services.BackendLauncher;
+using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Avalonia.Services.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Serilog;

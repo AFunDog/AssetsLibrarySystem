@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using AssetsLibrarySystem.Application.Models;
 
 namespace AssetsLibrarySystem.Avalonia.Models;
 

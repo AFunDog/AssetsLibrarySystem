@@ -31,7 +31,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closing(object? sender, WindowClosingEventArgs e)
     {
-        if (Application.Current is App app && app.ShellViewModel?.IsShuttingDown == false)
+        if (global::Avalonia.Application.Current is App app && app.ShellViewModel?.IsShuttingDown == false)
         {
             e.Cancel = true;
             Hide();

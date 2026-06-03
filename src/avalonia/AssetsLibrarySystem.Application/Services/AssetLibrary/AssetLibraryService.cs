@@ -8,13 +8,13 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Avalonia.Infrastructure;
-using AssetsLibrarySystem.Avalonia.Models;
-using AssetsLibrarySystem.Avalonia.Services.Infrastructure;
+using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Services.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Serilog;
 
-namespace AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
+namespace AssetsLibrarySystem.Application.Services.AssetLibrary;
 
 public sealed class AssetLibraryService : IAssetLibraryService
 {

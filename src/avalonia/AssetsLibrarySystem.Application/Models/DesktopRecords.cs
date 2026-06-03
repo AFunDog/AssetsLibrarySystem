@@ -2,7 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace AssetsLibrarySystem.Avalonia.Models;
+namespace AssetsLibrarySystem.Application.Models;
 
 public sealed record DashboardMetric(string Label, string Value, string Hint);
 

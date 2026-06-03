@@ -7,10 +7,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Application.Models;
 using Serilog;
 
-namespace AssetsLibrarySystem.Avalonia.Services.AssetDescription;
+namespace AssetsLibrarySystem.Application.Services.AssetDescription;
 
 public sealed class AssetTextVectorizationService : IAssetTextVectorizationService
 {

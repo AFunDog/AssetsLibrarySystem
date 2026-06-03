@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Application.Models;
 
-namespace AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
+namespace AssetsLibrarySystem.Application.Services.BackgroundTasks;
 
 public interface IBackgroundTaskService : INotifyPropertyChanged
 {

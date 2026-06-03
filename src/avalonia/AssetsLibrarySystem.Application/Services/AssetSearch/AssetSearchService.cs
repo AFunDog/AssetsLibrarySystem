@@ -7,10 +7,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Application.Models;
 using Serilog;
 
-namespace AssetsLibrarySystem.Avalonia.Services.AssetSearch;
+namespace AssetsLibrarySystem.Application.Services.AssetSearch;
 
 public sealed class AssetSearchService : IAssetSearchService
 {

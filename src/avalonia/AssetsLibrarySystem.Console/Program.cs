@@ -1,12 +1,12 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Avalonia.Infrastructure;
+using AssetsLibrarySystem.Application.Infrastructure;
 using Autofac;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
-namespace AssetsLibrarySystem.Avalonia.ConsoleHost;
+namespace AssetsLibrarySystem.ConsoleHost;
 
 internal static class Program
 {
@@ -21,13 +21,13 @@ internal static class Program
             using var scope = container;
 
             var runner = new ConsoleCommandRunner(
-                scope.Resolve<AssetsLibrarySystem.Avalonia.Services.AssetLibrary.IAssetLibraryService>(),
-                scope.Resolve<AssetsLibrarySystem.Avalonia.Services.AssetDescription.IAssetDescriptionService>(),
-                scope.Resolve<AssetsLibrarySystem.Avalonia.Services.AssetDescription.IAssetDescriptionStore>(),
-                scope.Resolve<AssetsLibrarySystem.Avalonia.Services.AssetDescription.IAssetDescriptionVectorStore>(),
-                scope.Resolve<AssetsLibrarySystem.Avalonia.Services.AssetDescription.IAssetTextVectorizationService>(),
-                scope.Resolve<AssetsLibrarySystem.Avalonia.Services.AssetSearch.IAssetSearchService>(),
-                scope.Resolve<AssetsLibrarySystem.Avalonia.Services.BackendLauncher.IBackendLauncher>());
+                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetLibrary.IAssetLibraryService>(),
+                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetDescription.IAssetDescriptionService>(),
+                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetDescription.IAssetDescriptionStore>(),
+                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetDescription.IAssetDescriptionVectorStore>(),
+                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetDescription.IAssetTextVectorizationService>(),
+                scope.Resolve<AssetsLibrarySystem.Application.Services.AssetSearch.IAssetSearchService>(),
+                scope.Resolve<AssetsLibrarySystem.Application.Services.BackendLauncher.IBackendLauncher>());
 
             return await runner.RunAsync(args);
         }

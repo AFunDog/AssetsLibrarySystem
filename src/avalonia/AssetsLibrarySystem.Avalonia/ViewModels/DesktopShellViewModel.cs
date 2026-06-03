@@ -1,6 +1,6 @@
 using System;
 using Avalonia.Threading;
-using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
+using AssetsLibrarySystem.Application.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.Services.Hotkey;
 using AssetsLibrarySystem.Avalonia.Services.Shell;
 using CommunityToolkit.Mvvm.ComponentModel;

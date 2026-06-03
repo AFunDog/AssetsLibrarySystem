@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
+namespace AssetsLibrarySystem.Application.Services.BackendLauncher;
 
 public interface IBackendLauncher : IAsyncDisposable
 {

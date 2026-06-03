@@ -4,7 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using AssetsLibrarySystem.Avalonia;
-using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.ViewModels;
 using CommunityToolkit.Mvvm.Input;
 
@@ -28,7 +28,7 @@ public partial class QuickSearchWindow : Window
 
     private void QuickSearchWindow_Closing(object? sender, WindowClosingEventArgs e)
     {
-        if (Application.Current is App app && app.ShellViewModel?.IsShuttingDown == false)
+        if (global::Avalonia.Application.Current is App app && app.ShellViewModel?.IsShuttingDown == false)
         {
             e.Cancel = true;
             Hide();

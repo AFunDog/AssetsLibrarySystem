@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
-    <RootNamespace>AssetsLibrarySystem.Avalonia</RootNamespace>
+    <RootNamespace>AssetsLibrarySystem.Application</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

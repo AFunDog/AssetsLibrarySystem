@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace AssetsLibrarySystem.Avalonia.Infrastructure;
+namespace AssetsLibrarySystem.Application.Infrastructure;
 
 internal static class SharedDataPathHelper
 {

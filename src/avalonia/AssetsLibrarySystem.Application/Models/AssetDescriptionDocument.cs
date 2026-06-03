@@ -1,6 +1,6 @@
 using System;
 
-namespace AssetsLibrarySystem.Avalonia.Models;
+namespace AssetsLibrarySystem.Application.Models;
 
 public sealed record AssetDescriptionDocument(
     string AssetUid,

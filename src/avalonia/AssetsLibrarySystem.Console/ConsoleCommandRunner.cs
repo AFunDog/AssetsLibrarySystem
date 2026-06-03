@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Avalonia.Models;
-using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
-using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
-using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
-using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
+using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Services.AssetDescription;
+using AssetsLibrarySystem.Application.Services.AssetLibrary;
+using AssetsLibrarySystem.Application.Services.AssetSearch;
+using AssetsLibrarySystem.Application.Services.BackendLauncher;
 
-namespace AssetsLibrarySystem.Avalonia.ConsoleHost;
+namespace AssetsLibrarySystem.ConsoleHost;
 
 public sealed class ConsoleCommandRunner
 {

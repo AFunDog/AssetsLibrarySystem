@@ -3,7 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using AssetsLibrarySystem.Avalonia.Infrastructure;
+using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
@@ -16,7 +16,7 @@ using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia;
 
-public partial class App : Application
+public partial class App : global::Avalonia.Application
 {
     private ILifetimeScope? Container { get; set; }
     public DesktopShellViewModel? ShellViewModel { get; private set; }

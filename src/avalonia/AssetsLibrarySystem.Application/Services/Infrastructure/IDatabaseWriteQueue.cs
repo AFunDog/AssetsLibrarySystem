@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace AssetsLibrarySystem.Avalonia.Services.Infrastructure;
+namespace AssetsLibrarySystem.Application.Services.Infrastructure;
 
 public interface IDatabaseWriteQueue : IAsyncDisposable, IDisposable
 {

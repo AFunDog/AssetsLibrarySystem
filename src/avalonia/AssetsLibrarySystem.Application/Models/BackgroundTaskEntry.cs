@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace AssetsLibrarySystem.Avalonia.Models;
+namespace AssetsLibrarySystem.Application.Models;
 
 public sealed partial class BackgroundTaskEntry : ObservableObject
 {

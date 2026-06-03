@@ -1,12 +1,12 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Avalonia.Infrastructure;
-using AssetsLibrarySystem.Avalonia.Models;
-using AssetsLibrarySystem.Avalonia.Services.Infrastructure;
+using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Services.Infrastructure;
 using Microsoft.Data.Sqlite;
 
-namespace AssetsLibrarySystem.Avalonia.Services.AssetDescription;
+namespace AssetsLibrarySystem.Application.Services.AssetDescription;
 
 public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 {

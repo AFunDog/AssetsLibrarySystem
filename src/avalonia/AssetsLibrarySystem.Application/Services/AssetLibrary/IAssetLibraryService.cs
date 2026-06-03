@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Avalonia.Models;
+using AssetsLibrarySystem.Application.Models;
 
-namespace AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
+namespace AssetsLibrarySystem.Application.Services.AssetLibrary;
 
 public interface IAssetLibraryService
 {

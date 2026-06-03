@@ -4,11 +4,12 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
-using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
-using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
-using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
+using AssetsLibrarySystem.Application.Services.AssetDescription;
+using AssetsLibrarySystem.Application.Services.AssetLibrary;
+using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Serilog;
 

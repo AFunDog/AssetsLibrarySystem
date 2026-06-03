@@ -4,11 +4,11 @@ using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Avalonia.Infrastructure;
+using AssetsLibrarySystem.Application.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
-namespace AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
+namespace AssetsLibrarySystem.Application.Services.BackendLauncher;
 
 public sealed class BackendLauncherService : IBackendLauncher
 {

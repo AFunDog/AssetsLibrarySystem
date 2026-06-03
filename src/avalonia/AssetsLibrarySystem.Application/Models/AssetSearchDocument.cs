@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace AssetsLibrarySystem.Avalonia.Models;
+namespace AssetsLibrarySystem.Application.Models;
 
 public sealed class AssetSearchDocument
 {
