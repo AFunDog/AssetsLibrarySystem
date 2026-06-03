@@ -26,17 +26,17 @@
                                    Text="这里集中管理后端连接、本地搜索模型和发送给模型网关的提示词草稿。" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   FontWeight="SemiBold"
-                                   LetterSpacing="1.2"
-                                   Text="后端状态" />
-                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                   FontWeight="SemiBold"
-                                   Text="{Binding BackendStatusTitle}" />
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   Text="{Binding BackendStatusDetail}" />
-                    </StackPanel>
+                    <!-- <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"> -->
+                    <!--     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
+                    <!--                FontWeight="SemiBold" -->
+                    <!--                LetterSpacing="1.2" -->
+                    <!--                Text="后端状态" /> -->
+                    <!--     <TextBlock Foreground="{DynamicResource AppTextBrush}" -->
+                    <!--                FontWeight="SemiBold" -->
+                    <!--                Text="{Binding BackendStatusTitle}" /> -->
+                    <!--     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
+                    <!--                Text="{Binding BackendStatusDetail}" /> -->
+                    <!-- </StackPanel> -->
                 </Grid>
             </Border>
 

@@ -3,10 +3,10 @@ using System;
 namespace AssetsLibrarySystem.Avalonia.Models;
 
 public sealed record AssetDescriptionDocument(
-    string AssetId,
+    string AssetUid,
     string AssetName,
     string AssetType,
-    string AssetPath,
+    string CurrentPath,
     string StorePath,
     string Description,
     string BackendEndpoint,
@@ -14,7 +14,13 @@ public sealed record AssetDescriptionDocument(
     DateTimeOffset GeneratedAt,
     AssetDescriptionTokenUsage? TokenUsage,
     string? Prompt,
-    string? SystemPrompt);
+    string? SystemPrompt,
+    string? ContentHash,
+    string MetadataStatus)
+{
+    public string AssetId => AssetUid;
+    public string AssetPath => CurrentPath;
+}
 
 public sealed record AssetDescriptionTokenUsage(
     int InputTokens,

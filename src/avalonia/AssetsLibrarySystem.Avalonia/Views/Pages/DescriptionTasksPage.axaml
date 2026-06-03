@@ -26,17 +26,17 @@
                                    Text="左侧选范围，右侧发任务。当前页面只负责描述编排，不把生成逻辑塞进界面层。" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   FontWeight="SemiBold"
-                                   LetterSpacing="1.2"
-                                   Text="后端状态" />
-                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                   FontWeight="SemiBold"
-                                   Text="{Binding BackendStatusTitle}" />
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   Text="{Binding BackendStatusStage}" />
-                    </StackPanel>
+                    <!-- <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"> -->
+                    <!--     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
+                    <!--                FontWeight="SemiBold" -->
+                    <!--                LetterSpacing="1.2" -->
+                    <!--                Text="后端状态" /> -->
+                    <!--     <TextBlock Foreground="{DynamicResource AppTextBrush}" -->
+                    <!--                FontWeight="SemiBold" -->
+                    <!--                Text="{Binding BackendStatusTitle}" /> -->
+                    <!--     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
+                    <!--                Text="{Binding BackendStatusStage}" /> -->
+                    <!-- </StackPanel> -->
                 </Grid>
             </Border>
 

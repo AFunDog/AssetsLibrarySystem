@@ -47,7 +47,9 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 generated_at,
                 token_usage_json,
                 prompt,
-                system_prompt
+                system_prompt,
+                content_hash,
+                metadata_status
             )
             VALUES (
                 $asset_id,
@@ -61,7 +63,9 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 $generated_at,
                 $token_usage_json,
                 $prompt,
-                $system_prompt
+                $system_prompt,
+                $content_hash,
+                $metadata_status
             )
             ON CONFLICT(asset_id) DO UPDATE SET
                 asset_name = excluded.asset_name,
@@ -74,13 +78,15 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 generated_at = excluded.generated_at,
                 token_usage_json = excluded.token_usage_json,
                 prompt = excluded.prompt,
-                system_prompt = excluded.system_prompt;
+                system_prompt = excluded.system_prompt,
+                content_hash = excluded.content_hash,
+                metadata_status = excluded.metadata_status;
             """;
 
-        AddParameter(command, "$asset_id", document.AssetId);
+        AddParameter(command, "$asset_id", document.AssetUid);
         AddParameter(command, "$asset_name", document.AssetName);
         AddParameter(command, "$asset_type", document.AssetType);
-        AddParameter(command, "$asset_path", document.AssetPath);
+        AddParameter(command, "$asset_path", document.CurrentPath);
         AddParameter(command, "$store_path", document.StorePath);
         AddParameter(command, "$description", document.Description);
         AddParameter(command, "$backend_endpoint", document.BackendEndpoint);
@@ -89,8 +95,12 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         AddParameter(command, "$token_usage_json", SerializeTokenUsage(document.TokenUsage));
         AddParameter(command, "$prompt", (object?)document.Prompt ?? DBNull.Value);
         AddParameter(command, "$system_prompt", (object?)document.SystemPrompt ?? DBNull.Value);
+        AddParameter(command, "$content_hash", (object?)document.ContentHash ?? DBNull.Value);
+        AddParameter(command, "$metadata_status", document.MetadataStatus);
 
         await command.ExecuteNonQueryAsync(ct);
+
+        await UpdateAssetMetadataAsync(connection, document, ct);
     }
 
     public async Task<AssetDescriptionDocument?> TryGetAsync(string assetId, CancellationToken ct = default)
@@ -114,7 +124,9 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 generated_at,
                 token_usage_json,
                 prompt,
-                system_prompt
+                system_prompt,
+                content_hash,
+                metadata_status
             FROM asset_descriptions
             WHERE asset_id = $asset_id
             LIMIT 1;
@@ -139,7 +151,9 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             DateTimeOffset.Parse(reader.GetString(8)),
             DeserializeTokenUsage(reader.IsDBNull(9) ? null : reader.GetString(9)),
             reader.IsDBNull(10) ? null : reader.GetString(10),
-            reader.IsDBNull(11) ? null : reader.GetString(11));
+            reader.IsDBNull(11) ? null : reader.GetString(11),
+            reader.IsDBNull(12) ? null : reader.GetString(12),
+            reader.IsDBNull(13) ? "ready" : reader.GetString(13));
     }
 
     private async Task EnsureSchemaAsync(CancellationToken ct)
@@ -161,11 +175,25 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 generated_at TEXT NOT NULL,
                 token_usage_json TEXT NULL,
                 prompt TEXT NULL,
-                system_prompt TEXT NULL
+                system_prompt TEXT NULL,
+                content_hash TEXT NULL,
+                metadata_status TEXT NOT NULL DEFAULT 'ready'
+            );
+
+            CREATE TABLE IF NOT EXISTS asset_metadata (
+                asset_uid TEXT PRIMARY KEY,
+                description_text TEXT NULL,
+                tags_json TEXT NOT NULL DEFAULT '[]',
+                metadata_status TEXT NOT NULL,
+                vector_state TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             );
             """;
 
         await command.ExecuteNonQueryAsync(ct);
+        await EnsureColumnAsync(connection, "asset_descriptions", "content_hash", "TEXT NULL", ct);
+        await EnsureColumnAsync(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'", ct);
     }
 
     private SqliteConnection CreateConnection()
@@ -190,5 +218,76 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         return string.IsNullOrWhiteSpace(json)
             ? null
             : JsonSerializer.Deserialize<AssetDescriptionTokenUsage>(json, JsonOptions);
+    }
+
+    private static async Task EnsureColumnAsync(
+        SqliteConnection connection,
+        string tableName,
+        string columnName,
+        string definition,
+        CancellationToken ct)
+    {
+        await using var pragma = connection.CreateCommand();
+        pragma.CommandText = $"PRAGMA table_info({tableName});";
+
+        var exists = false;
+        await using (var reader = await pragma.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    exists = true;
+                    break;
+                }
+            }
+        }
+
+        if (exists)
+        {
+            return;
+        }
+
+        await using var alter = connection.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {definition};";
+        await alter.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task UpdateAssetMetadataAsync(
+        SqliteConnection connection,
+        AssetDescriptionDocument document,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO asset_metadata (
+                asset_uid,
+                description_text,
+                tags_json,
+                metadata_status,
+                vector_state,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                $asset_uid,
+                $description_text,
+                '[]',
+                'described',
+                'pending',
+                $created_at,
+                $updated_at
+            )
+            ON CONFLICT(asset_uid) DO UPDATE SET
+                description_text = excluded.description_text,
+                metadata_status = excluded.metadata_status,
+                updated_at = excluded.updated_at;
+            """;
+
+        AddParameter(command, "$asset_uid", document.AssetUid);
+        AddParameter(command, "$description_text", document.Description);
+        AddParameter(command, "$created_at", document.GeneratedAt.ToString("O"));
+        AddParameter(command, "$updated_at", document.GeneratedAt.ToString("O"));
+        await command.ExecuteNonQueryAsync(ct);
     }
 }

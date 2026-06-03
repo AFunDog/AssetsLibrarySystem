@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -38,42 +38,22 @@ public sealed partial class LibraryWorkspace : ObservableObject
 
 public sealed partial class ManagedAssetRecord : ObservableObject
 {
-    public ManagedAssetRecord()
-    {
-    }
-
-    public ManagedAssetRecord(
-        string id,
-        string name,
-        string libraryName,
-        string assetType,
-        string relativePath,
-        string localPath,
-        string summary,
-        string stage,
-        string aiState,
-        IEnumerable<string> tags)
-    {
-        Id = id;
-        Name = name;
-        LibraryName = libraryName;
-        AssetType = assetType;
-        RelativePath = relativePath;
-        LocalPath = localPath;
-        Summary = summary;
-        Stage = stage;
-        AiState = aiState;
-        Tags = new ObservableCollection<string>(tags);
-    }
-
-    public string Id { get; init; } = string.Empty;
+    public string AssetUid { get; init; } = string.Empty;
+    public string Id => AssetUid;
     public string Name { get; init; } = string.Empty;
     public string LibraryName { get; init; } = string.Empty;
     public string AssetType { get; init; } = string.Empty;
     public string RelativePath { get; init; } = string.Empty;
     public string LocalPath { get; init; } = string.Empty;
+    public string CurrentPath => LocalPath;
+    public string ContentHash { get; init; } = string.Empty;
+    public string ObservedHash { get; init; } = string.Empty;
+    public string MetadataStatus { get; init; } = string.Empty;
+    public long FileSize { get; init; }
+    public DateTimeOffset ModifiedTimeUtc { get; init; }
+    public bool HasUidSidecar { get; init; }
     public string Summary { get; init; } = string.Empty;
-    public ObservableCollection<string> Tags { get; init; } = [];
+    public ObservableCollection<string> Tags { get; init; } = new();
 
     [ObservableProperty]
     public partial string Stage { get; set; } = string.Empty;

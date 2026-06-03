@@ -88,14 +88,14 @@
                                    Text="左侧浏览目录树，中间执行检索，右侧查看当前素材与描述结果。" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                        <TextBlock Classes="eyebrow" Text="后端状态" />
-                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                   FontWeight="SemiBold"
-                                   Text="{Binding BackendStatusTitle}" />
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   Text="{Binding BackendStatusStage}" />
-                    </StackPanel>
+                    <!-- <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"> -->
+                    <!--     <TextBlock Classes="eyebrow" Text="后端状态" /> -->
+                    <!--     <TextBlock Foreground="{DynamicResource AppTextBrush}" -->
+                    <!--                FontWeight="SemiBold" -->
+                    <!--                Text="{Binding BackendStatusTitle}" /> -->
+                    <!--     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
+                    <!--                Text="{Binding BackendStatusStage}" /> -->
+                    <!-- </StackPanel> -->
                 </Grid>
             </Border>
 

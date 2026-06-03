@@ -28,17 +28,17 @@
                                        Text="桌面端负责目录、扫描、检索和描述编排，Python 只负责模型网关。" />
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                       FontWeight="SemiBold"
-                                       LetterSpacing="1.2"
-                                       Text="后端状态" />
-                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                       FontWeight="SemiBold"
-                                       Text="{Binding BackendStatusTitle}" />
-                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                       Text="{Binding BackendStatusStage}" />
-                        </StackPanel>
+                        <!-- <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"> -->
+                        <!--     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
+                        <!--                FontWeight="SemiBold" -->
+                        <!--                LetterSpacing="1.2" -->
+                        <!--                Text="后端状态" /> -->
+                        <!--     <TextBlock Foreground="{DynamicResource AppTextBrush}" -->
+                        <!--                FontWeight="SemiBold" -->
+                        <!--                Text="{Binding BackendStatusTitle}" /> -->
+                        <!--     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
+                        <!--                Text="{Binding BackendStatusStage}" /> -->
+                        <!-- </StackPanel> -->
                     </Grid>
                 </Border>
 
@@ -139,29 +139,29 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Spacing="8">
-                <Border Background="{DynamicResource AppSurfaceBrush}"
-                        BorderBrush="{DynamicResource AppBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="12">
-                    <StackPanel Spacing="4">
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   FontWeight="SemiBold"
-                                   LetterSpacing="1.2"
-                                   Text="后端详情" />
-                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                   FontWeight="SemiBold"
-                                   Text="{Binding BackendStatusDetail}" />
-                        <Border Background="{DynamicResource AppSoftSurfaceBrush}"
-                                BorderBrush="{DynamicResource AppBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="4"
-                                Padding="8">
-                            <TextBlock Foreground="{DynamicResource AppAccentBrush}"
-                                       Text="{Binding BackendEndpoint}" />
-                        </Border>
-                    </StackPanel>
-                </Border>
+                <!-- <Border Background="{DynamicResource AppSurfaceBrush}" -->
+                <!--         BorderBrush="{DynamicResource AppBorderBrush}" -->
+                <!--         BorderThickness="1" -->
+                <!--         CornerRadius="8" -->
+                <!--         Padding="12"> -->
+                <!--     <StackPanel Spacing="4"> -->
+                <!--         <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
+                <!--                    FontWeight="SemiBold" -->
+                <!--                    LetterSpacing="1.2" -->
+                <!--                    Text="后端详情" /> -->
+                <!--         <TextBlock Foreground="{DynamicResource AppTextBrush}" -->
+                <!--                    FontWeight="SemiBold" -->
+                <!--                    Text="{Binding BackendStatusDetail}" /> -->
+                <!--         <Border Background="{DynamicResource AppSoftSurfaceBrush}" -->
+                <!--                 BorderBrush="{DynamicResource AppBorderBrush}" -->
+                <!--                 BorderThickness="1" -->
+                <!--                 CornerRadius="4" -->
+                <!--                 Padding="8"> -->
+                <!--             <TextBlock Foreground="{DynamicResource AppAccentBrush}" -->
+                <!--                        Text="{Binding BackendEndpoint}" /> -->
+                <!--         </Border> -->
+                <!--     </StackPanel> -->
+                <!-- </Border> -->
 
                 <Border Background="{DynamicResource AppSurfaceBrush}"
                         BorderBrush="{DynamicResource AppBorderBrush}"

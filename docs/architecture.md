@@ -136,19 +136,45 @@ src/
 
 ### 6.1 Asset
 
-统一素材实体，至少包含：
+统一素材实体，当前已经切换到“三层身份”模型：
 
-- `id`
+- `asset_uid`
+  - 素材逻辑身份，稳定不变
+  - 由数据库与素材旁边的同名 `.uid` 文件共同维护
+- `content_hash`
+  - 素材内容指纹
+  - 用于识别重复、迁移、副本与内容变化
+- `current_path`
+  - 素材当前位置
+  - 允许随移动、重命名和迁移变化，不再作为主键
+
+当前的身份优先级为：
+
+- `uid > content_hash > path / file_name / file_size / modified_time`
+
+每个素材文件旁边会生成轻量的 `.uid` 文件，例如：
+
+```text
+image001.png
+image001.png.uid
+```
+
+`.uid` 文件只保存稳定身份，不保存完整元数据。数据库集中保存资产主记录、历史位置、描述、标签和向量状态。
+
+素材主记录至少包含：
+
+- `asset_uid`
 - `name`
 - `type`
-- `path`
+- `current_path`
+- `content_hash`
+- `observed_hash`
 - `size`
-- `mime_type`
-- `tags`
-- `description`
 - `status`
 - `created_at`
 - `updated_at`
+
+并通过 `asset_locations` 记录历史位置，通过 `asset_metadata` 补充描述、标签和向量状态。
 
 ### 6.2 Search Request
 
@@ -174,7 +200,7 @@ src/
 ### 阶段一：桌面端基础素材管理
 
 - 扫描素材目录
-- 建立本地素材元数据
+- 建立基于 `asset_uid` 的本地素材元数据
 - 提供桌面端素材列表与详情视图
 
 ### 阶段二：模型调用与索引编排
@@ -208,6 +234,12 @@ src/
 - 页面内的自然语言检索输入框与“重建向量索引”按钮
 - 托盘菜单、主窗口隐藏到托盘、快速检索弹窗
 - 启动时自动调用模型预热接口
+
+当前检索链路已经约束为：
+
+- 向量索引只使用 `vector_id -> asset_uid`
+- `current_path` 由素材元数据表回填
+- 查询结果拼装为 `uid + current_path + description + tags`
 
 本次不交付：
 

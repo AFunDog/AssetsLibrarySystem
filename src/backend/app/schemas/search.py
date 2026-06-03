@@ -57,6 +57,7 @@ class SearchQueryCandidate(BaseModel):
     asset_format: AssetFormat
     asset_path: str
     description: str
+    tags: list[str] = Field(default_factory=list)
     source_store_path: str | None = None
     generated_at: datetime | None = None
 

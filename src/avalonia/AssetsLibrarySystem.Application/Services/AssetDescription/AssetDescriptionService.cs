@@ -62,10 +62,10 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         var storePath = Store.DatabasePath;
 
         var document = new AssetDescriptionDocument(
-            AssetId: asset.Id,
+            AssetUid: asset.AssetUid,
             AssetName: asset.Name,
             AssetType: asset.AssetType,
-            AssetPath: asset.LocalPath,
+            CurrentPath: asset.CurrentPath,
             StorePath: storePath,
             Description: backendResponse.OutputText,
             BackendEndpoint: backendBaseUrl,
@@ -73,7 +73,9 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             GeneratedAt: DateTimeOffset.UtcNow,
             TokenUsage: MapTokenUsage(backendResponse.TokenUsage),
             Prompt: request.Prompt,
-            SystemPrompt: request.SystemPrompt);
+            SystemPrompt: request.SystemPrompt,
+            ContentHash: asset.ContentHash,
+            MetadataStatus: asset.MetadataStatus);
 
         await Store.SaveAsync(document, ct);
 

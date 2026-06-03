@@ -64,11 +64,12 @@ public sealed class AssetSearchService : IAssetSearchService
             Results: backendResponse.Results.Select(item =>
                 new AssetSearchDocument
                 {
-                    AssetId = item.AssetId,
+                    AssetUid = item.AssetId,
                     AssetName = item.AssetName,
                     AssetType = item.AssetFormat,
-                    AssetPath = item.AssetPath,
+                    CurrentPath = item.AssetPath,
                     Description = item.Description,
+                    Tags = item.Tags,
                     SourceStorePath = item.SourceStorePath,
                     GeneratedAt = item.GeneratedAt,
                     EmbeddingSimilarity = item.EmbeddingSimilarity,
@@ -230,6 +231,7 @@ public sealed class AssetSearchService : IAssetSearchService
         [property: JsonPropertyName("asset_format")] string AssetFormat,
         [property: JsonPropertyName("asset_path")] string AssetPath,
         [property: JsonPropertyName("description")] string Description,
+        [property: JsonPropertyName("tags")] string[] Tags,
         [property: JsonPropertyName("source_store_path")] string? SourceStorePath,
         [property: JsonPropertyName("generated_at")] DateTimeOffset? GeneratedAt,
         [property: JsonPropertyName("embedding_similarity")] float? EmbeddingSimilarity,

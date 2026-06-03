@@ -12,28 +12,53 @@
         <ResourceDictionary>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="AppAccentBrush" Color="{DynamicResource SystemAccentColor}" />
-                    <SolidColorBrush x:Key="AppAccentSurfaceBrush" Color="{DynamicResource SystemAccentColor}" Opacity="0.12" />
-                    <SolidColorBrush x:Key="AppWindowBackgroundBrush" Color="#EEF3F9" />
-                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FCFEFF" />
-                    <SolidColorBrush x:Key="AppSoftSurfaceBrush" Color="#F7FAFD" />
-                    <SolidColorBrush x:Key="AppBorderBrush" Color="#DDE5EF" />
-                    <SolidColorBrush x:Key="AppTextBrush" Color="#141B24" />
-                    <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#5B6B7E" />
-                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#314155" />
-                    <SolidColorBrush x:Key="AppBadgeBrush" Color="#EDF3FA" />
+                    <SolidColorBrush x:Key="AppAccentBrush"
+                                     Color="{DynamicResource SystemAccentColor}" />
+
+                    <SolidColorBrush x:Key="AppAccentSurfaceBrush"
+                                     Color="{DynamicResource SystemAccentColor}"
+                                     Opacity="0.12" />
+
+                    <!-- 纯净浅色背景：不偏蓝 -->
+                    <SolidColorBrush x:Key="AppWindowBackgroundBrush" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="AppSoftSurfaceBrush" Color="#FAFAFA" />
+
+                    <!-- 中性边框 -->
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#DDDDDD" />
+
+                    <!-- 中性文字 -->
+                    <SolidColorBrush x:Key="AppTextBrush" Color="#111111" />
+                    <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#666666" />
+                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#444444" />
+
+                    <!-- 徽章/标签背景 -->
+                    <SolidColorBrush x:Key="AppBadgeBrush" Color="#EEEEEE" />
                 </ResourceDictionary>
+
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="AppAccentBrush" Color="{DynamicResource SystemAccentColor}" />
-                    <SolidColorBrush x:Key="AppAccentSurfaceBrush" Color="{DynamicResource SystemAccentColor}" Opacity="0.14" />
-                    <SolidColorBrush x:Key="AppWindowBackgroundBrush" Color="#0D1117" />
-                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#131922" />
-                    <SolidColorBrush x:Key="AppSoftSurfaceBrush" Color="#171E28" />
-                    <SolidColorBrush x:Key="AppBorderBrush" Color="#243140" />
-                    <SolidColorBrush x:Key="AppTextBrush" Color="#E9EEF5" />
-                    <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#9FA9B6" />
-                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#C7D0D9" />
-                    <SolidColorBrush x:Key="AppBadgeBrush" Color="#1A222C" />
+                    <SolidColorBrush x:Key="AppAccentBrush"
+                                     Color="{DynamicResource SystemAccentColor}" />
+
+                    <SolidColorBrush x:Key="AppAccentSurfaceBrush"
+                                     Color="{DynamicResource SystemAccentColor}"
+                                     Opacity="0.14" />
+
+                    <!-- 纯净深色背景：不偏蓝 -->
+                    <SolidColorBrush x:Key="AppWindowBackgroundBrush" Color="#111111" />
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#181818" />
+                    <SolidColorBrush x:Key="AppSoftSurfaceBrush" Color="#202020" />
+
+                    <!-- 中性边框 -->
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#333333" />
+
+                    <!-- 中性文字 -->
+                    <SolidColorBrush x:Key="AppTextBrush" Color="#F2F2F2" />
+                    <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#B8B8B8" />
+                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#D0D0D0" />
+
+                    <!-- 徽章/标签背景 -->
+                    <SolidColorBrush x:Key="AppBadgeBrush" Color="#242424" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

@@ -42,8 +42,7 @@
                                 <LucideIcon HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             Margin="0"
-                                            Kind="LibraryBig"
-                                            />
+                                            Kind="LibraryBig" />
                             </Border>
                             <StackPanel Spacing="1" VerticalAlignment="Center">
                                 <TextBlock FontWeight="SemiBold"
@@ -96,24 +95,17 @@
                             </Style>
                         </StackPanel.Styles>
 
-                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                             <Border Background="Transparent"
                                     BorderThickness="0"
                                     CornerRadius="0"
                                     Padding="0">
                                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                    <Border Background="{DynamicResource AppAccentSurfaceBrush}"
-                                            BorderBrush="{DynamicResource AppAccentBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="4"
-                                            Width="18"
-                                            Height="18">
-                                        <LucideIcon HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center"
-                                                    Margin="0"
-                                                    Kind="Bot"
-                                                    Size="10" />
-                                    </Border>
+
+                                    <LucideIcon HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Margin="0"
+                                                Kind="Bot" />
                                     <StackPanel Spacing="1">
                                         <TextBlock FontWeight="SemiBold"
                                                    Text="{Binding BackendStatusTitle}" />
@@ -125,37 +117,25 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Background="{DynamicResource AppSoftSurfaceBrush}"
-                                    BorderBrush="{DynamicResource AppBorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="8,6">
-                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                    <Border Background="{DynamicResource AppAccentSurfaceBrush}"
-                                            BorderBrush="{DynamicResource AppAccentBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="4"
-                                            Width="18"
-                                            Height="18">
-                                        <LucideIcon HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center"
-                                                    Margin="0"
-                                                    Kind="Cpu"
-                                                    Size="10" />
-                                    </Border>
-                                    <StackPanel Spacing="1">
-                                        <TextBlock FontWeight="SemiBold"
-                                                   Text="{Binding SearchModelStatusTitle}" />
-                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                   Text="{Binding SearchModelStatusStage}" />
-                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                   Text="{Binding SearchModelStatusDetail}"
-                                                   TextWrapping="NoWrap"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxWidth="280" />
-                                    </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+
+                                <LucideIcon HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Margin="0"
+                                            Kind="Cpu" />
+
+                                <StackPanel Spacing="1">
+                                    <TextBlock FontWeight="SemiBold"
+                                               Text="{Binding SearchModelStatusTitle}" />
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               Text="{Binding SearchModelStatusStage}" />
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               Text="{Binding SearchModelStatusDetail}"
+                                               TextWrapping="NoWrap"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxWidth="280" />
                                 </StackPanel>
-                            </Border>
+                            </StackPanel>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -165,8 +145,7 @@
                                 <LucideIcon HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             Margin="0"
-                                            Kind="Minus"
-                                            Size="12" />
+                                            Kind="Minus" />
                             </Button>
                             <Button WindowDecorationProperties.ElementRole="MaximizeButton"
                                     Classes="window-control"
@@ -174,8 +153,8 @@
                                 <LucideIcon HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             Margin="0"
-                                            Kind="Square"
-                                            Size="12" />
+                                            Size="16"
+                                            Kind="Square" />
                             </Button>
                             <Button WindowDecorationProperties.ElementRole="CloseButton"
                                     Classes="window-control"
@@ -183,8 +162,7 @@
                                 <LucideIcon HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             Margin="0"
-                                            Kind="X"
-                                            Size="12" />
+                                            Kind="X" />
                             </Button>
                         </StackPanel>
                     </StackPanel>
@@ -330,13 +308,12 @@
                     <TabItem.Header>
                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
                             <Border Classes="nav-icon">
-                                <LucideIcon  HorizontalAlignment="Center"
+                                <LucideIcon HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
-                                            Kind="House"
-                                             />
+                                            Kind="House" />
                             </Border>
                             <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
-                                <TextBlock Classes="nav-title" Text="概览"  />
+                                <TextBlock Classes="nav-title" Text="概览" />
                                 <TextBlock Classes="nav-subtitle" Text="工作台总览" />
                             </StackPanel>
                         </Grid>
@@ -350,8 +327,7 @@
                             <Border Classes="nav-icon">
                                 <LucideIcon HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
-                                            Kind="LibraryBig"
-                                             />
+                                            Kind="LibraryBig" />
                             </Border>
                             <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                                 <TextBlock Classes="nav-title" Text="素材库" />
@@ -368,8 +344,7 @@
                             <Border Classes="nav-icon">
                                 <LucideIcon HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
-                                            Kind="BotMessageSquare"
-                                             />
+                                            Kind="BotMessageSquare" />
                             </Border>
                             <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                                 <TextBlock Classes="nav-title" Text="描述任务" />
@@ -386,8 +361,7 @@
                             <Border Classes="nav-icon">
                                 <LucideIcon HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
-                                            Kind="Settings2"
-                                             />
+                                            Kind="Settings2" />
                             </Border>
                             <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                                 <TextBlock Classes="nav-title" Text="设置" />

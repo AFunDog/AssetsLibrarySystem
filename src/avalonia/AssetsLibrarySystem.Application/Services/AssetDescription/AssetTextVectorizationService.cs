@@ -29,10 +29,10 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
         CancellationToken ct = default)
     {
         var request = new SearchIndexRequest(
-            AssetId: document.AssetId,
+            AssetId: document.AssetUid,
             AssetName: document.AssetName,
             AssetType: document.AssetType,
-            AssetPath: document.AssetPath,
+            AssetPath: document.CurrentPath,
             Description: document.Description,
             SourceStorePath: document.StorePath,
             GeneratedAt: document.GeneratedAt);
@@ -55,16 +55,17 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
             ?? throw new InvalidOperationException("后端返回空向量响应。");
 
         return new AssetDescriptionVectorDocument(
-            AssetId: vectorResponse.AssetId,
+            AssetUid: vectorResponse.AssetId,
             AssetName: vectorResponse.AssetName,
             AssetType: vectorResponse.AssetFormat,
-            AssetPath: vectorResponse.AssetPath,
+            CurrentPath: vectorResponse.AssetPath,
             Description: vectorResponse.Description,
             DescriptionStorePath: document.StorePath,
             EmbeddingModel: vectorResponse.EmbeddingModel,
             VectorDim: vectorResponse.VectorDim,
             Vector: JsonSerializer.Deserialize<float[]>(vectorResponse.Vector.GetRawText(), JsonOptions) ?? [],
-            VectorizedAt: DateTimeOffset.UtcNow);
+            VectorizedAt: DateTimeOffset.UtcNow,
+            ContentHash: document.ContentHash);
     }
 
     private sealed record SearchIndexRequest(
