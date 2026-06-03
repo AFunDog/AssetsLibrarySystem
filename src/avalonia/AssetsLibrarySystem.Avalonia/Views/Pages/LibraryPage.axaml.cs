@@ -50,6 +50,18 @@ public partial class LibraryPage : UserControl
         viewModel.RevealInFileExplorer(node);
     }
 
+    private async void QueueDescriptionForNode_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem ||
+            menuItem.CommandParameter is not AssetLibraryTreeNode node ||
+            DataContext is not LibraryPageViewModel viewModel)
+        {
+            return;
+        }
+
+        await viewModel.QueueDescriptionForNodeAsync(node);
+    }
+
     private void RevealSearchResult_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button ||

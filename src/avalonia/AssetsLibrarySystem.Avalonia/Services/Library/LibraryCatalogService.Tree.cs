@@ -244,6 +244,35 @@ public sealed partial class LibraryCatalogService
         SelectedAssetTreeNode = FindLibraryTreeNode(library.Id);
     }
 
+    private void RefreshExplorerSelectionAfterTreeRebuild()
+    {
+        if (SelectedAssetTreeNode is null)
+        {
+            UpdateExplorerView(null);
+            return;
+        }
+
+        var selectedNode = SelectedAssetTreeNode;
+        var replacement = selectedNode.Kind == AssetLibraryTreeNodeKind.File && selectedNode.Asset is not null
+            ? FindAssetTreeNode(selectedNode.Asset.Id)
+            : string.IsNullOrWhiteSpace(selectedNode.FullPath)
+                ? null
+                : FindTreeNodeByPath(selectedNode.FullPath);
+
+        if (replacement is null)
+        {
+            SelectedAssetTreeNode = null;
+            UpdateExplorerView(null);
+            return;
+        }
+
+        SelectedAssetTreeNode = replacement;
+        if (ReferenceEquals(selectedNode, replacement))
+        {
+            UpdateExplorerView(replacement);
+        }
+    }
+
     private void UpdateExplorerView(AssetLibraryTreeNode? node)
     {
         var container = GetExplorerContainerNode(node);
@@ -274,7 +303,7 @@ public sealed partial class LibraryCatalogService
             ? container.Summary
             : $"{container.MetaLabel} · {container.CategorySummary}";
         ExplorerPath = container.FullPath;
-        CanNavigateUp = container.Kind != AssetLibraryTreeNodeKind.Library && FindParentTreeNode(container) is not null;
+        CanNavigateUp = container.Kind == AssetLibraryTreeNodeKind.Library || FindParentTreeNode(container) is not null;
     }
 
     private void OpenExplorerItem(AssetLibraryTreeNode? node)

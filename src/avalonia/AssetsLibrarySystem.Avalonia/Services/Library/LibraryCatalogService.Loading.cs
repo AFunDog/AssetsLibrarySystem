@@ -49,7 +49,8 @@ public sealed partial class LibraryCatalogService
         WorkspaceSummary = firstLibrary.RootPath;
         AssetSummary = "素材库目录已载入，素材文件正在后台异步加载。";
         OperatorNotice = "素材库列表已加载完成，文件数据正在后台同步。";
-        SelectedAssetTreeNode = FindLibraryTreeNode(firstLibrary.Id);
+        SelectedAssetTreeNode = null;
+        UpdateExplorerView(null);
 
         _ = LoadAllLibraryDataAsync();
     }
@@ -101,6 +102,7 @@ public sealed partial class LibraryCatalogService
                     : $"已加载 {assets.Count} 个素材文件，可在右侧列表查看。";
 
                 RebuildAssetTree();
+                RefreshExplorerSelectionAfterTreeRebuild();
                 RebuildMetrics();
 
                 if (SelectedLibrary?.Id == library.Id)

@@ -85,7 +85,7 @@
                         <TextBlock Classes="eyebrow" Text="素材库" />
                         <TextBlock Classes="section-title" Text="素材库资源管理器" />
                         <TextBlock Classes="section-subtitle"
-                                   Text="左侧切换素材库，中央用大图标浏览当前库和目录，右侧查看选中素材的详情。" />
+                                   Text="中央用大图标浏览素材库、目录和文件，右键可定位位置或加入描述任务队列。" />
                     </StackPanel>
 
                     <!-- <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"> -->
@@ -99,76 +99,22 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" ColumnDefinitions="280,*,320" ColumnSpacing="8">
-                <StackPanel Spacing="8">
+            <Grid Grid.Row="1" ColumnDefinitions="*,320" ColumnSpacing="8">
+                <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
                     <Border Classes="page-card">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="eyebrow" Text="素材库" />
-                            <TextBlock Classes="section-title" Text="{Binding SelectedLibrary.Name, FallbackValue=未选择}" />
-                            <TextBlock Classes="section-subtitle"
-                                       Text="{Binding SelectedLibrary.Summary, FallbackValue=尚未加载素材库。}" />
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <Button Classes="primary-action"
                                         Click="AddLibraryFolder_Click"
                                         Content="添加目录" />
-                                <Button Grid.Column="1"
-                                        Classes="secondary-action"
+                                <Button Classes="secondary-action"
                                         Command="{Binding ScanSelectedLibraryCommand}"
                                         Content="扫描当前" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Classes="page-card">
-                        <StackPanel Spacing="8">
-                            <StackPanel Spacing="4">
-                                <TextBlock Classes="eyebrow" Text="素材库列表" />
-                                <TextBlock Classes="section-title" Text="快速访问" />
+                                <Button Classes="secondary-action"
+                                        Command="{Binding NavigateUpCommand}"
+                                        IsEnabled="{Binding CanNavigateUp}"
+                                        Content="上一级" />
                             </StackPanel>
-
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="540">
-                                <ItemsControl ItemsSource="{Binding Libraries}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Button Classes="secondary-action"
-                                                    Margin="0,0,0,4"
-                                                    Click="SelectLibrary_Click"
-                                                    CommandParameter="{Binding}">
-                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                                                    <Border Background="{DynamicResource AppAccentSurfaceBrush}"
-                                                            BorderBrush="{DynamicResource AppAccentBrush}"
-                                                            BorderThickness="1"
-                                                            CornerRadius="4"
-                                                            Width="28"
-                                                            Height="28">
-                                                        <lucide:LucideIcon Kind="Folder" Size="14" />
-                                                    </Border>
-                                                    <StackPanel Grid.Column="1" Spacing="2">
-                                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                                   FontWeight="SemiBold"
-                                                                   Text="{Binding Name}" />
-                                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                                   FontSize="11"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   Text="{Binding RootPath}" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </Button>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="8">
-                    <Border Classes="page-card">
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                            <Button Classes="secondary-action"
-                                    Command="{Binding NavigateUpCommand}"
-                                    IsEnabled="{Binding CanNavigateUp}"
-                                    Content="上一级" />
                             <StackPanel Grid.Column="1" Spacing="2">
                                 <TextBlock Classes="eyebrow" Text="资源管理器" />
                                 <TextBlock Classes="section-title" Text="{Binding ExplorerTitle}" />
@@ -212,6 +158,16 @@
                                                 VerticalContentAlignment="Stretch"
                                                 Click="OpenExplorerItem_Click"
                                                 CommandParameter="{Binding}">
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="定位文件或文件夹位置"
+                                                              Click="RevealInExplorer_Click"
+                                                              CommandParameter="{Binding}" />
+                                                    <MenuItem Header="加入描述任务队列"
+                                                              Click="QueueDescriptionForNode_Click"
+                                                              CommandParameter="{Binding}" />
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
                                             <StackPanel Spacing="8">
                                                 <Border Background="{DynamicResource AppAccentSurfaceBrush}"
                                                         BorderBrush="{DynamicResource AppAccentBrush}"
@@ -252,7 +208,7 @@
                     </Border>
                 </Grid>
 
-                <Grid Grid.Column="2" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
                     <Border Classes="page-card">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="eyebrow" Text="已选素材" />

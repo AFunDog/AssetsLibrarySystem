@@ -287,6 +287,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
         else
         {
             RebuildAssetTree();
+            RefreshExplorerSelectionAfterTreeRebuild();
         }
 
         OperatorNotice = $"已为 {asset.Name} 排入描述任务，正在调用后端服务。";
@@ -312,6 +313,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
         else
         {
             RebuildAssetTree();
+            RefreshExplorerSelectionAfterTreeRebuild();
         }
 
         OperatorNotice = $"描述已写入 SQLite：{document.StorePath}";
@@ -331,6 +333,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
         else
         {
             RebuildAssetTree();
+            RefreshExplorerSelectionAfterTreeRebuild();
         }
 
         OperatorNotice = $"描述任务失败：{error}";

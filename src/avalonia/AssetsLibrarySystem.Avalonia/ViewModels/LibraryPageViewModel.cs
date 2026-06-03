@@ -6,8 +6,10 @@ using System.IO;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
+using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
+using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
 using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -20,9 +22,17 @@ public sealed partial class LibraryPageViewModel : ObservableObject
     private BackendSessionService BackendSessionService { get; }
     private LibraryCatalogService LibraryCatalogService { get; }
     private IAssetSearchService? AssetSearchService { get; }
+    private IAssetDescriptionService? AssetDescriptionService { get; }
+    private IBackgroundTaskService? BackgroundTaskService { get; }
 
     public LibraryPageViewModel()
-        : this(new BackendSessionService(), new LibraryCatalogService(), null, new ActivityFeedService())
+        : this(
+            new BackendSessionService(),
+            new LibraryCatalogService(),
+            null,
+            null,
+            new BackgroundTaskService(),
+            new ActivityFeedService())
     {
     }
 
@@ -30,11 +40,15 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         BackendSessionService backendSessionService,
         LibraryCatalogService libraryCatalogService,
         IAssetSearchService? assetSearchService,
+        IAssetDescriptionService? assetDescriptionService,
+        IBackgroundTaskService? backgroundTaskService,
         ActivityFeedService activityFeedService)
     {
         BackendSessionService = backendSessionService;
         LibraryCatalogService = libraryCatalogService;
         AssetSearchService = assetSearchService;
+        AssetDescriptionService = assetDescriptionService;
+        BackgroundTaskService = backgroundTaskService;
         ActivityFeed = activityFeedService.Entries;
         SearchResults = [];
 
@@ -54,7 +68,10 @@ public sealed partial class LibraryPageViewModel : ObservableObject
 
         BackendSessionService.PropertyChanged += OnDependencyPropertyChanged;
         LibraryCatalogService.PropertyChanged += OnDependencyPropertyChanged;
-        Log.Debug("LibraryPageViewModel 已创建，searchServiceRegistered={HasSearchService}", AssetSearchService is not null);
+        Log.Debug(
+            "LibraryPageViewModel 已创建，searchServiceRegistered={HasSearchService}, descriptionServiceRegistered={HasDescriptionService}",
+            AssetSearchService is not null,
+            AssetDescriptionService is not null);
     }
 
     [ObservableProperty]
@@ -196,6 +213,56 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         LibraryCatalogService.SelectLibrary(library);
     }
 
+    public async Task QueueDescriptionForNodeAsync(AssetLibraryTreeNode? node)
+    {
+        if (node is null)
+        {
+            LibraryCatalogService.SetOperatorNotice("请先选择一个素材库、目录或素材文件。");
+            return;
+        }
+
+        LibraryCatalogService.SelectedAssetTreeNode = node;
+        var assets = LibraryCatalogService.GetDescriptionSelectionAssets();
+        if (assets.Count == 0)
+        {
+            LibraryCatalogService.SetOperatorNotice("当前节点下没有可发送到后端描述的素材。");
+            Log.Warning(
+                "右键加入描述任务失败：节点下没有素材，nodeName={NodeName}, nodeKind={NodeKind}, path={Path}",
+                node.DisplayName,
+                node.Kind,
+                node.FullPath);
+            return;
+        }
+
+        if (!BackendSessionService.IsBackendReady)
+        {
+            LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
+            Log.Warning("右键加入描述任务失败：后端未就绪，assetCount={AssetCount}", assets.Count);
+            return;
+        }
+
+        if (AssetDescriptionService is null)
+        {
+            LibraryCatalogService.SetOperatorNotice("描述服务未注册，当前无法调用后端。");
+            Log.Warning("右键加入描述任务失败：描述服务未注册，assetCount={AssetCount}", assets.Count);
+            return;
+        }
+
+        LibraryCatalogService.SetOperatorNotice($"已将 {assets.Count} 个素材排入后端描述任务。");
+        ActivityFeed.Insert(0, $"右键描述任务排队：{node.DisplayName}，共 {assets.Count} 个素材");
+        Log.Information(
+            "用户通过右键菜单加入描述任务: nodeName={NodeName}, nodeKind={NodeKind}, path={Path}, assetCount={AssetCount}",
+            node.DisplayName,
+            node.Kind,
+            node.FullPath,
+            assets.Count);
+
+        foreach (var asset in assets)
+        {
+            await DescribeAssetAsync(asset);
+        }
+    }
+
     private async Task ExecuteSearchAsync()
     {
         if (!BackendSessionService.IsBackendReady)
@@ -320,6 +387,56 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             ActivityFeed.Insert(0, $"索引重建失败：{ex.Message}");
             Log.Error(ex, "索引重建失败。");
         }
+    }
+
+    private async Task DescribeAssetAsync(ManagedAssetRecord asset)
+    {
+        if (!BackendSessionService.IsBackendReady)
+        {
+            LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
+            return;
+        }
+
+        if (AssetDescriptionService is null)
+        {
+            LibraryCatalogService.SetOperatorNotice("描述服务未注册，当前无法调用后端。");
+            return;
+        }
+
+        LibraryCatalogService.MarkAssetDescriptionQueued(asset);
+        var taskId = BackgroundTaskService?.BeginTask("素材描述", $"正在生成素材描述：{asset.Name}", asset.LocalPath);
+
+        try
+        {
+            var document = await AssetDescriptionService.DescribeAsync(asset, BackendSessionService.BaseUrl, null, null);
+            LibraryCatalogService.CompleteAssetDescription(asset, document);
+            CompleteTask(taskId, $"描述完成：{asset.Name}", document.StorePath);
+        }
+        catch (Exception ex)
+        {
+            LibraryCatalogService.FailAssetDescription(asset, ex.Message);
+            FailTask(taskId, $"描述失败：{asset.Name}", ex.Message);
+        }
+    }
+
+    private void CompleteTask(string? taskId, string? stageText = null, string? detailText = null)
+    {
+        if (string.IsNullOrWhiteSpace(taskId))
+        {
+            return;
+        }
+
+        BackgroundTaskService?.CompleteTask(taskId, stageText, detailText);
+    }
+
+    private void FailTask(string? taskId, string stageText, string detailText)
+    {
+        if (string.IsNullOrWhiteSpace(taskId))
+        {
+            return;
+        }
+
+        BackgroundTaskService?.FailTask(taskId, detailText, stageText);
     }
 
     private void OnDependencyPropertyChanged(object? sender, PropertyChangedEventArgs e)
