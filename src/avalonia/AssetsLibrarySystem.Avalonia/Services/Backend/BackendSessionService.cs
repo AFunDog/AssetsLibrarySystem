@@ -156,14 +156,27 @@ public sealed partial class BackendSessionService : ObservableObject
                         AssetSearchWarmupDocument? embeddingWarmup = null;
                         AssetSearchWarmupDocument? rerankWarmup = null;
 
-                        if (shouldWarmEmbedding)
-                        {
-                            embeddingWarmup = await AssetSearchService.WarmupEmbeddingAsync(BackendEndpoint);
-                        }
+                        var embeddingWarmupTask = shouldWarmEmbedding
+                            ? AssetSearchService.WarmupEmbeddingAsync(BackendEndpoint)
+                            : null;
+                        var rerankWarmupTask = shouldWarmRerank
+                            ? AssetSearchService.WarmupRerankAsync(BackendEndpoint)
+                            : null;
 
-                        if (shouldWarmRerank)
+                        if (embeddingWarmupTask is not null && rerankWarmupTask is not null)
                         {
-                            rerankWarmup = await AssetSearchService.WarmupRerankAsync(BackendEndpoint);
+                            Log.Information("并行预热 embedding 与 rerank 本地搜索模型。");
+                            await Task.WhenAll(embeddingWarmupTask, rerankWarmupTask);
+                            embeddingWarmup = await embeddingWarmupTask;
+                            rerankWarmup = await rerankWarmupTask;
+                        }
+                        else if (embeddingWarmupTask is not null)
+                        {
+                            embeddingWarmup = await embeddingWarmupTask;
+                        }
+                        else if (rerankWarmupTask is not null)
+                        {
+                            rerankWarmup = await rerankWarmupTask;
                         }
 
                         BackendStatusStage = shouldWarmEmbedding && shouldWarmRerank
