@@ -22,12 +22,14 @@ public sealed class ShellWindowService : IShellWindowService
     public void AttachDesktop(IClassicDesktopStyleApplicationLifetime desktop)
     {
         Desktop = desktop;
+        Log.Debug("已绑定桌面生命周期。");
     }
 
     public void AttachMainWindow(MainWindow window)
     {
         MainWindow = window;
         window.Closing += MainWindow_Closing;
+        Log.Debug("已绑定主窗口实例。");
         MainWindowVisibilityChanged?.Invoke(IsMainWindowVisible);
     }
 
@@ -35,28 +37,33 @@ public sealed class ShellWindowService : IShellWindowService
     {
         QuickSearchWindow = window;
         window.Closing += QuickSearchWindow_Closing;
+        Log.Debug("已绑定快速检索窗口实例。");
         QuickSearchWindowVisibilityChanged?.Invoke(IsQuickSearchWindowVisible);
     }
 
     public void SetShuttingDown(bool isShuttingDown)
     {
         IsShuttingDown = isShuttingDown;
+        Log.Debug("设置壳层关闭状态: isShuttingDown={IsShuttingDown}", isShuttingDown);
     }
 
     public void RequestShutdown()
     {
         IsShuttingDown = true;
+        Log.Information("请求桌面生命周期退出。");
         Desktop?.Shutdown();
     }
 
     public void ShowMainWindow()
     {
+        Log.Debug("请求显示主窗口。");
         ShowWindow(MainWindow);
         MainWindowVisibilityChanged?.Invoke(IsMainWindowVisible);
     }
 
     public void ShowQuickSearchWindow()
     {
+        Log.Debug("请求显示快速检索窗口。");
         ShowWindow(QuickSearchWindow);
         QuickSearchWindow?.FocusSearchBox();
         QuickSearchWindowVisibilityChanged?.Invoke(IsQuickSearchWindowVisible);
@@ -66,31 +73,37 @@ public sealed class ShellWindowService : IShellWindowService
     {
         if (QuickSearchWindow is null)
         {
+            Log.Debug("快速检索窗口未创建，跳过切换。");
             return;
         }
 
         if (QuickSearchWindow.IsVisible)
         {
+            Log.Debug("快速检索窗口当前可见，准备隐藏。");
             HideQuickSearchWindow();
             return;
         }
 
+        Log.Debug("快速检索窗口当前隐藏，准备显示。");
         ShowQuickSearchWindow();
     }
 
     public void FocusQuickSearchWindow()
     {
+        Log.Debug("请求聚焦快速检索窗口。");
         QuickSearchWindow?.FocusSearchBox();
     }
 
     public void HideMainWindow()
     {
+        Log.Debug("请求隐藏主窗口。");
         HideWindow(MainWindow);
         MainWindowVisibilityChanged?.Invoke(IsMainWindowVisible);
     }
 
     public void HideQuickSearchWindow()
     {
+        Log.Debug("请求隐藏快速检索窗口。");
         HideWindow(QuickSearchWindow);
         QuickSearchWindowVisibilityChanged?.Invoke(IsQuickSearchWindowVisible);
     }

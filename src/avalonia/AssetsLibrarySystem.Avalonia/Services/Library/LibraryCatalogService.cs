@@ -10,6 +10,7 @@ using AssetsLibrarySystem.Avalonia.Services.AssetDescription;
 using AssetsLibrarySystem.Avalonia.Services.AssetLibrary;
 using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.Services.Library;
 
@@ -159,14 +160,17 @@ public sealed partial class LibraryCatalogService : ObservableObject
 
     public async Task InitializeAsync()
     {
+        Log.Information("初始化素材库工作台。");
         await LoadLibrariesAsync();
     }
 
     public async Task AddLibraryDirectoryAsync(string folderPath)
     {
+        Log.Information("用户操作: 添加素材库目录，folderPath={FolderPath}", folderPath);
         if (AssetLibraryService is null)
         {
             OperatorNotice = "素材库服务尚未注册，当前无法保存目录。";
+            Log.Warning("添加素材库目录失败：素材库服务未注册。");
             return;
         }
 
@@ -178,12 +182,14 @@ public sealed partial class LibraryCatalogService : ObservableObject
         {
             Libraries.Add(library);
             ActivityFeedService.Add($"已登记素材库目录：{library.RootPath}");
+            Log.Information("素材库目录已登记: libraryId={LibraryId}, libraryName={LibraryName}, rootPath={RootPath}", library.Id, library.Name, library.RootPath);
             RebuildAssetTree();
         }
         else
         {
             library = existing;
             ActivityFeedService.Add($"素材库目录已存在：{library.RootPath}");
+            Log.Information("素材库目录已存在: libraryId={LibraryId}, libraryName={LibraryName}, rootPath={RootPath}", library.Id, library.Name, library.RootPath);
         }
 
         SelectedLibrary = library;
@@ -194,11 +200,13 @@ public sealed partial class LibraryCatalogService : ObservableObject
 
     public Task RefreshSelectedLibraryAsync()
     {
+        Log.Information("用户操作: 刷新当前素材库。 selectedLibrary={SelectedLibrary}", SelectedLibrary?.Name ?? "none");
         return SelectedLibrary is null ? Task.CompletedTask : ScanLibraryAsync(SelectedLibrary);
     }
 
     public Task ScanSelectedLibraryAsync()
     {
+        Log.Information("用户操作: 扫描当前素材库。 selectedLibrary={SelectedLibrary}", SelectedLibrary?.Name ?? "none");
         return SelectedLibrary is null ? Task.CompletedTask : ScanLibraryAsync(SelectedLibrary);
     }
 
@@ -207,6 +215,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
         if (SelectedAsset is null)
         {
             OperatorNotice = "请先选择一个素材，再调整其桌面端管理状态。";
+            Log.Warning("标记素材为已接管失败：未选择素材。");
             return;
         }
 
@@ -215,6 +224,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
         SyncSelectedAssetFields();
         OperatorNotice = $"{SelectedAsset.Name} 已切换到 .NET 素材管理视图。";
         ActivityFeedService.Add($"状态更新：{SelectedAsset.Name} -> 桌面端已接管");
+        Log.Information("素材状态已切换为桌面端已接管: assetUid={AssetUid}, assetName={AssetName}", SelectedAsset.AssetUid, SelectedAsset.Name);
     }
 
     public IReadOnlyList<ManagedAssetRecord> GetDescriptionSelectionAssets()
@@ -226,6 +236,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
     {
         asset.Stage = "描述中";
         asset.AiState = "已发送到 Python HTTP 服务";
+        Log.Information("素材进入描述队列: assetUid={AssetUid}, assetName={AssetName}", asset.AssetUid, asset.Name);
 
         if (ReferenceEquals(SelectedAsset, asset))
         {
@@ -244,6 +255,12 @@ public sealed partial class LibraryCatalogService : ObservableObject
     {
         asset.Stage = document.Mode == "live" ? "已描述" : "已描述（占位）";
         asset.AiState = $"SQLite 已保存 · {document.Mode}";
+        Log.Information(
+            "素材描述完成: assetUid={AssetUid}, assetName={AssetName}, storePath={StorePath}, mode={Mode}",
+            asset.AssetUid,
+            asset.Name,
+            document.StorePath,
+            document.Mode);
 
         if (ReferenceEquals(SelectedAsset, asset))
         {
@@ -263,6 +280,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
     {
         asset.Stage = "描述失败";
         asset.AiState = "调用后端失败";
+        Log.Warning("素材描述失败: assetUid={AssetUid}, assetName={AssetName}, error={Error}", asset.AssetUid, asset.Name, error);
 
         if (ReferenceEquals(SelectedAsset, asset))
         {
@@ -280,5 +298,6 @@ public sealed partial class LibraryCatalogService : ObservableObject
     public void SetOperatorNotice(string message)
     {
         OperatorNotice = message;
+        Log.Debug("操作提示更新: {Message}", message);
     }
 }

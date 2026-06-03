@@ -7,6 +7,7 @@ using AssetsLibrarySystem.Avalonia.Services.AssetSearch;
 using AssetsLibrarySystem.Avalonia.Services.BackendLauncher;
 using AssetsLibrarySystem.Avalonia.Services.BackgroundTasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.Services.Backend;
 
@@ -76,6 +77,7 @@ public sealed partial class BackendSessionService : ObservableObject
     {
         if (BackendLauncher is null)
         {
+            Log.Debug("BackendSessionService 处于设计时模式，跳过后端启动。");
             BackendStatusTitle = "设计时模式";
             BackendStatusStage = "本地预览 [0/0]";
             BackendStatusDetail = "当前界面使用桌面端本地逻辑，没有注入 Python 模型服务。";
@@ -85,6 +87,7 @@ public sealed partial class BackendSessionService : ObservableObject
             return Task.CompletedTask;
         }
 
+        Log.Information("开始初始化后端会话服务，准备启动 Python 后端。");
         _ = InitializeBackendCoreAsync();
         return Task.CompletedTask;
     }
@@ -96,10 +99,17 @@ public sealed partial class BackendSessionService : ObservableObject
             throw new InvalidOperationException("后端启动器未注册。");
         }
 
+        Log.Information("用户触发后端确保运行。");
         if (!BackendLauncher.IsRunning)
         {
+            Log.Information("后端当前未运行，开始启动。");
             await BackendLauncher.StartAsync();
             BackendEndpoint = BackendLauncher.BaseUrl;
+            Log.Information("后端已启动，baseUrl={BaseUrl}", BackendEndpoint);
+        }
+        else
+        {
+            Log.Debug("后端已在运行，跳过重复启动，baseUrl={BaseUrl}", BackendLauncher.BaseUrl);
         }
     }
 
@@ -109,6 +119,7 @@ public sealed partial class BackendSessionService : ObservableObject
         BackendStatusTitle = "Python 模型服务启动中";
         BackendStatusStage = "启动服务 [0/2]";
         BackendStatusDetail = "正在等待 /health 返回，就绪后桌面端可将提示词任务转发给 HTTP 后端。";
+        Log.Information("开始启动 Python 模型服务。");
 
         try
         {
@@ -117,6 +128,7 @@ public sealed partial class BackendSessionService : ObservableObject
             BackendStatusTitle = "Python 模型服务已连接";
             BackendStatusStage = "模型加载完毕 [2/2]";
             BackendStatusDetail = "模型服务只负责大模型 HTTP 接口，不再承担素材库、文件扫描或目录管理。";
+            Log.Information("Python 模型服务已连接，baseUrl={BaseUrl}", BackendEndpoint);
             ActivityFeedService.Add($"模型网关就绪：{BackendEndpoint}");
 
             if (AssetSearchService is not null)
@@ -127,10 +139,15 @@ public sealed partial class BackendSessionService : ObservableObject
 
                 try
                 {
+                    Log.Information("开始预热向量模型与重排序模型。");
                     var embeddingWarmup = await AssetSearchService.WarmupEmbeddingAsync(BackendEndpoint);
                     var rerankWarmup = await AssetSearchService.WarmupRerankAsync(BackendEndpoint);
                     BackendStatusStage = "模型加载完毕 [2/2]";
                     BackendStatusDetail = $"检索模型已预热：{embeddingWarmup.ModelName} / {rerankWarmup.ModelName}";
+                    Log.Information(
+                        "检索模型预热完成，embedding={EmbeddingModel}, rerank={RerankModel}",
+                        embeddingWarmup.ModelName,
+                        rerankWarmup.ModelName);
                     ActivityFeedService.Add($"检索模型预热完成：{embeddingWarmup.ModelName} / {rerankWarmup.ModelName}");
                     CompleteTask(taskId, "模型加载完毕", BackendStatusDetail);
                 }
@@ -138,6 +155,7 @@ public sealed partial class BackendSessionService : ObservableObject
                 {
                     BackendStatusStage = "模型预热失败 [2/2]";
                     BackendStatusDetail = $"模型预热失败：{ex.Message}";
+                    Log.Warning(ex, "检索模型预热失败。");
                     ActivityFeedService.Add($"检索模型预热失败：{ex.Message}");
                     FailTask(taskId, "模型预热失败", ex.Message);
                 }
@@ -150,6 +168,7 @@ public sealed partial class BackendSessionService : ObservableObject
                 SearchModelStatusTitle = "本地搜索模型未注入";
                 SearchModelStatusStage = "桌面端未注册检索服务 [0/2]";
                 SearchModelStatusDetail = "当前只有后端连接状态，没有本地搜索模型控制能力。";
+                Log.Debug("本地搜索服务未注册，仅更新后端连接状态。");
                 CompleteTask(taskId, "模型已连接", BackendStatusDetail);
             }
         }
@@ -161,6 +180,7 @@ public sealed partial class BackendSessionService : ObservableObject
             SearchModelStatusTitle = "本地搜索模型未就绪";
             SearchModelStatusStage = "后端启动失败 [0/2]";
             SearchModelStatusDetail = ex.Message;
+            Log.Error(ex, "Python 模型服务启动失败。");
             ActivityFeedService.Add($"模型网关启动失败：{ex.Message}");
             FailTask(taskId, "模型启动失败", ex.Message);
         }
@@ -190,18 +210,26 @@ public sealed partial class BackendSessionService : ObservableObject
 
         try
         {
+            Log.Debug("查询本地搜索模型状态，baseUrl={BaseUrl}", BaseUrl);
             var status = await AssetSearchService.GetModelStatusAsync(BaseUrl);
             SearchModelStatusTitle = status.LoadedCount > 0
                 ? "本地搜索模型已驻留"
                 : "本地搜索模型未驻留";
             SearchModelStatusStage = $"已驻留 {status.LoadedCount}/2";
             SearchModelStatusDetail = $"embedding: {(status.EmbeddingLoaded ? "已驻留" : "未驻留")} ({status.EmbeddingModelName}) · rerank: {(status.RerankLoaded ? "已驻留" : "未驻留")} ({status.RerankModelName})";
+            Log.Debug(
+                "本地搜索模型状态已刷新: loadedCount={LoadedCount}, embeddingLoaded={EmbeddingLoaded}, rerankLoaded={RerankLoaded}, device={Device}",
+                status.LoadedCount,
+                status.EmbeddingLoaded,
+                status.RerankLoaded,
+                status.Device);
         }
         catch (Exception ex) when (suppressErrors)
         {
             SearchModelStatusTitle = "本地搜索模型状态获取失败";
             SearchModelStatusStage = "状态刷新失败";
             SearchModelStatusDetail = ex.Message;
+            Log.Debug(ex, "本地搜索模型状态刷新失败（已抑制错误）。");
         }
     }
 
@@ -212,8 +240,14 @@ public sealed partial class BackendSessionService : ObservableObject
             throw new InvalidOperationException("检索服务未注册，无法关闭本地搜索模型。");
         }
 
+        Log.Information("用户请求关闭本地搜索模型，modelKind={ModelKind}", modelKind);
         var result = await AssetSearchService.CloseModelAsync(BaseUrl, modelKind);
         ActivityFeedService.Add($"关闭本地搜索模型：{result.ModelKind} -> {(result.Closed ? "已释放" : "未驻留")}");
+        Log.Information(
+            "本地搜索模型关闭结果: modelKind={ModelKind}, closed={Closed}, remainingLoadedModels={RemainingLoadedModels}",
+            result.ModelKind,
+            result.Closed,
+            string.Join(", ", result.RemainingLoadedModels));
         await RefreshSearchModelStatusAsync(suppressErrors: true);
         return result;
     }

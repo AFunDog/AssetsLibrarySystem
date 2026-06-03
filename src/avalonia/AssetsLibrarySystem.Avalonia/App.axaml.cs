@@ -34,6 +34,7 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Log.Information("开始初始化桌面生命周期，ShutdownMode=OnExplicitShutdown。");
 
             BuildContainer();
             var shellWindowService = Container!.Resolve<IShellWindowService>();
@@ -58,7 +59,11 @@ public partial class App : Application
             shellWindowService.AttachMainWindow(mainWindow);
             shellWindowService.AttachQuickSearchWindow(quickSearchWindow);
 
-            desktop.Exit += (_, _) => ShutdownDesktop(shellWindowService);
+            desktop.Exit += (_, _) =>
+            {
+                Log.Information("桌面生命周期触发 Exit 事件，开始统一清理。");
+                ShutdownDesktop(shellWindowService);
+            };
 
             ShellViewModel.StartHotkey();
             Log.Information("主窗口已创建，开始初始化视图模型");
@@ -81,6 +86,7 @@ public partial class App : Application
 
     private void BuildContainer()
     {
+        Log.Debug("开始构建 Avalonia 依赖容器。");
         var builder = ServiceBootstrapper.CreateBuilder();
         builder.RegisterType<ShellWindowService>()
             .As<IShellWindowService>()
@@ -116,12 +122,14 @@ public partial class App : Application
             .AsSelf()
             .SingleInstance();
         Container = builder.Build();
+        Log.Debug("Avalonia 依赖容器构建完成。");
     }
 
     private void ShutdownDesktop(IShellWindowService shellWindowService)
     {
         try
         {
+            Log.Information("开始清理桌面端资源。");
             ShellViewModel?.Dispose();
             shellWindowService.SetShuttingDown(true);
         }
@@ -132,6 +140,7 @@ public partial class App : Application
         finally
         {
             Container?.Dispose();
+            Log.Information("桌面端资源清理完成。");
         }
     }
 }

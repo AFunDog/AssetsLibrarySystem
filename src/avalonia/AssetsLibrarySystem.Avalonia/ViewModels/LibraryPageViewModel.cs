@@ -11,6 +11,7 @@ using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
@@ -50,6 +51,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
 
         BackendSessionService.PropertyChanged += OnDependencyPropertyChanged;
         LibraryCatalogService.PropertyChanged += OnDependencyPropertyChanged;
+        Log.Debug("LibraryPageViewModel 已创建，searchServiceRegistered={HasSearchService}", AssetSearchService is not null);
     }
 
     [ObservableProperty]
@@ -108,6 +110,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
 
     public Task AddLibraryDirectoryAsync(string folderPath)
     {
+        Log.Information("用户操作: 添加素材库目录，folderPath={FolderPath}", folderPath);
         return LibraryCatalogService.AddLibraryDirectoryAsync(folderPath);
     }
 
@@ -116,6 +119,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         if (node is null || string.IsNullOrWhiteSpace(node.FullPath))
         {
             LibraryCatalogService.SetOperatorNotice("当前节点没有可打开的本地路径。");
+            Log.Warning("资源管理器定位失败：节点没有可用路径。");
             return;
         }
 
@@ -130,6 +134,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         Process.Start(startInfo);
         LibraryCatalogService.SetOperatorNotice($"已在文件资源管理器中显示：{path}");
         ActivityFeed.Insert(0, $"资源管理器定位：{node.DisplayName}");
+        Log.Information("资源管理器定位成功: nodeName={NodeName}, nodeKind={NodeKind}, path={Path}", node.DisplayName, node.Kind, path);
     }
 
     public void RevealSearchResultInExplorer(AssetSearchDocument? result)
@@ -137,6 +142,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         if (result is null || string.IsNullOrWhiteSpace(result.AssetPath))
         {
             LibraryCatalogService.SetOperatorNotice("当前搜索结果没有可打开的本地路径。");
+            Log.Warning("搜索结果定位失败：没有可用路径。");
             return;
         }
 
@@ -150,6 +156,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
 
         LibraryCatalogService.SetOperatorNotice($"已在文件资源管理器中显示：{path}");
         ActivityFeed.Insert(0, $"搜索结果定位：{result.AssetName}");
+        Log.Information("搜索结果定位成功: assetName={AssetName}, assetPath={AssetPath}", result.AssetName, path);
     }
 
     private async Task ExecuteSearchAsync()
@@ -158,6 +165,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         {
             LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
             SearchStatus = "后端未就绪，无法执行检索。";
+            Log.Warning("用户触发库页检索，但后端未就绪。");
             return;
         }
 
@@ -165,6 +173,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         {
             LibraryCatalogService.SetOperatorNotice("检索服务未注册，当前无法调用后端。");
             SearchStatus = "检索服务未注册。";
+            Log.Warning("库页检索失败：检索服务未注册。");
             return;
         }
 
@@ -172,6 +181,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         {
             LibraryCatalogService.SetOperatorNotice("请输入要检索的文本描述。");
             SearchStatus = "请输入查询文本。";
+            Log.Warning("库页检索失败：查询文本为空。");
             return;
         }
 
@@ -179,6 +189,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         {
             LibraryCatalogService.SetOperatorNotice("候选数量必须是大于 0 的整数。");
             SearchStatus = "候选数量格式错误。";
+            Log.Warning("库页检索失败：候选数量格式错误，value={Value}", SearchCandidateTopKText);
             return;
         }
 
@@ -186,12 +197,19 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         {
             LibraryCatalogService.SetOperatorNotice("返回数量必须是大于 0 的整数。");
             SearchStatus = "返回数量格式错误。";
+            Log.Warning("库页检索失败：返回数量格式错误，value={Value}", SearchFinalTopKText);
             return;
         }
 
         SearchStatus = "正在执行向量召回与重排序...";
         LibraryCatalogService.SetOperatorNotice($"正在检索：“{SearchQuery}”");
         ActivityFeed.Insert(0, $"开始检索：{SearchQuery}");
+        Log.Information(
+            "用户在库页发起检索: queryLength={QueryLength}, candidateTopK={CandidateTopK}, finalTopK={FinalTopK}, assetFormat={AssetFormat}",
+            SearchQuery.Length,
+            candidateTopK,
+            finalTopK,
+            string.IsNullOrWhiteSpace(SearchAssetFormat) ? "全部" : SearchAssetFormat);
 
         try
         {
@@ -211,12 +229,18 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             SearchStatus = $"检索完成：候选 {response.CandidateTopK} 条，返回 {response.Results.Length} 条。";
             LibraryCatalogService.SetOperatorNotice(SearchStatus);
             ActivityFeed.Insert(0, $"检索完成：{SearchQuery} -> {response.Results.Length} 条结果");
+            Log.Information(
+                "库页检索完成: resultCount={ResultCount}, embeddingModel={EmbeddingModel}, rerankModel={RerankModel}",
+                response.Results.Length,
+                response.EmbeddingModel,
+                response.RerankModel);
         }
         catch (Exception ex)
         {
             SearchStatus = $"检索失败：{ex.Message}";
             LibraryCatalogService.SetOperatorNotice(SearchStatus);
             ActivityFeed.Insert(0, $"检索失败：{SearchQuery} -> {ex.Message}");
+            Log.Error(ex, "库页检索失败。");
         }
     }
 
@@ -226,6 +250,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         {
             SearchIndexSummary = "检索服务未注册，无法重建索引。";
             LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
+            Log.Warning("用户触发索引重建，但检索服务未注册。");
             return;
         }
 
@@ -233,6 +258,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         SearchIndexDetail = "后端会从 asset_descriptions.db 读取向量并重建 HNSW。";
         LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
         ActivityFeed.Insert(0, "开始重建向量索引。");
+        Log.Information("用户触发向量索引重建。");
 
         try
         {
@@ -242,6 +268,12 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             SearchIndexDetail = $"数据库：{response.DatabasePath}\n索引：{response.IndexPath}\n元数据：{response.MetadataPath}\n模型：{string.Join(", ", response.EmbeddingModels)}";
             LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
             ActivityFeed.Insert(0, $"索引重建完成：{response.DocumentCount} 条素材描述。");
+            Log.Information(
+                "索引重建完成: documentCount={DocumentCount}, vectorDim={VectorDim}, databasePath={DatabasePath}, indexPath={IndexPath}",
+                response.DocumentCount,
+                response.VectorDim,
+                response.DatabasePath,
+                response.IndexPath);
         }
         catch (Exception ex)
         {
@@ -249,6 +281,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             SearchIndexDetail = ex.Message;
             LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
             ActivityFeed.Insert(0, $"索引重建失败：{ex.Message}");
+            Log.Error(ex, "索引重建失败。");
         }
     }
 
