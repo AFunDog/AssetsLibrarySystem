@@ -440,7 +440,10 @@ class ModelService:
             return str(source_path)
 
         self._temp_dir.mkdir(parents=True, exist_ok=True)
-        target_path = self._build_temp_asset_path(source_path)
+        target_path = self._build_temp_asset_path(
+            source_path,
+            preferred_suffix=".mp3" if asset_format == "音频" else None,
+        )
 
         if asset_format == "图片":
             return str(self._compress_image(source_path, target_path))
@@ -450,9 +453,9 @@ class ModelService:
             return str(self._compress_audio(source_path, target_path))
         return str(source_path)
 
-    def _build_temp_asset_path(self, source_path: Path) -> Path:
+    def _build_temp_asset_path(self, source_path: Path, preferred_suffix: str | None = None) -> Path:
         safe_stem = re.sub(r"[^\w\-.]+", "_", source_path.stem).strip("._") or "asset"
-        suffix = source_path.suffix or ".bin"
+        suffix = preferred_suffix or source_path.suffix or ".bin"
         return self._temp_dir / f"{safe_stem}-{uuid.uuid4().hex[:8]}{suffix.lower()}"
 
     def _compress_image(self, source_path: Path, target_path: Path) -> Path:
@@ -518,7 +521,7 @@ class ModelService:
             self._audio_bitrate,
             str(target_path),
         ]
-        return self._run_ffmpeg_or_fallback(command, target_path)
+        return self._run_ffmpeg_or_fallback(command, source_path, target_path)
 
     def _compress_audio(self, source_path: Path, target_path: Path) -> Path:
         if shutil.which("ffmpeg") is None:
@@ -534,13 +537,15 @@ class ModelService:
             "1",
             "-ar",
             "24000",
+            "-codec:a",
+            "libmp3lame",
             "-b:a",
             self._audio_bitrate,
             str(target_path),
         ]
-        return self._run_ffmpeg_or_fallback(command, target_path)
+        return self._run_ffmpeg_or_fallback(command, source_path, target_path)
 
-    def _run_ffmpeg_or_fallback(self, command: list[str], target_path: Path) -> Path:
+    def _run_ffmpeg_or_fallback(self, command: list[str], source_path: Path, target_path: Path) -> Path:
         try:
             subprocess.run(
                 command,

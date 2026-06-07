@@ -81,7 +81,7 @@
 
 - 图片：优先使用 Pillow 进行缩放和有损/无损压缩
 - 视频：如果系统存在 `ffmpeg`，会压到较小分辨率和码率后再送给模型
-- 音频：如果系统存在 `ffmpeg`，会转成单声道、较低采样率和目标码率后再送给模型
+- 音频：如果系统存在 `ffmpeg`，会统一转成 `.mp3`，并使用单声道、较低采样率和目标码率后再送给模型
 - 如果当前环境缺少所需依赖或压缩失败，会自动回退到原始文件，不阻断打标
 
 相关可选配置：
@@ -108,7 +108,7 @@
 - `文本`：后端读取 `asset_path` 指向的文本文件内容，通过 `Generation.call()` 发送给大模型
 - `图片`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `image` 项发送
 - `视频`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `video` 项发送，并默认附带 `fps=2`
-- `音频`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `audio` 项发送；如果当前配置模型不是音频兼容模型，会自动回退到 `qwen3-omni-30b-a3b-captioner`
+- `音频`：后端优先使用预处理后的 `.mp3` 临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `audio` 项发送；如果当前配置模型不是音频兼容模型，会自动回退到 `qwen3-omni-30b-a3b-captioner`
 
 ## 本地启动
 
