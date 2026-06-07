@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     )
     search_embed_model: str = Field(default="Qwen/Qwen3-Embedding-0.6B", validation_alias="ALS_SEARCH_EMBED_MODEL")
     search_rerank_model: str = Field(default="Qwen/Qwen3-Reranker-0.6B", validation_alias="ALS_SEARCH_RERANK_MODEL")
+    media_temp_dir: str | None = Field(default=None, validation_alias="ALS_MEDIA_TEMP_DIR")
+    enable_media_preprocess: bool = Field(default=True, validation_alias="ALS_ENABLE_MEDIA_PREPROCESS")
+    image_max_side: int = Field(default=1600, validation_alias="ALS_IMAGE_MAX_SIDE")
+    image_jpeg_quality: int = Field(default=82, validation_alias="ALS_IMAGE_JPEG_QUALITY")
+    video_crf: int = Field(default=30, validation_alias="ALS_VIDEO_CRF")
+    audio_bitrate: str = Field(default="96k", validation_alias="ALS_AUDIO_BITRATE")
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -3,9 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 import asyncio
 import importlib.util
+import shutil
+import subprocess
 from pathlib import Path
+import re
+import uuid
 from typing import Any
 
+from app.core.config import get_settings
+from app.core.paths import ensure_shared_data_dir
 from app.core.prompt_config import extract_prompt_templates, load_prompt_config
 from app.core.provider_config import ProviderConfig, ProviderConfigManager
 from app.schemas.model import (
@@ -52,6 +58,15 @@ class ModelService:
     ) -> None:
         self._providers_path = Path(providers_path)
         self._prompts_path = Path(prompts_path)
+        settings = get_settings()
+        data_dir = ensure_shared_data_dir()
+        configured_temp_dir = settings.media_temp_dir.strip() if settings.media_temp_dir else ""
+        self._temp_dir = Path(configured_temp_dir).expanduser().resolve() if configured_temp_dir else data_dir / "temp"
+        self._enable_media_preprocess = settings.enable_media_preprocess
+        self._image_max_side = max(256, settings.image_max_side)
+        self._image_jpeg_quality = min(max(settings.image_jpeg_quality, 40), 95)
+        self._video_crf = min(max(settings.video_crf, 18), 40)
+        self._audio_bitrate = settings.audio_bitrate.strip() or "96k"
 
     def get_capabilities(self, provider_slot: str = DEFAULT_PROVIDER_SLOT) -> ModelCapabilitiesResponse:
         context = self._resolve_provider_context(provider_slot)
@@ -210,7 +225,8 @@ class ModelService:
             )
             return self._extract_response_text(response), self._extract_token_usage(response)
 
-        multimodal_content = self._build_multimodal_content(asset_format, asset_path, prompt)
+        preprocessed_path = await asyncio.to_thread(self._prepare_media_asset, asset_format, asset_path)
+        multimodal_content = self._build_multimodal_content(asset_format, preprocessed_path, prompt)
         response = await asyncio.to_thread(
             self._call_multimodal_sync,
             provider_config,
@@ -414,6 +430,130 @@ class ModelService:
 
     def _to_file_uri(self, asset_path: str) -> str:
         return f"file://{Path(asset_path).resolve().as_posix()}"
+
+    def _prepare_media_asset(self, asset_format: str, asset_path: str) -> str:
+        source_path = Path(asset_path).resolve()
+        if not source_path.exists():
+            raise FileNotFoundError(f"素材不存在: {source_path}")
+
+        if not self._enable_media_preprocess or asset_format not in {"图片", "视频", "音频"}:
+            return str(source_path)
+
+        self._temp_dir.mkdir(parents=True, exist_ok=True)
+        target_path = self._build_temp_asset_path(source_path)
+
+        if asset_format == "图片":
+            return str(self._compress_image(source_path, target_path))
+        if asset_format == "视频":
+            return str(self._compress_video(source_path, target_path))
+        if asset_format == "音频":
+            return str(self._compress_audio(source_path, target_path))
+        return str(source_path)
+
+    def _build_temp_asset_path(self, source_path: Path) -> Path:
+        safe_stem = re.sub(r"[^\w\-.]+", "_", source_path.stem).strip("._") or "asset"
+        suffix = source_path.suffix or ".bin"
+        return self._temp_dir / f"{safe_stem}-{uuid.uuid4().hex[:8]}{suffix.lower()}"
+
+    def _compress_image(self, source_path: Path, target_path: Path) -> Path:
+        try:
+            from PIL import Image
+        except ImportError:
+            return source_path
+
+        try:
+            with Image.open(source_path) as image:
+                converted = image.copy()
+                converted.thumbnail((self._image_max_side, self._image_max_side))
+                suffix = target_path.suffix.lower()
+
+                if suffix in {".jpg", ".jpeg"}:
+                    if converted.mode not in {"RGB", "L"}:
+                        converted = converted.convert("RGB")
+                    converted.save(
+                        target_path,
+                        format="JPEG",
+                        quality=self._image_jpeg_quality,
+                        optimize=True,
+                    )
+                    return target_path
+
+                if suffix == ".webp":
+                    converted.save(
+                        target_path,
+                        format="WEBP",
+                        quality=self._image_jpeg_quality,
+                        method=6,
+                    )
+                    return target_path
+
+                save_kwargs: dict[str, Any] = {"optimize": True}
+                if suffix == ".png":
+                    save_kwargs["compress_level"] = 9
+                converted.save(target_path, **save_kwargs)
+                return target_path
+        except Exception:
+            return source_path
+
+    def _compress_video(self, source_path: Path, target_path: Path) -> Path:
+        if shutil.which("ffmpeg") is None:
+            return source_path
+
+        command = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(source_path),
+            "-vf",
+            "scale='min(1280,iw)':-2",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            str(self._video_crf),
+            "-c:a",
+            "aac",
+            "-b:a",
+            self._audio_bitrate,
+            str(target_path),
+        ]
+        return self._run_ffmpeg_or_fallback(command, target_path)
+
+    def _compress_audio(self, source_path: Path, target_path: Path) -> Path:
+        if shutil.which("ffmpeg") is None:
+            return source_path
+
+        command = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(source_path),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "24000",
+            "-b:a",
+            self._audio_bitrate,
+            str(target_path),
+        ]
+        return self._run_ffmpeg_or_fallback(command, target_path)
+
+    def _run_ffmpeg_or_fallback(self, command: list[str], target_path: Path) -> Path:
+        try:
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            return source_path
+
+        if not target_path.exists() or target_path.stat().st_size <= 0:
+            return source_path
+        return target_path
 
     def _resolve_model_name(self, configured_model: str, asset_format: str) -> str:
         if asset_format == "音频" and "omni" not in configured_model.lower() and "audio" not in configured_model.lower():

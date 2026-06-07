@@ -8,6 +8,7 @@
 - 提供健康检查与能力清单
 - 作为 Avalonia/.NET 桌面端的模型调用出口
 - 提供文本向量化和候选集重排序能力
+- 在多模态打标前对图片/视频/音频做轻量预处理压缩
 
 当前后端不再承担：
 
@@ -76,6 +77,22 @@
 - `ALS_SEARCH_RERANK_MODEL`
 - `ALS_SEARCH_CACHE_DIR`
 
+多模态素材预处理默认开启，临时文件会写到 `DATA_ROOT/temp/`（或 `ALS_MEDIA_TEMP_DIR` 指定目录）：
+
+- 图片：优先使用 Pillow 进行缩放和有损/无损压缩
+- 视频：如果系统存在 `ffmpeg`，会压到较小分辨率和码率后再送给模型
+- 音频：如果系统存在 `ffmpeg`，会转成单声道、较低采样率和目标码率后再送给模型
+- 如果当前环境缺少所需依赖或压缩失败，会自动回退到原始文件，不阻断打标
+
+相关可选配置：
+
+- `ALS_ENABLE_MEDIA_PREPROCESS`
+- `ALS_MEDIA_TEMP_DIR`
+- `ALS_IMAGE_MAX_SIDE`
+- `ALS_IMAGE_JPEG_QUALITY`
+- `ALS_VIDEO_CRF`
+- `ALS_AUDIO_BITRATE`
+
 `POST /api/v1/search/query` 只对调用方传入的候选文本做本地 rerank，不负责数据库读取或写入。返回结果里的 `rerank_score` 是重排序模型的原始分数，`vector_distance` 仅在 `explore` 场景下有意义，表示向量召回的距离；`combined_score` 是后端用于最终排序的综合分数。
 
 `POST /api/v1/search/reindex` 会直接读取 Avalonia 已写入的 `asset_descriptions.db` 中的 `asset_description_vectors` 表，重新构建本地 HNSW 索引文件，不再维护第二份向量 SQLite。
@@ -89,9 +106,9 @@
 当前 DashScope 传参方式如下：
 
 - `文本`：后端读取 `asset_path` 指向的文本文件内容，通过 `Generation.call()` 发送给大模型
-- `图片`：后端将 `asset_path` 转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `image` 项发送
-- `视频`：后端将 `asset_path` 转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `video` 项发送，并默认附带 `fps=2`
-- `音频`：后端将 `asset_path` 转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `audio` 项发送；如果当前配置模型不是音频兼容模型，会自动回退到 `qwen3-omni-30b-a3b-captioner`
+- `图片`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `image` 项发送
+- `视频`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `video` 项发送，并默认附带 `fps=2`
+- `音频`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `audio` 项发送；如果当前配置模型不是音频兼容模型，会自动回退到 `qwen3-omni-30b-a3b-captioner`
 
 ## 本地启动
 

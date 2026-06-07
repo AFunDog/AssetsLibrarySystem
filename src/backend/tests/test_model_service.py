@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import tempfile
 from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from app.application.services.model_service import ModelRuntimeContext, ModelService
 from app.core.provider_config import ProviderConfig, ProviderConfigManager
@@ -109,6 +110,69 @@ class ModelServiceTestCase(unittest.TestCase):
 
         self.assertEqual(content[0], {"image": "file://D:/Data/全资源/music/cover.png"})
         self.assertEqual(content[1], {"text": "请打标"})
+
+    def test_prepare_media_asset_returns_original_when_disabled(self) -> None:
+        service = ModelService()
+        service._enable_media_preprocess = False
+
+        with patch.object(Path, "exists", return_value=True):
+            prepared = service._prepare_media_asset("图片", r"D:\Data\cover.png")
+
+        self.assertEqual(prepared, str(Path(r"D:\Data\cover.png").resolve()))
+
+    def test_prepare_media_asset_uses_temp_directory_for_images(self) -> None:
+        service = ModelService()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "cover.png"
+            source_path.write_bytes(b"fake")
+            service._temp_dir = Path(temp_dir) / "temp"
+
+            with patch.object(ModelService, "_compress_image", return_value=service._temp_dir / "cover-12345678.png") as compress_mock:
+                prepared = service._prepare_media_asset("图片", str(source_path))
+
+        compress_mock.assert_called_once()
+        self.assertTrue(prepared.endswith(".png"))
+        self.assertIn("temp", prepared)
+
+    def test_call_dashscope_uses_preprocessed_media_path(self) -> None:
+        service = ModelService()
+        provider = ProviderConfig(provider="dashscope", model="qwen-vl-max", api_key="sk-test")
+        fake_response = {"output": {"choices": [{"message": {"content": [{"text": "ok"}]}}]}}
+
+        with (
+            patch("app.application.services.model_service.ProviderConfigManager") as manager_cls,
+            patch.object(ModelService, "_prepare_media_asset", return_value=r"D:\Data\temp\cover.jpg") as prepare_mock,
+            patch.object(ModelService, "_call_multimodal_sync", return_value=fake_response) as call_mock,
+        ):
+            manager = MagicMock()
+            manager.get.return_value = provider
+            manager_cls.return_value = manager
+
+            output_text, usage = asyncio.run(
+                service._call_dashscope(
+                    ModelRuntimeContext(
+                        config_slot="图片",
+                        provider="dashscope",
+                        model="qwen-vl-max",
+                        system_prompt="",
+                        prompt="",
+                        supports_live_call=True,
+                    ),
+                    "system",
+                    "请描述",
+                    "图片",
+                    r"D:\Data\cover.png",
+                    "qwen-vl-max",
+                )
+            )
+
+        prepare_mock.assert_called_once_with("图片", r"D:\Data\cover.png")
+        sent_content = call_mock.call_args.args[3]
+        self.assertEqual(sent_content[0], {"image": "file://D:/Data/temp/cover.jpg"})
+        self.assertEqual(sent_content[1], {"text": "请描述"})
+        self.assertEqual(output_text, "ok")
+        self.assertIsNone(usage)
 
     def test_audio_format_uses_audio_compatible_model_when_needed(self) -> None:
         service = ModelService()
