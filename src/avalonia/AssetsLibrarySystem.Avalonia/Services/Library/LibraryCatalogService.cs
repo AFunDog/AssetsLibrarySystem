@@ -341,6 +341,37 @@ public sealed partial class LibraryCatalogService : ObservableObject
         ActivityFeedService.Add($"描述失败：{asset.Name} -> {error}");
     }
 
+    public void RemoveAssetDescription(ManagedAssetRecord asset, bool vectorDeleted)
+    {
+        asset.IsDescribed = false;
+        asset.Stage = "已识别";
+        asset.AiState = vectorDeleted ? "描述与向量已删除" : "描述已删除";
+        Log.Information(
+            "素材描述已删除: assetUid={AssetUid}, assetName={AssetName}, vectorDeleted={VectorDeleted}",
+            asset.AssetUid,
+            asset.Name,
+            vectorDeleted);
+
+        if (ReferenceEquals(SelectedAsset, asset))
+        {
+            ResetSelectedAssetDescription();
+            SelectedAssetDescriptionState = "当前素材尚未生成 AI 描述";
+            SelectedAssetDescriptionStorePath = AssetDescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
+            SelectedAssetDescriptionText = "当前素材的描述记录已删除。";
+            SyncSelectedAssetFields();
+        }
+        else
+        {
+            RebuildAssetTree();
+            RefreshExplorerSelectionAfterTreeRebuild();
+        }
+
+        OperatorNotice = vectorDeleted
+            ? $"已删除 {asset.Name} 的描述和向量记录。"
+            : $"已删除 {asset.Name} 的描述记录。";
+        ActivityFeedService.Add(OperatorNotice);
+    }
+
     public void SetOperatorNotice(string message)
     {
         OperatorNotice = message;

@@ -11,4 +11,6 @@ public interface IAssetDescriptionVectorStore
     Task SaveAsync(AssetDescriptionVectorDocument document, CancellationToken ct = default);
 
     Task<AssetDescriptionVectorDocument?> TryGetAsync(string assetId, CancellationToken ct = default);
+
+    Task<bool> DeleteAsync(string assetId, CancellationToken ct = default);
 }

@@ -60,7 +60,12 @@ public sealed class ManagedAssetRecord : ObservableModel
     public long FileSize { get; init; }
     public DateTimeOffset ModifiedTimeUtc { get; init; }
     public bool HasUidSidecar { get; init; }
-    public bool IsDescribed { get; init; }
+
+    public bool IsDescribed
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
     public string Summary { get; init; } = string.Empty;
     public ObservableCollection<string> Tags { get; init; } = new();
     public string DescriptionStatusLabel => IsDescribed ? "已描述" : "未描述";

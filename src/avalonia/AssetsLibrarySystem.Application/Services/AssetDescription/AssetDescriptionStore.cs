@@ -194,6 +194,30 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         return ReadDocument(reader);
     }
 
+    public async Task<bool> DeleteAsync(string assetId, CancellationToken ct = default)
+    {
+        await AssetDatabase.EnsureSchemaAsync(ct);
+        return await WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                DELETE FROM asset_descriptions
+                WHERE asset_id = $asset_id;
+                """;
+            AddParameter(command, "$asset_id", assetId);
+            var affectedRows = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+            if (affectedRows > 0)
+            {
+                await ResetAssetMetadataAsync(connection, assetId, token).ConfigureAwait(false);
+            }
+
+            return affectedRows > 0;
+        }, ct);
+    }
+
     private static AssetDescriptionDocument ReadDocument(SqliteDataReader reader)
     {
         return new AssetDescriptionDocument(
@@ -264,5 +288,23 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         AddParameter(command, "$created_at", document.GeneratedAt.ToString("O"));
         AddParameter(command, "$updated_at", document.GeneratedAt.ToString("O"));
         await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task ResetAssetMetadataAsync(
+        SqliteConnection connection,
+        string assetId,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE asset_metadata
+            SET metadata_status = 'pending',
+                updated_at = $updated_at
+            WHERE asset_uid = $asset_uid;
+            """;
+
+        AddParameter(command, "$asset_uid", assetId);
+        AddParameter(command, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
+        await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 }

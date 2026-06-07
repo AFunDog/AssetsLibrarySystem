@@ -109,6 +109,30 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             reader.IsDBNull(6) ? null : reader.GetString(6));
     }
 
+    public async Task<bool> DeleteAsync(string assetId, CancellationToken ct = default)
+    {
+        await AssetDatabase.EnsureSchemaAsync(ct);
+        return await WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                DELETE FROM asset_description_vectors
+                WHERE asset_id = $asset_id;
+                """;
+            AddParameter(command, "$asset_id", assetId);
+            var affectedRows = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+            if (affectedRows > 0)
+            {
+                await ResetAssetMetadataAsync(connection, assetId, token).ConfigureAwait(false);
+            }
+
+            return affectedRows > 0;
+        }, ct);
+    }
+
     private static void AddParameter(SqliteCommand command, string name, object? value)
     {
         command.Parameters.AddWithValue(name, value ?? DBNull.Value);
@@ -160,5 +184,23 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         AddParameter(command, "$created_at", document.VectorizedAt.ToString("O"));
         AddParameter(command, "$updated_at", document.VectorizedAt.ToString("O"));
         await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task ResetAssetMetadataAsync(
+        SqliteConnection connection,
+        string assetId,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE asset_metadata
+            SET vector_state = 'pending',
+                updated_at = $updated_at
+            WHERE asset_uid = $asset_uid;
+            """;
+
+        AddParameter(command, "$asset_uid", assetId);
+        AddParameter(command, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
+        await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 }

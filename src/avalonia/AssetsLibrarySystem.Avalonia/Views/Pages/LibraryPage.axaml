@@ -250,8 +250,17 @@
 
                     <Border Grid.Row="1" Classes="page-card">
                         <StackPanel Spacing="8">
-                            <TextBlock Classes="eyebrow" Text="描述详情" />
-                            <TextBlock Classes="section-title" Text="本地 SQLite 中的描述记录" />
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Classes="eyebrow" Text="描述详情" />
+                                    <TextBlock Classes="section-title" Text="本地 SQLite 中的描述记录" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Classes="secondary-action"
+                                        Command="{Binding DeleteSelectedDescriptionCommand}"
+                                        Content="删除描述"
+                                        VerticalAlignment="Center" />
+                            </Grid>
                             <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                        TextWrapping="Wrap"
                                        Text="{Binding SelectedAssetDescriptionState}" />

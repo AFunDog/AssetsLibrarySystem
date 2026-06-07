@@ -135,6 +135,9 @@ public partial class App : global::Avalonia.Application
         builder.RegisterType<VectorizeDescriptionsUseCase>()
             .AsSelf()
             .SingleInstance();
+        builder.RegisterType<DeleteAssetDescriptionUseCase>()
+            .AsSelf()
+            .SingleInstance();
         builder.RegisterType<RebuildSearchIndexUseCase>()
             .AsSelf()
             .SingleInstance();

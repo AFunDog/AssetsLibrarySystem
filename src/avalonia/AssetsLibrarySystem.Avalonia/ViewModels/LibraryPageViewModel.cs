@@ -24,12 +24,14 @@ public sealed partial class LibraryPageViewModel : ObservableObject
     private LibraryCatalogService LibraryCatalogService { get; }
     private IAssetSearchService? AssetSearchService { get; }
     private DescribeAssetsUseCase? DescribeAssetsUseCase { get; }
+    private DeleteAssetDescriptionUseCase? DeleteAssetDescriptionUseCase { get; }
     private RebuildSearchIndexUseCase? RebuildSearchIndexUseCase { get; }
 
     public LibraryPageViewModel()
         : this(
             new BackendSessionService(),
             new LibraryCatalogService(),
+            null,
             null,
             null,
             null,
@@ -42,6 +44,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         LibraryCatalogService libraryCatalogService,
         IAssetSearchService? assetSearchService,
         DescribeAssetsUseCase? describeAssetsUseCase,
+        DeleteAssetDescriptionUseCase? deleteAssetDescriptionUseCase,
         RebuildSearchIndexUseCase? rebuildSearchIndexUseCase,
         ActivityFeedService activityFeedService)
     {
@@ -49,6 +52,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         LibraryCatalogService = libraryCatalogService;
         AssetSearchService = assetSearchService;
         DescribeAssetsUseCase = describeAssetsUseCase;
+        DeleteAssetDescriptionUseCase = deleteAssetDescriptionUseCase;
         RebuildSearchIndexUseCase = rebuildSearchIndexUseCase;
         ActivityFeed = activityFeedService.Entries;
         SearchResults = [];
@@ -63,6 +67,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         ScanSelectedLibraryCommand = new AsyncRelayCommand(() => LibraryCatalogService.ScanSelectedLibraryAsync());
         ExecuteSearchCommand = new AsyncRelayCommand(ExecuteSearchAsync);
         RebuildSearchIndexCommand = new AsyncRelayCommand(RebuildSearchIndexAsync);
+        DeleteSelectedDescriptionCommand = new AsyncRelayCommand(DeleteSelectedDescriptionAsync);
         OpenLibraryCommand = new RelayCommand<LibraryWorkspace?>(SelectLibrary);
         OpenExplorerItemCommand = new RelayCommand<AssetLibraryTreeNode?>(OpenExplorerItem);
         NavigateUpCommand = new RelayCommand(NavigateUp);
@@ -134,6 +139,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
     public IAsyncRelayCommand ScanSelectedLibraryCommand { get; }
     public IAsyncRelayCommand ExecuteSearchCommand { get; }
     public IAsyncRelayCommand RebuildSearchIndexCommand { get; }
+    public IAsyncRelayCommand DeleteSelectedDescriptionCommand { get; }
     public IRelayCommand<LibraryWorkspace?> OpenLibraryCommand { get; }
     public IRelayCommand<AssetLibraryTreeNode?> OpenExplorerItemCommand { get; }
     public IRelayCommand NavigateUpCommand { get; }
@@ -421,6 +427,42 @@ public sealed partial class LibraryPageViewModel : ObservableObject
 
                 return Task.CompletedTask;
             });
+    }
+
+    private async Task DeleteSelectedDescriptionAsync()
+    {
+        var asset = LibraryCatalogService.SelectedAsset;
+        if (asset is null)
+        {
+            LibraryCatalogService.SetOperatorNotice("请先选择一个素材，再删除它的描述记录。");
+            return;
+        }
+
+        if (DeleteAssetDescriptionUseCase is null)
+        {
+            LibraryCatalogService.SetOperatorNotice("描述删除服务未注册，当前无法删除描述记录。");
+            return;
+        }
+
+        try
+        {
+            var result = await DeleteAssetDescriptionUseCase.ExecuteAsync(asset);
+            if (!result.DeletedAny)
+            {
+                LibraryCatalogService.SetOperatorNotice($"当前素材没有可删除的描述记录：{asset.Name}");
+                ActivityFeed.Insert(0, $"描述删除跳过：{asset.Name} 没有记录");
+                return;
+            }
+
+            LibraryCatalogService.RemoveAssetDescription(asset, result.VectorDeleted);
+            ActivityFeed.Insert(0, $"描述删除完成：{asset.Name}");
+        }
+        catch (Exception ex)
+        {
+            LibraryCatalogService.SetOperatorNotice($"删除描述失败：{ex.Message}");
+            ActivityFeed.Insert(0, $"描述删除失败：{asset.Name} -> {ex.Message}");
+            Log.Error(ex, "删除素材描述失败: assetUid={AssetUid}, assetName={AssetName}", asset.AssetUid, asset.Name);
+        }
     }
 
     private void OnDependencyPropertyChanged(object? sender, PropertyChangedEventArgs e)

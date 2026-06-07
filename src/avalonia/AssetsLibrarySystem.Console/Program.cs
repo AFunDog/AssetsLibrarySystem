@@ -63,6 +63,9 @@ internal static class Program
             builder.RegisterType<VectorizeDescriptionsUseCase>()
                 .AsSelf()
                 .SingleInstance();
+            builder.RegisterType<DeleteAssetDescriptionUseCase>()
+                .AsSelf()
+                .SingleInstance();
             builder.RegisterType<RebuildSearchIndexUseCase>()
                 .AsSelf()
                 .SingleInstance();
