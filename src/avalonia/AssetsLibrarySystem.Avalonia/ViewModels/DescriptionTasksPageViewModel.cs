@@ -134,10 +134,10 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
 
     private async Task VectorizeSelectedDescriptionAsync()
     {
-        var assets = LibraryCatalogService.GetDescriptionSelectionAssets();
+        var assets = LibraryCatalogService.GetCurrentLibraryAssets();
         if (assets.Count == 0)
         {
-            LibraryCatalogService.SetOperatorNotice("当前选中范围内没有可向量化的素材。");
+            LibraryCatalogService.SetOperatorNotice("当前素材库下没有可向量化的素材。");
             return;
         }
 
@@ -153,8 +153,8 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
             return;
         }
 
-        LibraryCatalogService.SetOperatorNotice($"正在批量向量化当前范围：{assets.Count} 个素材");
-        ActivityFeed.Insert(0, $"开始批量向量化：{assets.Count} 个素材");
+        LibraryCatalogService.SetOperatorNotice($"正在批量向量化当前素材库：{assets.Count} 个素材");
+        ActivityFeed.Insert(0, $"开始批量向量化当前素材库：{assets.Count} 个素材");
 
         try
         {

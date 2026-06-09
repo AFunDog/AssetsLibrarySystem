@@ -45,10 +45,11 @@ public sealed class VectorizeDescriptionsUseCase
                 continue;
             }
 
-            if (await VectorStore.TryGetAsync(asset.Id, ct).ConfigureAwait(false) is not null)
+            var existingVector = await VectorStore.TryGetAsync(asset.Id, ct).ConfigureAwait(false);
+            if (existingVector is not null && !ShouldRefreshVector(description, existingVector))
             {
                 skipCount++;
-                await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "向量已存在"), ct).ConfigureAwait(false);
+                await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "向量已是最新"), ct).ConfigureAwait(false);
                 continue;
             }
 
@@ -78,6 +79,23 @@ public sealed class VectorizeDescriptionsUseCase
     {
         ct.ThrowIfCancellationRequested();
         return progress?.Invoke(value) ?? Task.CompletedTask;
+    }
+
+    private static bool ShouldRefreshVector(
+        AssetDescriptionDocument description,
+        AssetDescriptionVectorDocument vectorDocument)
+    {
+        var sameContentHash = string.Equals(
+            description.ContentHash ?? string.Empty,
+            vectorDocument.ContentHash ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+
+        if (!sameContentHash)
+        {
+            return true;
+        }
+
+        return vectorDocument.VectorizedAt < description.GeneratedAt;
     }
 }
 

@@ -165,6 +165,9 @@
                                                     <MenuItem Header="加入描述任务队列"
                                                               Click="QueueDescriptionForNode_Click"
                                                               CommandParameter="{Binding}" />
+                                                    <MenuItem Header="删除描述记录"
+                                                              Click="DeleteDescriptionForNode_Click"
+                                                              CommandParameter="{Binding}" />
                                                 </ContextMenu>
                                             </Button.ContextMenu>
                                             <StackPanel Spacing="8">

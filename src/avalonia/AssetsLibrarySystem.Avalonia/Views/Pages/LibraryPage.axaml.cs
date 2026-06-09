@@ -63,6 +63,18 @@ public partial class LibraryPage : UserControl
         await viewModel.QueueDescriptionForNodeAsync(node);
     }
 
+    private async void DeleteDescriptionForNode_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem ||
+            menuItem.CommandParameter is not AssetLibraryTreeNode node ||
+            DataContext is not LibraryPageViewModel viewModel)
+        {
+            return;
+        }
+
+        await viewModel.DeleteDescriptionForNodeAsync(node);
+    }
+
     private void RevealSearchResult_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button ||

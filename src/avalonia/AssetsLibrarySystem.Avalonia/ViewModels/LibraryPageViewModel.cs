@@ -267,6 +267,18 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         await DescribeAssetsAsync(assets);
     }
 
+    public async Task DeleteDescriptionForNodeAsync(AssetLibraryTreeNode? node)
+    {
+        if (node?.Asset is null)
+        {
+            LibraryCatalogService.SetOperatorNotice("请右键具体素材文件，再删除它的描述记录。");
+            return;
+        }
+
+        LibraryCatalogService.SelectedAssetTreeNode = node;
+        await DeleteDescriptionForAssetAsync(node.Asset);
+    }
+
     private async Task ExecuteSearchAsync()
     {
         if (!BackendSessionService.IsBackendReady)
@@ -437,6 +449,12 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             LibraryCatalogService.SetOperatorNotice("请先选择一个素材，再删除它的描述记录。");
             return;
         }
+
+        await DeleteDescriptionForAssetAsync(asset);
+    }
+
+    private async Task DeleteDescriptionForAssetAsync(ManagedAssetRecord asset)
+    {
 
         if (DeleteAssetDescriptionUseCase is null)
         {

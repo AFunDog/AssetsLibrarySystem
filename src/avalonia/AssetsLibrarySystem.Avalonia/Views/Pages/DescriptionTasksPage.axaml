@@ -24,7 +24,7 @@
                                    Text="素材描述派发工作台" />
                         <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                    TextWrapping="Wrap"
-                                   Text="左侧选范围，右侧发任务。当前页面只负责描述编排，不把生成逻辑塞进界面层。" />
+                                   Text="左侧选范围用于描述任务派发；批量向量化则直接按当前素材库做增量更新。" />
                     </StackPanel>
 
                     <!-- <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"> -->
@@ -83,9 +83,9 @@
                                     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                FontWeight="SemiBold"
                                                LetterSpacing="1.2"
-                                               Text="当前范围" />
+                                               Text="当前素材库" />
                                     <TextBlock TextWrapping="Wrap"
-                                               Text="{Binding DescriptionSelectionSummary}" />
+                                               Text="批量向量化会自动处理当前素材库里“已有描述但没有向量”以及“描述已更新、旧向量需要重建”的素材。" />
                                 </StackPanel>
                             </Border>
 
@@ -105,7 +105,7 @@
                                     CornerRadius="4"
                                     Padding="10,8"
                                     Command="{Binding VectorizeSelectedDescriptionCommand}"
-                                    Content="批量向量化当前范围" />
+                                    Content="批量向量化当前素材库" />
 
                             <Button Background="{DynamicResource AppSoftSurfaceBrush}"
                                     Foreground="{DynamicResource AppTextBrush}"
