@@ -33,7 +33,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
             AssetName: document.AssetName,
             AssetType: document.AssetType,
             AssetPath: document.CurrentPath,
-            Description: document.Description,
+            Description: document.PrimaryDescription,
             GeneratedAt: document.GeneratedAt);
 
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/index";

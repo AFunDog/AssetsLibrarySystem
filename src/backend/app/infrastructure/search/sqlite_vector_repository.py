@@ -8,6 +8,8 @@ import sqlite3
 
 import numpy as np
 
+from app.infrastructure.search.structured_description import extract_primary_description
+
 
 @dataclass(slots=True)
 class IndexedAssetVectorRecord:
@@ -109,7 +111,7 @@ class SqliteVectorRepository:
                     asset_name=str(row["asset_name"]),
                     asset_format=str(row["asset_type"]),
                     asset_path=str(row["asset_path"]),
-                    description=str(row["description"]),
+                    description=extract_primary_description(str(row["description"])),
                     tags=[str(item) for item in tags] if isinstance(tags, list) else [],
                     generated_at=self._parse_datetime(generated_at_value) if generated_at_value else None,
                     embedding_model=str(row["embedding_model"]),

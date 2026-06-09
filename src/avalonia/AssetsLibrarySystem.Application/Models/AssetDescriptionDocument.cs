@@ -19,6 +19,7 @@ public sealed record AssetDescriptionDocument(
 {
     public string AssetId => AssetUid;
     public string AssetPath => CurrentPath;
+    public string PrimaryDescription => StructuredDescriptionHelper.ExtractPrimaryText(Description);
 }
 
 public sealed record AssetDescriptionTokenUsage(

@@ -70,9 +70,9 @@ public sealed partial class LibraryCatalogService
         SelectedAssetDescriptionSystemPrompt = string.IsNullOrWhiteSpace(document.SystemPrompt)
             ? "使用配置中的默认 system prompt。"
             : document.SystemPrompt;
-        SelectedAssetDescriptionText = document.Description;
+        SelectedAssetDescriptionText = document.PrimaryDescription;
         SelectedAssetAiState = $"SQLite 已保存 · {tokenUsage}";
-        SelectedAssetDetail = document.Description;
+        SelectedAssetDetail = document.PrimaryDescription;
     }
 
     private void ResetSelectedAssetDescription()
