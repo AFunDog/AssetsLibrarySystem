@@ -8,7 +8,10 @@ import sqlite3
 
 import numpy as np
 
-from app.infrastructure.search.structured_description import extract_primary_description
+from app.infrastructure.search.structured_description import (
+    extract_description_by_angle,
+    extract_primary_description,
+)
 
 
 @dataclass(slots=True)
@@ -20,6 +23,7 @@ class IndexedAssetVectorRecord:
     asset_format: str
     asset_path: str
     description: str
+    segment_text: str
     tags: list[str]
     generated_at: datetime | None
     embedding_model: str
@@ -115,6 +119,7 @@ class SqliteVectorRepository:
                     asset_format=str(row["asset_type"]),
                     asset_path=str(row["asset_path"]),
                     description=extract_primary_description(str(row["description"])),
+                    segment_text=extract_description_by_angle(str(row["description"]), str(row["angle_type"] or "全面")),
                     tags=[str(item) for item in tags] if isinstance(tags, list) else [],
                     generated_at=self._parse_datetime(generated_at_value) if generated_at_value else None,
                     embedding_model=str(row["embedding_model"]),

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
@@ -8,9 +9,9 @@ public interface IAssetDescriptionVectorStore
 {
     string DatabasePath { get; }
 
-    Task SaveAsync(AssetDescriptionVectorDocument document, CancellationToken ct = default);
+    Task ReplaceForAssetAsync(string assetId, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default);
 
-    Task<AssetDescriptionVectorDocument?> TryGetAsync(string assetId, CancellationToken ct = default);
+    Task<IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetIdAsync(string assetId, CancellationToken ct = default);
 
     Task<bool> DeleteAsync(string assetId, CancellationToken ct = default);
 }

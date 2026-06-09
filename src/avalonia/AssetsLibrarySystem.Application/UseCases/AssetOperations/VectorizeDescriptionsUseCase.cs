@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
@@ -45,8 +46,8 @@ public sealed class VectorizeDescriptionsUseCase
                 continue;
             }
 
-            var existingVector = await VectorStore.TryGetAsync(asset.Id, ct).ConfigureAwait(false);
-            if (existingVector is not null && !ShouldRefreshVector(description, existingVector))
+            var existingVectors = await VectorStore.ListByAssetIdAsync(asset.Id, ct).ConfigureAwait(false);
+            if (existingVectors.Count > 0 && !ShouldRefreshVectors(description, existingVectors))
             {
                 skipCount++;
                 await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "向量已是最新"), ct).ConfigureAwait(false);
@@ -55,12 +56,12 @@ public sealed class VectorizeDescriptionsUseCase
 
             try
             {
-                var vectorDocument = await TextVectorizationService
+                var vectorDocuments = await TextVectorizationService
                     .VectorizeAsync(description, backendBaseUrl, ct)
                     .ConfigureAwait(false);
-                await VectorStore.SaveAsync(vectorDocument, ct).ConfigureAwait(false);
+                await VectorStore.ReplaceForAssetAsync(asset.Id, vectorDocuments, ct).ConfigureAwait(false);
                 successCount++;
-                await ReportAsync(progress, VectorizeDescriptionProgress.Completed(asset, vectorDocument), ct).ConfigureAwait(false);
+                await ReportAsync(progress, VectorizeDescriptionProgress.Completed(asset, vectorDocuments), ct).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -81,21 +82,43 @@ public sealed class VectorizeDescriptionsUseCase
         return progress?.Invoke(value) ?? Task.CompletedTask;
     }
 
-    private static bool ShouldRefreshVector(
+    private static bool ShouldRefreshVectors(
         AssetDescriptionDocument description,
-        AssetDescriptionVectorDocument vectorDocument)
+        IReadOnlyList<AssetDescriptionVectorDocument> vectorDocuments)
     {
-        var sameContentHash = string.Equals(
-            description.ContentHash ?? string.Empty,
-            vectorDocument.ContentHash ?? string.Empty,
-            StringComparison.OrdinalIgnoreCase);
-
-        if (!sameContentHash)
+        var segments = StructuredDescriptionHelper.ExtractSegments(description.Description);
+        if (segments.Count != vectorDocuments.Count)
         {
             return true;
         }
 
-        return vectorDocument.VectorizedAt < description.GeneratedAt;
+        var expectedAngleTypes = new HashSet<string>(
+            segments.Select(segment => segment.NormalizedAngleType),
+            StringComparer.Ordinal);
+
+        foreach (var vectorDocument in vectorDocuments)
+        {
+            var sameContentHash = string.Equals(
+                description.ContentHash ?? string.Empty,
+                vectorDocument.ContentHash ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase);
+            if (!sameContentHash)
+            {
+                return true;
+            }
+
+            if (vectorDocument.VectorizedAt < description.GeneratedAt)
+            {
+                return true;
+            }
+
+            if (!expectedAngleTypes.Remove(vectorDocument.AngleType))
+            {
+                return true;
+            }
+        }
+
+        return expectedAngleTypes.Count != 0;
     }
 }
 
@@ -105,7 +128,7 @@ public sealed record VectorizeDescriptionProgress(
     ManagedAssetRecord Asset,
     VectorizeDescriptionProgressKind Kind,
     string? SkipReason = null,
-    AssetDescriptionVectorDocument? VectorDocument = null,
+    IReadOnlyList<AssetDescriptionVectorDocument>? VectorDocuments = null,
     Exception? Error = null)
 {
     public static VectorizeDescriptionProgress Skipped(ManagedAssetRecord asset, string reason)
@@ -113,9 +136,9 @@ public sealed record VectorizeDescriptionProgress(
         return new VectorizeDescriptionProgress(asset, VectorizeDescriptionProgressKind.Skipped, reason);
     }
 
-    public static VectorizeDescriptionProgress Completed(ManagedAssetRecord asset, AssetDescriptionVectorDocument document)
+    public static VectorizeDescriptionProgress Completed(ManagedAssetRecord asset, IReadOnlyList<AssetDescriptionVectorDocument> documents)
     {
-        return new VectorizeDescriptionProgress(asset, VectorizeDescriptionProgressKind.Completed, VectorDocument: document);
+        return new VectorizeDescriptionProgress(asset, VectorizeDescriptionProgressKind.Completed, VectorDocuments: documents);
     }
 
     public static VectorizeDescriptionProgress Failed(ManagedAssetRecord asset, Exception error)

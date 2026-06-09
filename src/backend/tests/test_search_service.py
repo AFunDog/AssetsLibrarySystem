@@ -170,6 +170,7 @@ class SearchServiceTestCase(unittest.TestCase):
                 asset_format="图片",
                 asset_path=r"D:\Data\shock.png",
                 description="角色受到惊吓后退半步并停顿。",
+                segment_text="角色受到惊吓后退半步并停顿。",
                 tags=[],
                 generated_at=None,
                 embedding_model="fake-embed",
@@ -184,6 +185,7 @@ class SearchServiceTestCase(unittest.TestCase):
                 asset_format="图片",
                 asset_path=r"D:\Data\happy.png",
                 description="角色开心挥手。",
+                segment_text="角色开心挥手。",
                 tags=[],
                 generated_at=None,
                 embedding_model="fake-embed",
@@ -216,6 +218,7 @@ class SearchServiceTestCase(unittest.TestCase):
                 asset_format="图片",
                 asset_path=r"D:\Data\shock.png",
                 description="惊吓 停顿",
+                segment_text="惊吓 停顿",
                 tags=[],
                 generated_at=None,
                 embedding_model="fake-embed",
@@ -229,11 +232,27 @@ class SearchServiceTestCase(unittest.TestCase):
                 asset_name="happy.png",
                 asset_format="图片",
                 asset_path=r"D:\Data\happy.png",
-                description="惊吓 后退 开心 挥手",
+                description="开心挥手的人物画面。",
+                segment_text="惊吓 后退 开心挥手",
                 tags=[],
                 generated_at=None,
                 embedding_model="fake-embed",
                 vector=np.asarray([0.0, 1.0, 0.0], dtype=np.float32),
+                updated_at=datetime.now(timezone.utc),
+            ),
+            IndexedAssetVectorRecord(
+                doc_id=3,
+                asset_id="asset-2",
+                angle_type="情感",
+                asset_name="happy.png",
+                asset_format="图片",
+                asset_path=r"D:\Data\happy.png",
+                description="开心挥手的人物画面。",
+                segment_text="惊吓 后退",
+                tags=[],
+                generated_at=None,
+                embedding_model="fake-embed",
+                vector=np.asarray([1.0, 0.0, 0.0], dtype=np.float32),
                 updated_at=datetime.now(timezone.utc),
             ),
         ]
@@ -260,8 +279,9 @@ class SearchServiceTestCase(unittest.TestCase):
         self.assertIsNotNone(response.results[0].vector_distance)
         self.assertIsNotNone(response.results[0].combined_score)
         self.assertGreater(response.results[0].combined_score or 0.0, response.results[1].combined_score or 0.0)
-        self.assertEqual(fake_index_manager.ensure_current_calls[0][0], 2)
-        self.assertEqual(fake_index_manager.search_calls[0][1], 2)
+        self.assertEqual(response.results[0].description, "开心挥手的人物画面。")
+        self.assertEqual(fake_index_manager.ensure_current_calls[0][0], 3)
+        self.assertEqual(fake_index_manager.search_calls[0][1], 3)
 
 
 class FakeVectorRepository:
@@ -293,7 +313,7 @@ class FakeIndexManager:
 
     def search(self, query_vector: np.ndarray, top_k: int) -> list[tuple[int, float]]:
         self.search_calls.append((len(query_vector), top_k))
-        return [(1, 0.95), (2, 0.60)]
+        return [(1, 0.95), (3, 0.92), (2, 0.60)]
 
 
 if __name__ == "__main__":

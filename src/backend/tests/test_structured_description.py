@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import unittest
 
-from app.infrastructure.search.structured_description import extract_primary_description
+from app.infrastructure.search.structured_description import (
+    extract_description_by_angle,
+    extract_primary_description,
+)
 
 
 class StructuredDescriptionTestCase(unittest.TestCase):
@@ -20,6 +23,10 @@ class StructuredDescriptionTestCase(unittest.TestCase):
     def test_extract_primary_description_falls_back_when_quanmian_missing(self) -> None:
         raw = '{"风格":{"text":"偏抒情","tags":[]}}'
         self.assertEqual(extract_primary_description(raw), raw)
+
+    def test_extract_description_by_angle_reads_specific_angle_text(self) -> None:
+        raw = '{"全面":{"text":"一段舒缓的钢琴配乐","tags":["钢琴","舒缓"]},"风格":{"text":"节奏平稳","tags":[]}}'
+        self.assertEqual(extract_description_by_angle(raw, "风格"), "节奏平稳")
 
 
 if __name__ == "__main__":

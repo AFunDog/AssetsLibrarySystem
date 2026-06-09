@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
 from app.core.config import get_settings
@@ -12,6 +14,7 @@ from app.infrastructure.search.search_model_bundle import (
     SearchModelConfig,
 )
 from app.infrastructure.search.sqlite_vector_repository import (
+    IndexedAssetVectorRecord,
     SqliteVectorRepository,
 )
 from app.schemas.search import (
@@ -83,12 +86,12 @@ class SearchService:
         query_vector = self._model_bundle.encode_query(payload.query)
         search_top_k = min(
             len(records),
-            max(payload.candidate_top_k * 5, payload.candidate_top_k, 50),
+            max(payload.candidate_top_k * 8, payload.candidate_top_k, 50),
         )
         search_results = vector_index_manager.search(query_vector, search_top_k)
 
         record_by_doc_id = {record.doc_id: record for record in records}
-        candidates: list[tuple[float, float, object]] = []
+        candidates: list[VectorCandidate] = []
         for doc_id, embedding_similarity in search_results:
             record = record_by_doc_id.get(doc_id)
             if record is None:
@@ -96,48 +99,46 @@ class SearchService:
             if payload.asset_format is not None and record.asset_format != payload.asset_format:
                 continue
             vector_distance = max(0.0, 1.0 - embedding_similarity)
-            candidates.append((embedding_similarity, vector_distance, record))
-            if len(candidates) >= payload.candidate_top_k:
-                break
+            candidates.append(VectorCandidate(
+                record=record,
+                embedding_similarity=embedding_similarity,
+                vector_distance=vector_distance,
+            ))
 
         if not candidates:
             raise ValueError("未找到符合条件的素材。")
 
         rerank_scores = self._model_bundle.rerank(
             payload.query,
-            [record.description for _, _, record in candidates],
+            [candidate.record.segment_text for candidate in candidates],
         )
         normalized_rerank_scores = self._normalize_scores(rerank_scores)
 
-        ranked_items = []
-        for (embedding_similarity, vector_distance, record), rerank_score, normalized_rerank_score in zip(
+        scored_candidates: list[ScoredVectorCandidate] = []
+        for candidate, rerank_score, normalized_rerank_score in zip(
             candidates,
             rerank_scores,
             normalized_rerank_scores,
             strict=True,
         ):
-            combined_score = self._combine_scores(embedding_similarity, normalized_rerank_score)
-            ranked_items.append(
-                SearchQueryResultItem(
-                    asset_id=record.asset_id,
-                    asset_name=record.asset_name,
-                    asset_format=record.asset_format,
-                    asset_path=record.asset_path,
-                    description=record.description,
-                    tags=record.tags,
-                    generated_at=record.generated_at,
-                    embedding_similarity=embedding_similarity,
-                    vector_distance=vector_distance,
+            combined_score = self._combine_scores(candidate.embedding_similarity, normalized_rerank_score)
+            scored_candidates.append(
+                ScoredVectorCandidate(
+                    record=candidate.record,
+                    embedding_similarity=candidate.embedding_similarity,
+                    vector_distance=candidate.vector_distance,
                     rerank_score=rerank_score,
+                    normalized_rerank_score=normalized_rerank_score,
                     combined_score=combined_score,
                 )
             )
 
+        ranked_items = self._aggregate_candidates(scored_candidates, payload.candidate_top_k)
         ranked_items.sort(key=lambda item: item.combined_score if item.combined_score is not None else item.rerank_score, reverse=True)
 
         return SearchExploreResponse(
             query=payload.query,
-            candidate_top_k=len(candidates),
+            candidate_top_k=min(payload.candidate_top_k, len(ranked_items)),
             final_top_k=min(payload.final_top_k, len(ranked_items)),
             asset_format=payload.asset_format,
             embedding_model=self._model_bundle.embedding_model_name,
@@ -279,3 +280,89 @@ class SearchService:
         vector_weight = 0.35
         rerank_weight = 0.65
         return (embedding_similarity * vector_weight) + (normalized_rerank_score * rerank_weight)
+
+    @staticmethod
+    def _angle_weight(angle_type: str) -> float:
+        return {
+            "全面": 0.4,
+            "风格": 0.25,
+            "乐器": 0.2,
+            "情感": 0.15,
+        }.get(angle_type, 0.1)
+
+    def _aggregate_candidates(
+        self,
+        candidates: list["ScoredVectorCandidate"],
+        candidate_top_k: int,
+    ) -> list[SearchQueryResultItem]:
+        grouped: dict[str, dict[str, ScoredVectorCandidate]] = {}
+        for candidate in candidates:
+            asset_candidates = grouped.setdefault(candidate.record.asset_id, {})
+            existing = asset_candidates.get(candidate.record.angle_type)
+            if existing is None or candidate.combined_score > existing.combined_score:
+                asset_candidates[candidate.record.angle_type] = candidate
+
+        ranked_items: list[SearchQueryResultItem] = []
+        for asset_candidates in grouped.values():
+            selected_candidates = list(asset_candidates.values())
+            total_weight = sum(self._angle_weight(candidate.record.angle_type) for candidate in selected_candidates)
+            if total_weight <= 0:
+                continue
+
+            display_candidate = next(
+                (candidate for candidate in selected_candidates if candidate.record.angle_type == "全面"),
+                max(selected_candidates, key=lambda item: item.combined_score),
+            )
+
+            embedding_similarity = sum(
+                candidate.embedding_similarity * self._angle_weight(candidate.record.angle_type)
+                for candidate in selected_candidates
+            ) / total_weight
+            vector_distance = sum(
+                candidate.vector_distance * self._angle_weight(candidate.record.angle_type)
+                for candidate in selected_candidates
+            ) / total_weight
+            rerank_score = sum(
+                candidate.rerank_score * self._angle_weight(candidate.record.angle_type)
+                for candidate in selected_candidates
+            ) / total_weight
+            combined_score = sum(
+                candidate.combined_score * self._angle_weight(candidate.record.angle_type)
+                for candidate in selected_candidates
+            ) / total_weight
+
+            ranked_items.append(
+                SearchQueryResultItem(
+                    asset_id=display_candidate.record.asset_id,
+                    asset_name=display_candidate.record.asset_name,
+                    asset_format=display_candidate.record.asset_format,
+                    asset_path=display_candidate.record.asset_path,
+                    description=display_candidate.record.description,
+                    tags=display_candidate.record.tags,
+                    generated_at=display_candidate.record.generated_at,
+                    embedding_similarity=embedding_similarity,
+                    vector_distance=vector_distance,
+                    rerank_score=rerank_score,
+                    combined_score=combined_score,
+                )
+            )
+
+        ranked_items.sort(key=lambda item: item.combined_score if item.combined_score is not None else item.rerank_score, reverse=True)
+        return ranked_items[:candidate_top_k]
+
+
+@dataclass(slots=True)
+class VectorCandidate:
+    record: IndexedAssetVectorRecord
+    embedding_similarity: float
+    vector_distance: float
+
+
+@dataclass(slots=True)
+class ScoredVectorCandidate:
+    record: IndexedAssetVectorRecord
+    embedding_similarity: float
+    vector_distance: float
+    rerank_score: float
+    normalized_rerank_score: float
+    combined_score: float

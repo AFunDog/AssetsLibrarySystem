@@ -158,13 +158,14 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
             );
 
             CREATE TABLE IF NOT EXISTS asset_description_vectors (
-                asset_id TEXT PRIMARY KEY,
+                asset_id TEXT NOT NULL,
                 angle_type TEXT NOT NULL DEFAULT '全面',
                 embedding_model TEXT NOT NULL,
                 vector_dim INTEGER NOT NULL,
                 vector_blob BLOB NOT NULL,
                 vectorized_at TEXT NOT NULL,
-                content_hash TEXT NULL
+                content_hash TEXT NULL,
+                PRIMARY KEY (asset_id, angle_type)
             );
             """;
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);

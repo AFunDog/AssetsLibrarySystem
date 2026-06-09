@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
@@ -20,59 +21,35 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 
     public string DatabasePath => AssetDatabase.DatabasePath;
 
-    public async Task SaveAsync(AssetDescriptionVectorDocument document, CancellationToken ct = default)
+    public async Task ReplaceForAssetAsync(string assetId, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(documents);
+
         await AssetDatabase.EnsureSchemaAsync(ct);
         await WriteQueue.EnqueueAsync(async token =>
         {
             await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(token).ConfigureAwait(false);
 
-            await using var command = connection.CreateCommand();
-            command.CommandText = """
-            INSERT INTO asset_description_vectors (
-                asset_id,
-                angle_type,
-                embedding_model,
-                vector_dim,
-                vector_blob,
-                vectorized_at,
-                content_hash
-            )
-            VALUES (
-                $asset_id,
-                $angle_type,
-                $embedding_model,
-                $vector_dim,
-                $vector_blob,
-                $vectorized_at,
-                $content_hash
-            )
-            ON CONFLICT(asset_id) DO UPDATE SET
-                angle_type = excluded.angle_type,
-                embedding_model = excluded.embedding_model,
-                vector_dim = excluded.vector_dim,
-                vector_blob = excluded.vector_blob,
-                vectorized_at = excluded.vectorized_at,
-                content_hash = excluded.content_hash;
-            """;
+            await DeleteVectorsAsync(connection, transaction, assetId, token).ConfigureAwait(false);
 
-            AddParameter(command, "$asset_id", document.AssetUid);
-            AddParameter(command, "$angle_type", string.IsNullOrWhiteSpace(document.AngleType) ? AssetDescriptionVectorDocument.DefaultAngleType : document.AngleType.Trim());
-            AddParameter(command, "$embedding_model", document.EmbeddingModel);
-            AddParameter(command, "$vector_dim", document.VectorDim);
-            command.Parameters.Add(new SqliteParameter("$vector_blob", SqliteType.Blob)
+            AssetDescriptionVectorDocument? lastDocument = null;
+            foreach (var document in documents)
             {
-                Value = SerializeVector(document.Vector),
-            });
-            AddParameter(command, "$vectorized_at", document.VectorizedAt.ToString("O"));
-            AddParameter(command, "$content_hash", (object?)document.ContentHash ?? DBNull.Value);
+                lastDocument = document;
+                await InsertVectorAsync(connection, transaction, document, token).ConfigureAwait(false);
+            }
 
-            await command.ExecuteNonQueryAsync(token);
-            await UpdateAssetMetadataAsync(connection, document, token);
+            if (lastDocument is not null)
+            {
+                await UpdateAssetMetadataAsync(connection, transaction, lastDocument, token).ConfigureAwait(false);
+            }
+
+            await transaction.CommitAsync(token).ConfigureAwait(false);
         }, ct);
     }
 
-    public async Task<AssetDescriptionVectorDocument?> TryGetAsync(string assetId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetIdAsync(string assetId, CancellationToken ct = default)
     {
         await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
 
@@ -88,25 +65,26 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 content_hash
             FROM asset_description_vectors
             WHERE asset_id = $asset_id
-            LIMIT 1;
+            ORDER BY angle_type;
             """;
         AddParameter(command, "$asset_id", assetId);
 
         await using var reader = await command.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
+        var documents = new List<AssetDescriptionVectorDocument>();
+        while (await reader.ReadAsync(ct))
         {
-            return null;
+            var vector = DeserializeVector(reader.GetFieldValue<byte[]>(4));
+            documents.Add(new AssetDescriptionVectorDocument(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetInt32(3),
+                vector,
+                DateTimeOffset.Parse(reader.GetString(5)),
+                reader.IsDBNull(6) ? null : reader.GetString(6)));
         }
 
-        var vector = DeserializeVector(reader.GetFieldValue<byte[]>(4));
-        return new AssetDescriptionVectorDocument(
-            reader.GetString(0),
-            reader.GetString(1),
-            reader.GetString(2),
-            reader.GetInt32(3),
-            vector,
-            DateTimeOffset.Parse(reader.GetString(5)),
-            reader.IsDBNull(6) ? null : reader.GetString(6));
+        return documents;
     }
 
     public async Task<bool> DeleteAsync(string assetId, CancellationToken ct = default)
@@ -133,6 +111,71 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         }, ct);
     }
 
+    private static async Task InsertVectorAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        AssetDescriptionVectorDocument document,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO asset_description_vectors (
+                asset_id,
+                angle_type,
+                embedding_model,
+                vector_dim,
+                vector_blob,
+                vectorized_at,
+                content_hash
+            )
+            VALUES (
+                $asset_id,
+                $angle_type,
+                $embedding_model,
+                $vector_dim,
+                $vector_blob,
+                $vectorized_at,
+                $content_hash
+            )
+            ON CONFLICT(asset_id, angle_type) DO UPDATE SET
+                embedding_model = excluded.embedding_model,
+                vector_dim = excluded.vector_dim,
+                vector_blob = excluded.vector_blob,
+                vectorized_at = excluded.vectorized_at,
+                content_hash = excluded.content_hash;
+            """;
+
+        AddParameter(command, "$asset_id", document.AssetUid);
+        AddParameter(command, "$angle_type", string.IsNullOrWhiteSpace(document.AngleType) ? AssetDescriptionVectorDocument.DefaultAngleType : document.AngleType.Trim());
+        AddParameter(command, "$embedding_model", document.EmbeddingModel);
+        AddParameter(command, "$vector_dim", document.VectorDim);
+        command.Parameters.Add(new SqliteParameter("$vector_blob", SqliteType.Blob)
+        {
+            Value = SerializeVector(document.Vector),
+        });
+        AddParameter(command, "$vectorized_at", document.VectorizedAt.ToString("O"));
+        AddParameter(command, "$content_hash", (object?)document.ContentHash ?? DBNull.Value);
+
+        await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
+    private static async Task DeleteVectorsAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string assetId,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            DELETE FROM asset_description_vectors
+            WHERE asset_id = $asset_id;
+            """;
+        AddParameter(command, "$asset_id", assetId);
+        await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
     private static void AddParameter(SqliteCommand command, string name, object? value)
     {
         command.Parameters.AddWithValue(name, value ?? DBNull.Value);
@@ -154,10 +197,12 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 
     private static async Task UpdateAssetMetadataAsync(
         SqliteConnection connection,
+        SqliteTransaction transaction,
         AssetDescriptionVectorDocument document,
         CancellationToken ct)
     {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = """
             INSERT INTO asset_metadata (
                 asset_uid,
@@ -183,7 +228,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         AddParameter(command, "$asset_uid", document.AssetUid);
         AddParameter(command, "$created_at", document.VectorizedAt.ToString("O"));
         AddParameter(command, "$updated_at", document.VectorizedAt.ToString("O"));
-        await command.ExecuteNonQueryAsync(ct);
+        await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     private static async Task ResetAssetMetadataAsync(

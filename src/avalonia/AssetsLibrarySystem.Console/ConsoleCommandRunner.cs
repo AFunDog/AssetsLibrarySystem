@@ -387,7 +387,7 @@ public sealed class ConsoleCommandRunner
                     continue;
                 }
 
-                if (await VectorStore.TryGetAsync(asset.Id) is not null)
+                if ((await VectorStore.ListByAssetIdAsync(asset.Id)).Count > 0)
                 {
                     continue;
                 }
