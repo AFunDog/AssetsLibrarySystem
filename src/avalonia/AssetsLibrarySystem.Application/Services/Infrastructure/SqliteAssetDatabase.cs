@@ -146,7 +146,6 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
                 asset_name TEXT NOT NULL,
                 asset_type TEXT NOT NULL,
                 asset_path TEXT NOT NULL,
-                store_path TEXT NOT NULL,
                 description TEXT NOT NULL,
                 backend_endpoint TEXT NOT NULL,
                 mode TEXT NOT NULL,
@@ -160,7 +159,6 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 
             CREATE TABLE IF NOT EXISTS asset_description_vectors (
                 asset_id TEXT PRIMARY KEY,
-                description_store_path TEXT NOT NULL,
                 embedding_model TEXT NOT NULL,
                 vector_dim INTEGER NOT NULL,
                 vector_blob BLOB NOT NULL,

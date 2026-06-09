@@ -646,7 +646,6 @@ public sealed class ConsoleCommandRunner
     {
         Console.WriteLine("描述生成完成。");
         Console.WriteLine($"- 素材: {document.AssetName}");
-        Console.WriteLine($"- 存储: {document.StorePath}");
         Console.WriteLine($"- 模式: {document.Mode}");
         Console.WriteLine($"- 时间: {document.GeneratedAt:yyyy-MM-dd HH:mm:ss}");
         Console.WriteLine($"- 文本: {document.Description}");

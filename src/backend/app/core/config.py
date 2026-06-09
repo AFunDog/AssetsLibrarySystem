@@ -35,7 +35,6 @@ class Settings(BaseSettings):
     image_max_side: int = Field(default=1600, validation_alias="ALS_IMAGE_MAX_SIDE")
     image_jpeg_quality: int = Field(default=82, validation_alias="ALS_IMAGE_JPEG_QUALITY")
     video_crf: int = Field(default=30, validation_alias="ALS_VIDEO_CRF")
-    audio_bitrate: str = Field(default="96k", validation_alias="ALS_AUDIO_BITRATE")
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -16,7 +16,6 @@ public sealed class AssetSearchDocument
         string assetType,
         string currentPath,
         string description,
-        string? sourceStorePath,
         DateTimeOffset? generatedAt,
         float? embeddingSimilarity,
         float? vectorDistance,
@@ -28,7 +27,6 @@ public sealed class AssetSearchDocument
         AssetType = assetType;
         CurrentPath = currentPath;
         Description = description;
-        SourceStorePath = sourceStorePath;
         GeneratedAt = generatedAt;
         EmbeddingSimilarity = embeddingSimilarity;
         VectorDistance = vectorDistance;
@@ -51,7 +49,6 @@ public sealed class AssetSearchDocument
         set => CurrentPath = value;
     }
     public string Description { get; set; } = string.Empty;
-    public string? SourceStorePath { get; set; }
     public DateTimeOffset? GeneratedAt { get; set; }
     public float? EmbeddingSimilarity { get; set; }
     public float? VectorDistance { get; set; }

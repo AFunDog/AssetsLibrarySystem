@@ -59,14 +59,11 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         var backendResponse = JsonSerializer.Deserialize<AssetDescriptionBackendResponse>(responseText, JsonOptions)
             ?? throw new InvalidOperationException("后端返回空响应。");
 
-        var storePath = Store.DatabasePath;
-
         var document = new AssetDescriptionDocument(
             AssetUid: asset.AssetUid,
             AssetName: asset.Name,
             AssetType: asset.AssetType,
             CurrentPath: asset.CurrentPath,
-            StorePath: storePath,
             Description: backendResponse.OutputText,
             BackendEndpoint: backendBaseUrl,
             Mode: backendResponse.Mode,
@@ -79,7 +76,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
 
         await Store.SaveAsync(document, ct);
 
-        Log.Information("素材描述已写入 SQLite: {DatabasePath}", storePath);
+        Log.Information("素材描述已写入 SQLite: {DatabasePath}", Store.DatabasePath);
         return document;
     }
 

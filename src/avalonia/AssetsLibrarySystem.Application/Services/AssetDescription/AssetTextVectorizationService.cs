@@ -34,7 +34,6 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
             AssetType: document.AssetType,
             AssetPath: document.CurrentPath,
             Description: document.Description,
-            SourceStorePath: document.StorePath,
             GeneratedAt: document.GeneratedAt);
 
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/index";
@@ -56,7 +55,6 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
 
         return new AssetDescriptionVectorDocument(
             AssetUid: vectorResponse.AssetId,
-            DescriptionStorePath: document.StorePath,
             EmbeddingModel: vectorResponse.EmbeddingModel,
             VectorDim: vectorResponse.VectorDim,
             Vector: JsonSerializer.Deserialize<float[]>(vectorResponse.Vector.GetRawText(), JsonOptions) ?? [],
@@ -70,7 +68,6 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
         [property: JsonPropertyName("asset_format")] string AssetType,
         [property: JsonPropertyName("asset_path")] string AssetPath,
         [property: JsonPropertyName("description")] string Description,
-        [property: JsonPropertyName("source_store_path")] string? SourceStorePath,
         [property: JsonPropertyName("generated_at")] DateTimeOffset? GeneratedAt);
 
     private sealed record SearchIndexResponse(

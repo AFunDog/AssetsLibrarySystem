@@ -66,7 +66,6 @@ class ModelService:
         self._image_max_side = max(256, settings.image_max_side)
         self._image_jpeg_quality = min(max(settings.image_jpeg_quality, 40), 95)
         self._video_crf = min(max(settings.video_crf, 18), 40)
-        self._audio_bitrate = settings.audio_bitrate.strip() or "96k"
 
     def get_capabilities(self, provider_slot: str = DEFAULT_PROVIDER_SLOT) -> ModelCapabilitiesResponse:
         context = self._resolve_provider_context(provider_slot)
@@ -436,21 +435,16 @@ class ModelService:
         if not source_path.exists():
             raise FileNotFoundError(f"素材不存在: {source_path}")
 
-        if not self._enable_media_preprocess or asset_format not in {"图片", "视频", "音频"}:
+        if not self._enable_media_preprocess or asset_format not in {"图片", "视频"}:
             return str(source_path)
 
         self._temp_dir.mkdir(parents=True, exist_ok=True)
-        target_path = self._build_temp_asset_path(
-            source_path,
-            preferred_suffix=".mp3" if asset_format == "音频" else None,
-        )
+        target_path = self._build_temp_asset_path(source_path)
 
         if asset_format == "图片":
             return str(self._compress_image(source_path, target_path))
         if asset_format == "视频":
             return str(self._compress_video(source_path, target_path))
-        if asset_format == "音频":
-            return str(self._compress_audio(source_path, target_path))
         return str(source_path)
 
     def _build_temp_asset_path(self, source_path: Path, preferred_suffix: str | None = None) -> Path:
@@ -517,28 +511,6 @@ class ModelService:
             str(self._video_crf),
             "-c:a",
             "aac",
-            "-b:a",
-            self._audio_bitrate,
-            str(target_path),
-        ]
-        return self._run_ffmpeg_or_fallback(command, source_path, target_path)
-
-    def _compress_audio(self, source_path: Path, target_path: Path) -> Path:
-        if shutil.which("ffmpeg") is None:
-            return source_path
-
-        command = [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(source_path),
-            "-vn",
-            "-ac",
-            "1",
-            "-ar",
-            "24000",
-            "-codec:a",
-            "libmp3lame",
             "-b:a",
             self._audio_bitrate,
             str(target_path),

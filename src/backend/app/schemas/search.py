@@ -15,7 +15,6 @@ class SearchIndexRequest(BaseModel):
     asset_format: AssetFormat = Field(description="素材类型")
     asset_path: str = Field(min_length=1, description="素材绝对路径")
     description: str = Field(min_length=1, description="可检索的素材描述")
-    source_store_path: str | None = Field(default=None, description="来源描述存储路径")
     generated_at: datetime | None = Field(default=None, description="描述生成时间")
 
     @field_validator("asset_path")
@@ -58,7 +57,6 @@ class SearchQueryCandidate(BaseModel):
     asset_path: str
     description: str
     tags: list[str] = Field(default_factory=list)
-    source_store_path: str | None = None
     generated_at: datetime | None = None
 
 

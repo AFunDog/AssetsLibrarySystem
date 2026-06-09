@@ -43,7 +43,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 asset_name,
                 asset_type,
                 asset_path,
-                store_path,
                 description,
                 backend_endpoint,
                 mode,
@@ -59,7 +58,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 $asset_name,
                 $asset_type,
                 $asset_path,
-                $store_path,
                 $description,
                 $backend_endpoint,
                 $mode,
@@ -74,7 +72,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 asset_name = excluded.asset_name,
                 asset_type = excluded.asset_type,
                 asset_path = excluded.asset_path,
-                store_path = excluded.store_path,
                 description = excluded.description,
                 backend_endpoint = excluded.backend_endpoint,
                 mode = excluded.mode,
@@ -90,7 +87,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             AddParameter(command, "$asset_name", document.AssetName);
             AddParameter(command, "$asset_type", document.AssetType);
             AddParameter(command, "$asset_path", document.CurrentPath);
-            AddParameter(command, "$store_path", document.StorePath);
             AddParameter(command, "$description", document.Description);
             AddParameter(command, "$backend_endpoint", document.BackendEndpoint);
             AddParameter(command, "$mode", document.Mode);
@@ -118,7 +114,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 asset_name,
                 asset_type,
                 asset_path,
-                store_path,
                 description,
                 backend_endpoint,
                 mode,
@@ -154,7 +149,6 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 asset_name,
                 asset_type,
                 asset_path,
-                store_path,
                 description,
                 backend_endpoint,
                 mode,
@@ -228,13 +222,12 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             reader.GetString(4),
             reader.GetString(5),
             reader.GetString(6),
-            reader.GetString(7),
-            DateTimeOffset.Parse(reader.GetString(8)),
-            DeserializeTokenUsage(reader.IsDBNull(9) ? null : reader.GetString(9)),
+            DateTimeOffset.Parse(reader.GetString(7)),
+            DeserializeTokenUsage(reader.IsDBNull(8) ? null : reader.GetString(8)),
+            reader.IsDBNull(9) ? null : reader.GetString(9),
             reader.IsDBNull(10) ? null : reader.GetString(10),
             reader.IsDBNull(11) ? null : reader.GetString(11),
-            reader.IsDBNull(12) ? null : reader.GetString(12),
-            reader.IsDBNull(13) ? "ready" : reader.GetString(13));
+            reader.IsDBNull(12) ? "ready" : reader.GetString(12));
     }
 
     private static void AddParameter(SqliteCommand command, string name, object? value)

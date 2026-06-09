@@ -7,7 +7,6 @@ public sealed record AssetDescriptionDocument(
     string AssetName,
     string AssetType,
     string CurrentPath,
-    string StorePath,
     string Description,
     string BackendEndpoint,
     string Mode,

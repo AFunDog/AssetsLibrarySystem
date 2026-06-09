@@ -31,7 +31,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             command.CommandText = """
             INSERT INTO asset_description_vectors (
                 asset_id,
-                description_store_path,
                 embedding_model,
                 vector_dim,
                 vector_blob,
@@ -40,7 +39,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             )
             VALUES (
                 $asset_id,
-                $description_store_path,
                 $embedding_model,
                 $vector_dim,
                 $vector_blob,
@@ -48,7 +46,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 $content_hash
             )
             ON CONFLICT(asset_id) DO UPDATE SET
-                description_store_path = excluded.description_store_path,
                 embedding_model = excluded.embedding_model,
                 vector_dim = excluded.vector_dim,
                 vector_blob = excluded.vector_blob,
@@ -57,7 +54,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             """;
 
             AddParameter(command, "$asset_id", document.AssetUid);
-            AddParameter(command, "$description_store_path", document.DescriptionStorePath);
             AddParameter(command, "$embedding_model", document.EmbeddingModel);
             AddParameter(command, "$vector_dim", document.VectorDim);
             command.Parameters.Add(new SqliteParameter("$vector_blob", SqliteType.Blob)
@@ -80,7 +76,6 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         command.CommandText = """
             SELECT
                 asset_id,
-                description_store_path,
                 embedding_model,
                 vector_dim,
                 vector_blob,
@@ -98,15 +93,14 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             return null;
         }
 
-        var vector = DeserializeVector(reader.GetFieldValue<byte[]>(4));
+        var vector = DeserializeVector(reader.GetFieldValue<byte[]>(3));
         return new AssetDescriptionVectorDocument(
             reader.GetString(0),
             reader.GetString(1),
-            reader.GetString(2),
-            reader.GetInt32(3),
+            reader.GetInt32(2),
             vector,
-            DateTimeOffset.Parse(reader.GetString(5)),
-            reader.IsDBNull(6) ? null : reader.GetString(6));
+            DateTimeOffset.Parse(reader.GetString(4)),
+            reader.IsDBNull(5) ? null : reader.GetString(5));
     }
 
     public async Task<bool> DeleteAsync(string assetId, CancellationToken ct = default)

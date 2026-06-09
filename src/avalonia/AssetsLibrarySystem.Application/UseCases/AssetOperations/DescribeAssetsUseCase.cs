@@ -48,7 +48,7 @@ public sealed class DescribeAssetsUseCase
                     .ConfigureAwait(false);
 
                 successCount++;
-                BackgroundTaskService.CompleteTask(taskId, $"描述完成：{asset.Name}", document.StorePath);
+                BackgroundTaskService.CompleteTask(taskId, $"描述完成：{asset.Name}", "SQLite 已保存");
                 await ReportAsync(progress, DescribeAssetProgress.Completed(asset, document), ct).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

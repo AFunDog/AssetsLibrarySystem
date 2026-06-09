@@ -60,7 +60,7 @@ public sealed partial class LibraryCatalogService
             : FormatTokenUsage(document.TokenUsage);
 
         SelectedAssetDescriptionState = document.Mode == "live" ? "已生成" : "已生成（占位）";
-        SelectedAssetDescriptionStorePath = document.StorePath;
+        SelectedAssetDescriptionStorePath = AssetDescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
         SelectedAssetDescriptionGeneratedAt = document.GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
         SelectedAssetDescriptionMode = document.Mode;
         SelectedAssetDescriptionTokenUsage = tokenUsage;

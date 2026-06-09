@@ -136,21 +136,15 @@ class ModelServiceTestCase(unittest.TestCase):
         self.assertTrue(prepared.endswith(".png"))
         self.assertIn("temp", prepared)
 
-    def test_prepare_media_asset_uses_mp3_temp_path_for_audio(self) -> None:
+    def test_prepare_media_asset_keeps_original_path_for_audio(self) -> None:
         service = ModelService()
 
         with tempfile.TemporaryDirectory() as temp_dir:
             source_path = Path(temp_dir) / "sample.ogg"
             source_path.write_bytes(b"fake-audio")
-            service._temp_dir = Path(temp_dir) / "temp"
+            prepared = service._prepare_media_asset("音频", str(source_path))
 
-            with patch.object(ModelService, "_compress_audio", return_value=service._temp_dir / "sample-12345678.mp3") as compress_mock:
-                prepared = service._prepare_media_asset("音频", str(source_path))
-
-        compress_mock.assert_called_once()
-        called_target_path = compress_mock.call_args.args[1]
-        self.assertEqual(called_target_path.suffix.lower(), ".mp3")
-        self.assertTrue(prepared.endswith(".mp3"))
+        self.assertEqual(prepared, str(source_path.resolve()))
 
     def test_call_dashscope_uses_preprocessed_media_path(self) -> None:
         service = ModelService()
@@ -190,22 +184,6 @@ class ModelServiceTestCase(unittest.TestCase):
         self.assertEqual(sent_content[1], {"text": "请描述"})
         self.assertEqual(output_text, "ok")
         self.assertIsNone(usage)
-
-    def test_compress_audio_falls_back_to_original_when_ffmpeg_fails(self) -> None:
-        service = ModelService()
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            source_path = Path(temp_dir) / "sample.ogg"
-            target_path = Path(temp_dir) / "temp" / "sample.ogg"
-            source_path.write_bytes(b"fake-audio")
-
-            with (
-                patch("app.application.services.model_service.shutil.which", return_value="ffmpeg"),
-                patch("app.application.services.model_service.subprocess.run", side_effect=subprocess.CalledProcessError(1, "ffmpeg")),
-            ):
-                prepared = service._compress_audio(source_path, target_path)
-
-        self.assertEqual(prepared, source_path)
 
     def test_audio_format_uses_audio_compatible_model_when_needed(self) -> None:
         service = ModelService()

@@ -18,7 +18,6 @@ class IndexedAssetVectorRecord:
     asset_path: str
     description: str
     tags: list[str]
-    source_store_path: str | None
     generated_at: datetime | None
     embedding_model: str
     vector: np.ndarray
@@ -83,7 +82,6 @@ class SqliteVectorRepository:
                     {asset_path_expr} AS asset_path,
                     {description_expr} AS description,
                     {tags_expr} AS tags_json,
-                    v.description_store_path,
                     {generated_at_expr} AS generated_at,
                     embedding_model,
                     vector_dim,
@@ -113,7 +111,6 @@ class SqliteVectorRepository:
                     asset_path=str(row["asset_path"]),
                     description=str(row["description"]),
                     tags=[str(item) for item in tags] if isinstance(tags, list) else [],
-                    source_store_path=row["description_store_path"],
                     generated_at=self._parse_datetime(generated_at_value) if generated_at_value else None,
                     embedding_model=str(row["embedding_model"]),
                     vector=vector,

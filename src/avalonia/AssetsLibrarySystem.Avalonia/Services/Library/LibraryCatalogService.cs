@@ -315,7 +315,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
             "素材描述完成: assetUid={AssetUid}, assetName={AssetName}, storePath={StorePath}, mode={Mode}",
             asset.AssetUid,
             asset.Name,
-            document.StorePath,
+            AssetDescriptionStore?.DatabasePath ?? "SQLite 存储未就绪",
             document.Mode);
 
         if (ReferenceEquals(SelectedAsset, asset))
@@ -329,8 +329,9 @@ public sealed partial class LibraryCatalogService : ObservableObject
             RefreshExplorerSelectionAfterTreeRebuild();
         }
 
-        OperatorNotice = $"描述已写入 SQLite：{document.StorePath}";
-        ActivityFeedService.Add($"描述完成：{asset.Name} -> {document.StorePath}");
+        var databasePath = AssetDescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
+        OperatorNotice = $"描述已写入 SQLite：{databasePath}";
+        ActivityFeedService.Add($"描述完成：{asset.Name} -> {databasePath}");
     }
 
     public void FailAssetDescription(ManagedAssetRecord asset, string error)
