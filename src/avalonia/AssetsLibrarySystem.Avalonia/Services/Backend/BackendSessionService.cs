@@ -252,8 +252,8 @@ public sealed partial class BackendSessionService : ObservableObject
         AiCapabilities.Add(new AiCapabilityRecord("健康检查", "/health", "供桌面端确认 Python 模型服务是否可达。"));
         AiCapabilities.Add(new AiCapabilityRecord("能力清单", "/api/v1/model/capabilities", "返回当前模型网关的槽位、模式和占位能力。"));
         AiCapabilities.Add(new AiCapabilityRecord("文本生成", "/api/v1/model/generate", "只负责提示词转发与模型输出，不管理素材目录。"));
-        AiCapabilities.Add(new AiCapabilityRecord("向量检索", "/api/v1/search/explore", "输入自然语言后，先召回再重排返回最符合的素材。"));
-        AiCapabilities.Add(new AiCapabilityRecord("索引重建", "/api/v1/search/reindex", "从 asset_descriptions.db 重新构建本地 HNSW 索引。"));
+        AiCapabilities.Add(new AiCapabilityRecord("向量化", "/api/v1/search/index", "把输入文本转换成 embedding，供桌面端本地召回使用。"));
+        AiCapabilities.Add(new AiCapabilityRecord("重排序", "/api/v1/search/query", "对桌面端传入的候选描述做 rerank，不直接读取数据库。"));
         AiCapabilities.Add(new AiCapabilityRecord("模型状态", "/api/v1/search/models/status", "查看 embedding 与 rerank 模型是否已驻留在后端进程中。"));
         AiCapabilities.Add(new AiCapabilityRecord("关闭模型", "/api/v1/search/models/close", "主动释放指定本地搜索模型，便于在空闲时腾出显存。"));
     }

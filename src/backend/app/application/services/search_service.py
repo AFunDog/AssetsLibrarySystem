@@ -226,6 +226,7 @@ class SearchService:
         for candidate, rerank_score in zip(candidates, rerank_scores, strict=True):
             ranked_items.append(
                 SearchQueryResultItem(
+                    candidate_id=candidate.candidate_id,
                     asset_id=candidate.asset_id,
                     asset_name=candidate.asset_name,
                     asset_format=candidate.asset_format,

@@ -51,6 +51,7 @@ class SearchQueryRequest(BaseModel):
 
 
 class SearchQueryCandidate(BaseModel):
+    candidate_id: str | None = None
     asset_id: str
     asset_name: str
     asset_format: AssetFormat

@@ -61,8 +61,8 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         SearchCandidateTopKText = "20";
         SearchFinalTopKText = "5";
         SearchStatus = "尚未执行素材检索。";
-        SearchIndexSummary = "尚未重建索引。";
-        SearchIndexDetail = "点击“重建向量索引”后，Python 后端会根据 asset_descriptions.db 重新构建 HNSW。";
+        SearchIndexSummary = "尚未刷新本地检索状态。";
+        SearchIndexDetail = "当前由桌面端直接读取 asset_descriptions.db 做本地召回，Python 后端只负责 embedding 和 rerank。";
 
         ScanSelectedLibraryCommand = new AsyncRelayCommand(() => LibraryCatalogService.ScanSelectedLibraryAsync());
         ExecuteSearchCommand = new AsyncRelayCommand(ExecuteSearchAsync);
@@ -375,7 +375,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         }
 
         SearchIndexSummary = "正在重建向量索引...";
-        SearchIndexDetail = "后端会从 asset_descriptions.db 读取向量并重建 HNSW。";
+        SearchIndexDetail = "桌面端会重新扫描本地 SQLite 向量数据；当前阶段不再依赖 Python 后端读库建索引。";
         LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
         ActivityFeed.Insert(0, "开始重建向量索引。");
         Log.Information("用户触发向量索引重建。");

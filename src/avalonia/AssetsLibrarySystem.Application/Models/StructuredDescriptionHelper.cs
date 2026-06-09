@@ -99,6 +99,24 @@ public static class StructuredDescriptionHelper
         return [new StructuredDescriptionSegment(AssetDescriptionVectorDocument.DefaultAngleType, trimmed)];
     }
 
+    public static string ExtractTextByAngle(string? rawDescription, string? angleType)
+    {
+        var normalizedAngleType = string.IsNullOrWhiteSpace(angleType)
+            ? AssetDescriptionVectorDocument.DefaultAngleType
+            : angleType.Trim();
+
+        var segments = ExtractSegments(rawDescription);
+        foreach (var segment in segments)
+        {
+            if (string.Equals(segment.NormalizedAngleType, normalizedAngleType, StringComparison.Ordinal))
+            {
+                return segment.NormalizedText;
+            }
+        }
+
+        return ExtractPrimaryText(rawDescription);
+    }
+
     private static string? ExtractSegmentText(JsonElement element)
     {
         if (element.ValueKind == JsonValueKind.String)

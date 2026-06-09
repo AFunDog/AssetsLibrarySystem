@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -8,6 +9,8 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Services.Infrastructure;
+using Microsoft.Data.Sqlite;
 using Serilog;
 
 namespace AssetsLibrarySystem.Application.Services.AssetSearch;
@@ -15,6 +18,7 @@ namespace AssetsLibrarySystem.Application.Services.AssetSearch;
 public sealed class AssetSearchService : IAssetSearchService
 {
     private HttpClient Http { get; } = new();
+    private IAssetDatabase AssetDatabase { get; }
     private JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -22,6 +26,11 @@ public sealed class AssetSearchService : IAssetSearchService
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
+
+    public AssetSearchService(IAssetDatabase assetDatabase)
+    {
+        AssetDatabase = assetDatabase;
+    }
 
     public async Task<AssetSearchResponseDocument> SearchAsync(
         string backendBaseUrl,
@@ -32,129 +41,139 @@ public sealed class AssetSearchService : IAssetSearchService
         CancellationToken ct = default)
     {
         var startedAt = DateTimeOffset.UtcNow;
-        var request = new SearchExploreRequest(
-            Query: query,
-            CandidateTopK: candidateTopK,
-            FinalTopK: finalTopK,
-            AssetFormat: string.IsNullOrWhiteSpace(assetFormat) ? null : assetFormat.Trim());
-
-        var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/explore";
-        Log.Information(
-            "发起素材检索请求: endpoint={Endpoint}, queryLength={QueryLength}, candidateTopK={CandidateTopK}, finalTopK={FinalTopK}, assetFormat={AssetFormat}, queryPreview={QueryPreview}",
-            endpoint,
-            query.Length,
-            candidateTopK,
-            finalTopK,
-            request.AssetFormat ?? "全部",
-            BuildPreview(query));
-        using var content = new StringContent(
-            JsonSerializer.Serialize(request, JsonOptions),
-            Encoding.UTF8,
-            "application/json");
-
-        using var response = await Http.PostAsync(endpoint, content, ct);
-        var responseText = await response.Content.ReadAsStringAsync(ct);
-        if (!response.IsSuccessStatusCode)
+        var normalizedQuery = query.Trim();
+        var normalizedAssetFormat = string.IsNullOrWhiteSpace(assetFormat) ? null : assetFormat.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
-            Log.Warning(
-                "素材搜索请求失败: endpoint={Endpoint}, statusCode={StatusCode}, elapsedMs={ElapsedMs}, body={Body}",
-                endpoint,
-                (int)response.StatusCode,
-                (DateTimeOffset.UtcNow - startedAt).TotalMilliseconds,
-                responseText);
-            throw new InvalidOperationException($"后端搜索失败：{responseText}");
+            throw new InvalidOperationException("搜索词不能为空。");
         }
 
-        var backendResponse = JsonSerializer.Deserialize<SearchExploreResponse>(responseText, JsonOptions)
-            ?? throw new InvalidOperationException("后端返回空搜索响应。");
+        var records = await LoadVectorRecordsAsync(ct).ConfigureAwait(false);
+        if (records.Count == 0)
+        {
+            throw new InvalidOperationException("当前没有可检索的素材描述。");
+        }
+
+        var queryVectorResponse = await IndexTextAsync(backendBaseUrl, normalizedQuery, ct).ConfigureAwait(false);
+        var queryVector = JsonSerializer.Deserialize<float[]>(queryVectorResponse.Vector.GetRawText(), JsonOptions) ?? [];
+        if (queryVector.Length == 0)
+        {
+            throw new InvalidOperationException("后端返回的查询向量为空。");
+        }
+
+        var filteredRecords = records
+            .Where(record => normalizedAssetFormat is null || string.Equals(record.AssetType, normalizedAssetFormat, StringComparison.Ordinal))
+            .ToList();
+        if (filteredRecords.Count == 0)
+        {
+            throw new InvalidOperationException("未找到符合条件的素材。");
+        }
+
+        var expandedCandidateTopK = Math.Min(
+            filteredRecords.Count,
+            Math.Max(candidateTopK * 8, Math.Max(candidateTopK, 50)));
+
+        var vectorCandidates = filteredRecords
+            .Select(record =>
+            {
+                var similarity = CosineSimilarity(queryVector, record.Vector);
+                return new VectorCandidateRecord(
+                    CandidateId: $"{record.AssetUid}::{record.AngleType}",
+                    Record: record,
+                    EmbeddingSimilarity: similarity,
+                    VectorDistance: Math.Max(0f, 1f - similarity));
+            })
+            .OrderByDescending(item => item.EmbeddingSimilarity)
+            .Take(expandedCandidateTopK)
+            .ToList();
+
+        var rerankResponse = await RerankAsync(backendBaseUrl, normalizedQuery, vectorCandidates, finalTopK, ct).ConfigureAwait(false);
+        var rerankScoreMap = rerankResponse.Results
+            .Where(item => !string.IsNullOrWhiteSpace(item.CandidateId))
+            .ToDictionary(item => item.CandidateId!, item => item.RerankScore, StringComparer.Ordinal);
+
+        var rerankScores = vectorCandidates
+            .Select(candidate => rerankScoreMap.GetValueOrDefault(candidate.CandidateId, 0f))
+            .ToArray();
+        var normalizedRerankScores = NormalizeScores(rerankScores);
+
+        var scoredCandidates = vectorCandidates
+            .Select((candidate, index) => new ScoredVectorCandidateRecord(
+                candidate.CandidateId,
+                candidate.Record,
+                candidate.EmbeddingSimilarity,
+                candidate.VectorDistance,
+                rerankScores[index],
+                normalizedRerankScores[index],
+                CombineScores(candidate.EmbeddingSimilarity, normalizedRerankScores[index])))
+            .ToList();
+
+        var aggregatedResults = AggregateCandidates(scoredCandidates, candidateTopK)
+            .Take(finalTopK)
+            .ToArray();
 
         Log.Information(
-            "素材搜索响应完成: endpoint={Endpoint}, elapsedMs={ElapsedMs}, returned={ReturnedCount}, embeddingModel={EmbeddingModel}, rerankModel={RerankModel}",
-            endpoint,
+            "素材搜索完成: elapsedMs={ElapsedMs}, localCandidates={LocalCandidates}, returned={ReturnedCount}, embeddingModel={EmbeddingModel}, rerankModel={RerankModel}",
             (DateTimeOffset.UtcNow - startedAt).TotalMilliseconds,
-            backendResponse.Results.Length,
-            backendResponse.EmbeddingModel,
-            backendResponse.RerankModel);
+            vectorCandidates.Count,
+            aggregatedResults.Length,
+            queryVectorResponse.EmbeddingModel,
+            rerankResponse.RerankModel);
 
         return new AssetSearchResponseDocument(
-            Query: backendResponse.Query,
-            CandidateTopK: backendResponse.CandidateTopK,
-            FinalTopK: backendResponse.FinalTopK,
-            AssetFormat: backendResponse.AssetFormat,
-            EmbeddingModel: backendResponse.EmbeddingModel,
-            RerankModel: backendResponse.RerankModel,
-            Results: backendResponse.Results.Select(item =>
-                new AssetSearchDocument
-                {
-                    AssetUid = item.AssetId,
-                    AssetName = item.AssetName,
-                    AssetType = item.AssetFormat,
-                    CurrentPath = item.AssetPath,
-                    Description = item.Description,
-                    Tags = item.Tags,
-                    GeneratedAt = item.GeneratedAt,
-                    EmbeddingSimilarity = item.EmbeddingSimilarity,
-                    VectorDistance = item.VectorDistance,
-                    RerankScore = item.RerankScore,
-                    CombinedScore = item.CombinedScore,
-                }).ToArray());
+            Query: normalizedQuery,
+            CandidateTopK: Math.Min(candidateTopK, aggregatedResults.Length),
+            FinalTopK: Math.Min(finalTopK, aggregatedResults.Length),
+            AssetFormat: normalizedAssetFormat,
+            EmbeddingModel: queryVectorResponse.EmbeddingModel,
+            RerankModel: rerankResponse.RerankModel,
+            Results: aggregatedResults);
     }
 
     public async Task<AssetReindexResponseDocument> ReindexAsync(
         string backendBaseUrl,
         CancellationToken ct = default)
     {
-        var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/reindex";
-        Log.Information("发起向量索引重建请求: endpoint={Endpoint}", endpoint);
-        using var content = new StringContent(
-            "{}",
-            Encoding.UTF8,
-            "application/json");
-
-        using var response = await Http.PostAsync(endpoint, content, ct);
-        var responseText = await response.Content.ReadAsStringAsync(ct);
-        if (!response.IsSuccessStatusCode)
+        var records = await LoadVectorRecordsAsync(ct).ConfigureAwait(false);
+        if (records.Count == 0)
         {
-            Log.Warning(
-                "素材索引重建请求失败: endpoint={Endpoint}, statusCode={StatusCode}, body={Body}",
-                endpoint,
-                (int)response.StatusCode,
-                responseText);
-            throw new InvalidOperationException($"后端索引重建失败：{responseText}");
+            throw new InvalidOperationException("当前没有可用于本地检索的向量数据。");
         }
 
-        var backendResponse = JsonSerializer.Deserialize<SearchReindexResponse>(responseText, JsonOptions)
-            ?? throw new InvalidOperationException("后端返回空重建响应。");
+        var vectorDim = records[0].Vector.Length;
+        var embeddingModels = records
+            .Select(record => record.EmbeddingModel)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(item => item, StringComparer.Ordinal)
+            .ToArray();
 
         Log.Information(
-            "向量索引重建完成: endpoint={Endpoint}, documentCount={DocumentCount}, vectorDim={VectorDim}, databasePath={DatabasePath}, indexPath={IndexPath}",
-            endpoint,
-            backendResponse.DocumentCount,
-            backendResponse.VectorDim,
-            backendResponse.DatabasePath,
-            backendResponse.IndexPath);
+            "本地检索模式下刷新索引信息: documentCount={DocumentCount}, vectorDim={VectorDim}, databasePath={DatabasePath}",
+            records.Count,
+            vectorDim,
+            AssetDatabase.DatabasePath);
 
         return new AssetReindexResponseDocument(
-            DocumentCount: backendResponse.DocumentCount,
-            VectorDim: backendResponse.VectorDim,
-            DatabasePath: backendResponse.DatabasePath,
-            IndexPath: backendResponse.IndexPath,
-            MetadataPath: backendResponse.MetadataPath,
-            EmbeddingModels: backendResponse.EmbeddingModels.ToArray());
+            DocumentCount: records.Count,
+            VectorDim: vectorDim,
+            DatabasePath: AssetDatabase.DatabasePath,
+            IndexPath: "C# 本地全量扫描模式，当前未生成独立 HNSW 文件",
+            MetadataPath: string.Empty,
+            EmbeddingModels: embeddingModels);
     }
 
     public async Task<AssetSearchWarmupDocument> WarmupEmbeddingAsync(
         string backendBaseUrl,
         CancellationToken ct = default)
     {
-        return await WarmupAsync(backendBaseUrl, "embedding", ct);
+        return await WarmupAsync(backendBaseUrl, "embedding", ct).ConfigureAwait(false);
     }
 
     public async Task<AssetSearchWarmupDocument> WarmupRerankAsync(
         string backendBaseUrl,
         CancellationToken ct = default)
     {
-        return await WarmupAsync(backendBaseUrl, "rerank", ct);
+        return await WarmupAsync(backendBaseUrl, "rerank", ct).ConfigureAwait(false);
     }
 
     public async Task<AssetSearchModelStatusDocument> GetModelStatusAsync(
@@ -163,8 +182,8 @@ public sealed class AssetSearchService : IAssetSearchService
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/models/status";
         Log.Debug("查询模型状态: endpoint={Endpoint}", endpoint);
-        using var response = await Http.GetAsync(endpoint, ct);
-        var responseText = await response.Content.ReadAsStringAsync(ct);
+        using var response = await Http.GetAsync(endpoint, ct).ConfigureAwait(false);
+        var responseText = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             Log.Warning(
@@ -177,14 +196,6 @@ public sealed class AssetSearchService : IAssetSearchService
 
         var backendResponse = JsonSerializer.Deserialize<SearchModelStatusResponse>(responseText, JsonOptions)
             ?? throw new InvalidOperationException("后端返回空模型状态响应。");
-
-        Log.Debug(
-            "模型状态查询完成: endpoint={Endpoint}, loadedCount={LoadedCount}, device={Device}, embeddingLoaded={EmbeddingLoaded}, rerankLoaded={RerankLoaded}",
-            endpoint,
-            backendResponse.LoadedCount,
-            backendResponse.Device,
-            backendResponse.EmbeddingLoaded,
-            backendResponse.RerankLoaded);
 
         return new AssetSearchModelStatusDocument(
             EmbeddingModelName: backendResponse.EmbeddingModelName,
@@ -203,33 +214,20 @@ public sealed class AssetSearchService : IAssetSearchService
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/models/close";
         var request = new SearchModelCloseRequest(modelKind);
-        Log.Information("请求关闭本地搜索模型: endpoint={Endpoint}, modelKind={ModelKind}", endpoint, modelKind);
         using var content = new StringContent(
             JsonSerializer.Serialize(request, JsonOptions),
             Encoding.UTF8,
             "application/json");
 
-        using var response = await Http.PostAsync(endpoint, content, ct);
-        var responseText = await response.Content.ReadAsStringAsync(ct);
+        using var response = await Http.PostAsync(endpoint, content, ct).ConfigureAwait(false);
+        var responseText = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning(
-                "模型关闭请求失败: endpoint={Endpoint}, statusCode={StatusCode}, body={Body}",
-                endpoint,
-                (int)response.StatusCode,
-                responseText);
             throw new InvalidOperationException($"后端模型关闭失败：{responseText}");
         }
 
         var backendResponse = JsonSerializer.Deserialize<SearchModelCloseResponse>(responseText, JsonOptions)
             ?? throw new InvalidOperationException("后端返回空模型关闭响应。");
-
-        Log.Information(
-            "本地搜索模型关闭完成: endpoint={Endpoint}, modelKind={ModelKind}, closed={Closed}, remainingLoadedModels={RemainingLoadedModels}",
-            endpoint,
-            backendResponse.ModelKind,
-            backendResponse.Closed,
-            string.Join(", ", backendResponse.RemainingLoadedModels));
 
         return new AssetSearchModelCloseDocument(
             ModelKind: backendResponse.ModelKind,
@@ -240,41 +238,135 @@ public sealed class AssetSearchService : IAssetSearchService
             RemainingLoadedModels: backendResponse.RemainingLoadedModels.ToArray());
     }
 
+    private async Task<SearchIndexResponse> IndexTextAsync(string backendBaseUrl, string text, CancellationToken ct)
+    {
+        var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/index";
+        var request = new SearchIndexRequest(
+            AssetId: "__query__",
+            AssetName: "__query__",
+            AssetFormat: "文本",
+            AssetPath: Environment.SystemDirectory,
+            Description: text,
+            GeneratedAt: null);
+
+        using var content = new StringContent(
+            JsonSerializer.Serialize(request, JsonOptions),
+            Encoding.UTF8,
+            "application/json");
+
+        using var response = await Http.PostAsync(endpoint, content, ct).ConfigureAwait(false);
+        var responseText = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"后端向量化失败：{responseText}");
+        }
+
+        return JsonSerializer.Deserialize<SearchIndexResponse>(responseText, JsonOptions)
+            ?? throw new InvalidOperationException("后端返回空向量响应。");
+    }
+
+    private async Task<SearchQueryResponse> RerankAsync(
+        string backendBaseUrl,
+        string query,
+        IReadOnlyList<VectorCandidateRecord> candidates,
+        int finalTopK,
+        CancellationToken ct)
+    {
+        var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/query";
+        var request = new SearchQueryRequest(
+            Query: query,
+            Candidates: candidates.Select(candidate => new SearchQueryCandidate(
+                CandidateId: candidate.CandidateId,
+                AssetId: candidate.Record.AssetUid,
+                AssetName: candidate.Record.AssetName,
+                AssetFormat: candidate.Record.AssetType,
+                AssetPath: candidate.Record.AssetPath,
+                Description: candidate.Record.SegmentText,
+                Tags: candidate.Record.Tags,
+                GeneratedAt: candidate.Record.GeneratedAt)).ToArray(),
+            FinalTopK: candidates.Count);
+
+        using var content = new StringContent(
+            JsonSerializer.Serialize(request, JsonOptions),
+            Encoding.UTF8,
+            "application/json");
+
+        using var response = await Http.PostAsync(endpoint, content, ct).ConfigureAwait(false);
+        var responseText = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"后端重排序失败：{responseText}");
+        }
+
+        return JsonSerializer.Deserialize<SearchQueryResponse>(responseText, JsonOptions)
+            ?? throw new InvalidOperationException("后端返回空重排序响应。");
+    }
+
+    private async Task<List<LocalVectorRecord>> LoadVectorRecordsAsync(CancellationToken ct)
+    {
+        await AssetDatabase.EnsureSchemaAsync(ct).ConfigureAwait(false);
+        await using var connection = await AssetDatabase.OpenConnectionAsync(ct).ConfigureAwait(false);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                v.asset_id,
+                COALESCE(NULLIF(TRIM(v.angle_type), ''), '全面') AS angle_type,
+                COALESCE(a.asset_name, d.asset_name, '') AS asset_name,
+                COALESCE(a.asset_type, d.asset_type, '') AS asset_type,
+                COALESCE(a.current_path, d.asset_path, '') AS asset_path,
+                COALESCE(d.description, '') AS raw_description,
+                COALESCE(m.tags_json, '[]') AS tags_json,
+                d.generated_at,
+                v.embedding_model,
+                v.vector_dim,
+                v.vector_blob
+            FROM asset_description_vectors AS v
+            LEFT JOIN asset_descriptions AS d ON d.asset_id = v.asset_id
+            LEFT JOIN asset_metadata AS m ON m.asset_uid = v.asset_id
+            LEFT JOIN assets AS a ON a.asset_uid = v.asset_id
+            ORDER BY v.asset_id, v.angle_type;
+            """;
+
+        await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        var records = new List<LocalVectorRecord>();
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            var rawDescription = reader.IsDBNull(5) ? string.Empty : reader.GetString(5);
+            var angleType = reader.GetString(1);
+            records.Add(new LocalVectorRecord(
+                AssetUid: reader.GetString(0),
+                AngleType: angleType,
+                AssetName: reader.GetString(2),
+                AssetType: reader.GetString(3),
+                AssetPath: reader.GetString(4),
+                PrimaryDescription: StructuredDescriptionHelper.ExtractPrimaryText(rawDescription),
+                SegmentText: StructuredDescriptionHelper.ExtractTextByAngle(rawDescription, angleType),
+                Tags: DeserializeTags(reader.IsDBNull(6) ? null : reader.GetString(6)),
+                GeneratedAt: reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7)),
+                EmbeddingModel: reader.GetString(8),
+                Vector: DeserializeVector(reader.GetFieldValue<byte[]>(10), reader.GetInt32(9))));
+        }
+
+        return records;
+    }
+
     private async Task<AssetSearchWarmupDocument> WarmupAsync(
         string backendBaseUrl,
         string modelKind,
         CancellationToken ct)
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/warmup/{modelKind}";
-        Log.Information("请求模型预热: endpoint={Endpoint}, modelKind={ModelKind}", endpoint, modelKind);
-        using var content = new StringContent(
-            "{}",
-            Encoding.UTF8,
-            "application/json");
-
-        using var response = await Http.PostAsync(endpoint, content, ct);
-        var responseText = await response.Content.ReadAsStringAsync(ct);
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        using var response = await Http.PostAsync(endpoint, content, ct).ConfigureAwait(false);
+        var responseText = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning(
-                "素材 {ModelKind} 模型预热失败: endpoint={Endpoint}, statusCode={StatusCode}, body={Body}",
-                modelKind,
-                endpoint,
-                (int)response.StatusCode,
-                responseText);
             throw new InvalidOperationException($"后端{modelKind}模型预热失败：{responseText}");
         }
 
         var backendResponse = JsonSerializer.Deserialize<SearchWarmupResponse>(responseText, JsonOptions)
             ?? throw new InvalidOperationException("后端返回空模型预热响应。");
-
-        Log.Information(
-            "模型预热完成: endpoint={Endpoint}, modelKind={ModelKind}, modelName={ModelName}, device={Device}, warmed={Warmed}",
-            endpoint,
-            backendResponse.ModelKind,
-            backendResponse.ModelName,
-            backendResponse.Device,
-            backendResponse.Warmed);
 
         return new AssetSearchWarmupDocument(
             ModelKind: backendResponse.ModelKind,
@@ -283,41 +375,206 @@ public sealed class AssetSearchService : IAssetSearchService
             Warmed: backendResponse.Warmed);
     }
 
-    private sealed record SearchExploreRequest(
-        [property: JsonPropertyName("query")] string Query,
-        [property: JsonPropertyName("candidate_top_k")] int CandidateTopK,
-        [property: JsonPropertyName("final_top_k")] int FinalTopK,
-        [property: JsonPropertyName("asset_format")] string? AssetFormat);
+    private static float[] DeserializeVector(byte[] bytes, int expectedDim)
+    {
+        var vector = new float[bytes.Length / sizeof(float)];
+        Buffer.BlockCopy(bytes, 0, vector, 0, bytes.Length);
+        if (vector.Length != expectedDim)
+        {
+            throw new InvalidOperationException($"向量维度不匹配，期望 {expectedDim}，实际 {vector.Length}。");
+        }
 
-    private sealed record SearchExploreResponse(
-        [property: JsonPropertyName("query")] string Query,
-        [property: JsonPropertyName("candidate_top_k")] int CandidateTopK,
-        [property: JsonPropertyName("final_top_k")] int FinalTopK,
-        [property: JsonPropertyName("asset_format")] string? AssetFormat,
-        [property: JsonPropertyName("embedding_model")] string EmbeddingModel,
-        [property: JsonPropertyName("rerank_model")] string RerankModel,
-        [property: JsonPropertyName("results")] SearchExploreResult[] Results);
+        return vector;
+    }
 
-    private sealed record SearchExploreResult(
+    private static string[] DeserializeTags(string? tagsJson)
+    {
+        if (string.IsNullOrWhiteSpace(tagsJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(tagsJson) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static float CosineSimilarity(float[] left, float[] right)
+    {
+        if (left.Length != right.Length || left.Length == 0)
+        {
+            return 0f;
+        }
+
+        double dot = 0;
+        double leftNorm = 0;
+        double rightNorm = 0;
+        for (var index = 0; index < left.Length; index++)
+        {
+            dot += left[index] * right[index];
+            leftNorm += left[index] * left[index];
+            rightNorm += right[index] * right[index];
+        }
+
+        if (leftNorm <= 0 || rightNorm <= 0)
+        {
+            return 0f;
+        }
+
+        return (float)(dot / (Math.Sqrt(leftNorm) * Math.Sqrt(rightNorm)));
+    }
+
+    private static float[] NormalizeScores(IReadOnlyList<float> scores)
+    {
+        if (scores.Count == 0)
+        {
+            return [];
+        }
+
+        var minScore = scores.Min();
+        var maxScore = scores.Max();
+        if (Math.Abs(maxScore - minScore) < float.Epsilon)
+        {
+            return Enumerable.Repeat(1f, scores.Count).ToArray();
+        }
+
+        var scale = maxScore - minScore;
+        return scores.Select(score => (score - minScore) / scale).ToArray();
+    }
+
+    private static float CombineScores(float embeddingSimilarity, float normalizedRerankScore)
+    {
+        const float vectorWeight = 0.35f;
+        const float rerankWeight = 0.65f;
+        return (embeddingSimilarity * vectorWeight) + (normalizedRerankScore * rerankWeight);
+    }
+
+    private static float AngleWeight(string angleType)
+    {
+        return angleType switch
+        {
+            "全面" => 0.4f,
+            "风格" => 0.25f,
+            "乐器" => 0.2f,
+            "情感" => 0.15f,
+            _ => 0.1f,
+        };
+    }
+
+    private static List<AssetSearchDocument> AggregateCandidates(IReadOnlyList<ScoredVectorCandidateRecord> candidates, int candidateTopK)
+    {
+        var grouped = new Dictionary<string, Dictionary<string, ScoredVectorCandidateRecord>>(StringComparer.Ordinal);
+        foreach (var candidate in candidates)
+        {
+            if (!grouped.TryGetValue(candidate.Record.AssetUid, out var assetCandidates))
+            {
+                assetCandidates = new Dictionary<string, ScoredVectorCandidateRecord>(StringComparer.Ordinal);
+                grouped[candidate.Record.AssetUid] = assetCandidates;
+            }
+
+            if (!assetCandidates.TryGetValue(candidate.Record.AngleType, out var existing)
+                || candidate.CombinedScore > existing.CombinedScore)
+            {
+                assetCandidates[candidate.Record.AngleType] = candidate;
+            }
+        }
+
+        var results = new List<AssetSearchDocument>();
+        foreach (var assetCandidates in grouped.Values)
+        {
+            var selectedCandidates = assetCandidates.Values.ToArray();
+            var totalWeight = selectedCandidates.Sum(item => AngleWeight(item.Record.AngleType));
+            if (totalWeight <= 0)
+            {
+                continue;
+            }
+
+            var displayCandidate = selectedCandidates.FirstOrDefault(item => item.Record.AngleType == "全面")
+                ?? selectedCandidates.OrderByDescending(item => item.CombinedScore).First();
+
+            var result = new AssetSearchDocument(
+                assetUid: displayCandidate.Record.AssetUid,
+                assetName: displayCandidate.Record.AssetName,
+                assetType: displayCandidate.Record.AssetType,
+                currentPath: displayCandidate.Record.AssetPath,
+                description: displayCandidate.Record.PrimaryDescription,
+                generatedAt: displayCandidate.Record.GeneratedAt,
+                embeddingSimilarity: WeightedAverage(selectedCandidates, totalWeight, item => item.EmbeddingSimilarity),
+                vectorDistance: WeightedAverage(selectedCandidates, totalWeight, item => item.VectorDistance),
+                rerankScore: WeightedAverage(selectedCandidates, totalWeight, item => item.RerankScore),
+                tags: displayCandidate.Record.Tags)
+            {
+                CombinedScore = WeightedAverage(selectedCandidates, totalWeight, item => item.CombinedScore),
+            };
+            results.Add(result);
+        }
+
+        return results
+            .OrderByDescending(item => item.CombinedScore ?? item.RerankScore)
+            .Take(candidateTopK)
+            .ToList();
+    }
+
+    private static float WeightedAverage(
+        IReadOnlyList<ScoredVectorCandidateRecord> candidates,
+        float totalWeight,
+        Func<ScoredVectorCandidateRecord, float> selector)
+    {
+        if (totalWeight <= 0)
+        {
+            return 0f;
+        }
+
+        return candidates.Sum(candidate => selector(candidate) * AngleWeight(candidate.Record.AngleType)) / totalWeight;
+    }
+
+    private sealed record SearchIndexRequest(
+        [property: JsonPropertyName("asset_id")] string AssetId,
+        [property: JsonPropertyName("asset_name")] string AssetName,
+        [property: JsonPropertyName("asset_format")] string AssetFormat,
+        [property: JsonPropertyName("asset_path")] string AssetPath,
+        [property: JsonPropertyName("description")] string Description,
+        [property: JsonPropertyName("generated_at")] DateTimeOffset? GeneratedAt);
+
+    private sealed record SearchIndexResponse(
+        [property: JsonPropertyName("asset_id")] string AssetId,
+        [property: JsonPropertyName("asset_name")] string AssetName,
+        [property: JsonPropertyName("asset_format")] string AssetFormat,
+        [property: JsonPropertyName("asset_path")] string AssetPath,
+        [property: JsonPropertyName("description")] string Description,
+        [property: JsonPropertyName("vector")] JsonElement Vector,
+        [property: JsonPropertyName("vector_dim")] int VectorDim,
+        [property: JsonPropertyName("embedding_model")] string EmbeddingModel);
+
+    private sealed record SearchQueryRequest(
+        [property: JsonPropertyName("query")] string Query,
+        [property: JsonPropertyName("candidates")] SearchQueryCandidate[] Candidates,
+        [property: JsonPropertyName("final_top_k")] int FinalTopK);
+
+    private sealed record SearchQueryCandidate(
+        [property: JsonPropertyName("candidate_id")] string CandidateId,
         [property: JsonPropertyName("asset_id")] string AssetId,
         [property: JsonPropertyName("asset_name")] string AssetName,
         [property: JsonPropertyName("asset_format")] string AssetFormat,
         [property: JsonPropertyName("asset_path")] string AssetPath,
         [property: JsonPropertyName("description")] string Description,
         [property: JsonPropertyName("tags")] string[] Tags,
-        [property: JsonPropertyName("generated_at")] DateTimeOffset? GeneratedAt,
-        [property: JsonPropertyName("embedding_similarity")] float? EmbeddingSimilarity,
-        [property: JsonPropertyName("vector_distance")] float? VectorDistance,
-        [property: JsonPropertyName("rerank_score")] float RerankScore,
-        [property: JsonPropertyName("combined_score")] float? CombinedScore);
+        [property: JsonPropertyName("generated_at")] DateTimeOffset? GeneratedAt);
 
-    private sealed record SearchReindexResponse(
-        [property: JsonPropertyName("document_count")] int DocumentCount,
-        [property: JsonPropertyName("vector_dim")] int VectorDim,
-        [property: JsonPropertyName("database_path")] string DatabasePath,
-        [property: JsonPropertyName("index_path")] string IndexPath,
-        [property: JsonPropertyName("metadata_path")] string MetadataPath,
-        [property: JsonPropertyName("embedding_models")] string[] EmbeddingModels);
+    private sealed record SearchQueryResponse(
+        [property: JsonPropertyName("query")] string Query,
+        [property: JsonPropertyName("final_top_k")] int FinalTopK,
+        [property: JsonPropertyName("rerank_model")] string RerankModel,
+        [property: JsonPropertyName("results")] SearchQueryResult[] Results);
+
+    private sealed record SearchQueryResult(
+        [property: JsonPropertyName("candidate_id")] string? CandidateId,
+        [property: JsonPropertyName("rerank_score")] float RerankScore);
 
     private sealed record SearchWarmupResponse(
         [property: JsonPropertyName("model_kind")] string ModelKind,
@@ -345,9 +602,31 @@ public sealed class AssetSearchService : IAssetSearchService
         [property: JsonPropertyName("cuda_cache_cleared")] bool CudaCacheCleared,
         [property: JsonPropertyName("remaining_loaded_models")] string[] RemainingLoadedModels);
 
-    private static string BuildPreview(string query)
-    {
-        var trimmed = query.Trim();
-        return trimmed.Length <= 48 ? trimmed : $"{trimmed[..48]}…";
-    }
+    private sealed record LocalVectorRecord(
+        string AssetUid,
+        string AngleType,
+        string AssetName,
+        string AssetType,
+        string AssetPath,
+        string PrimaryDescription,
+        string SegmentText,
+        string[] Tags,
+        DateTimeOffset? GeneratedAt,
+        string EmbeddingModel,
+        float[] Vector);
+
+    private sealed record VectorCandidateRecord(
+        string CandidateId,
+        LocalVectorRecord Record,
+        float EmbeddingSimilarity,
+        float VectorDistance);
+
+    private sealed record ScoredVectorCandidateRecord(
+        string CandidateId,
+        LocalVectorRecord Record,
+        float EmbeddingSimilarity,
+        float VectorDistance,
+        float RerankScore,
+        float NormalizedRerankScore,
+        float CombinedScore);
 }
