@@ -159,6 +159,7 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 
             CREATE TABLE IF NOT EXISTS asset_description_vectors (
                 asset_id TEXT PRIMARY KEY,
+                angle_type TEXT NOT NULL DEFAULT '全面',
                 embedding_model TEXT NOT NULL,
                 vector_dim INTEGER NOT NULL,
                 vector_blob BLOB NOT NULL,
@@ -170,6 +171,7 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 
         await EnsureColumnAsync(connection, "asset_descriptions", "content_hash", "TEXT NULL", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'", ct).ConfigureAwait(false);
+        await EnsureColumnAsync(connection, "asset_description_vectors", "angle_type", "TEXT NOT NULL DEFAULT '全面'", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_description_vectors", "content_hash", "TEXT NULL", ct).ConfigureAwait(false);
     }
 

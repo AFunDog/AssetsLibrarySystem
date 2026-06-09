@@ -15,6 +15,7 @@ from app.infrastructure.search.structured_description import extract_primary_des
 class IndexedAssetVectorRecord:
     doc_id: int
     asset_id: str
+    angle_type: str
     asset_name: str
     asset_format: str
     asset_path: str
@@ -79,6 +80,7 @@ class SqliteVectorRepository:
                 f"""
                 SELECT
                     v.asset_id AS asset_id,
+                    COALESCE(v.angle_type, '全面') AS angle_type,
                     {asset_name_expr} AS asset_name,
                     {asset_type_expr} AS asset_type,
                     {asset_path_expr} AS asset_path,
@@ -108,6 +110,7 @@ class SqliteVectorRepository:
                 IndexedAssetVectorRecord(
                     doc_id=index,
                     asset_id=str(row["asset_id"]),
+                    angle_type=str(row["angle_type"] or "全面"),
                     asset_name=str(row["asset_name"]),
                     asset_format=str(row["asset_type"]),
                     asset_path=str(row["asset_path"]),

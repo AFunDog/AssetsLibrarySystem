@@ -165,6 +165,7 @@ class SearchServiceTestCase(unittest.TestCase):
             IndexedAssetVectorRecord(
                 doc_id=1,
                 asset_id="asset-1",
+                angle_type="全面",
                 asset_name="shock.png",
                 asset_format="图片",
                 asset_path=r"D:\Data\shock.png",
@@ -178,6 +179,7 @@ class SearchServiceTestCase(unittest.TestCase):
             IndexedAssetVectorRecord(
                 doc_id=2,
                 asset_id="asset-2",
+                angle_type="全面",
                 asset_name="happy.png",
                 asset_format="图片",
                 asset_path=r"D:\Data\happy.png",
@@ -209,6 +211,7 @@ class SearchServiceTestCase(unittest.TestCase):
             IndexedAssetVectorRecord(
                 doc_id=1,
                 asset_id="asset-1",
+                angle_type="全面",
                 asset_name="shock.png",
                 asset_format="图片",
                 asset_path=r"D:\Data\shock.png",
@@ -222,6 +225,7 @@ class SearchServiceTestCase(unittest.TestCase):
             IndexedAssetVectorRecord(
                 doc_id=2,
                 asset_id="asset-2",
+                angle_type="全面",
                 asset_name="happy.png",
                 asset_format="图片",
                 asset_path=r"D:\Data\happy.png",

@@ -55,6 +55,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
 
         return new AssetDescriptionVectorDocument(
             AssetUid: vectorResponse.AssetId,
+            AngleType: AssetDescriptionVectorDocument.DefaultAngleType,
             EmbeddingModel: vectorResponse.EmbeddingModel,
             VectorDim: vectorResponse.VectorDim,
             Vector: JsonSerializer.Deserialize<float[]>(vectorResponse.Vector.GetRawText(), JsonOptions) ?? [],

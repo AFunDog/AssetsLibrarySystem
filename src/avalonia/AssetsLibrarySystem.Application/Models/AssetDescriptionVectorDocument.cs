@@ -4,11 +4,13 @@ namespace AssetsLibrarySystem.Application.Models;
 
 public sealed record AssetDescriptionVectorDocument(
     string AssetUid,
+    string AngleType,
     string EmbeddingModel,
     int VectorDim,
     float[] Vector,
     DateTimeOffset VectorizedAt,
     string? ContentHash)
 {
+    public const string DefaultAngleType = "全面";
     public string AssetId => AssetUid;
 }
