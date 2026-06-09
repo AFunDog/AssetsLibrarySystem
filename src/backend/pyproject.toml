@@ -18,7 +18,6 @@ dependencies = [
   "numpy>=1.26.0",
   "Pillow>=10.4.0",
   "sentence-transformers>=3.0.1",
-  "hnswlib>=0.8.0",
 ]
 
 [tool.setuptools]

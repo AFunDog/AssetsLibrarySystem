@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetsLibrarySystem.Applica
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetsLibrarySystem.Console", "AssetsLibrarySystem.Console\AssetsLibrarySystem.Console.csproj", "{A7B7D89B-2D46-4C57-9C2B-2D1B1AE3B8E2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetsLibrarySystem.Application.Tests", "AssetsLibrarySystem.Application.Tests\AssetsLibrarySystem.Application.Tests.csproj", "{68B93C95-CB1B-4F7A-8B89-168C184F788D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{A7B7D89B-2D46-4C57-9C2B-2D1B1AE3B8E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A7B7D89B-2D46-4C57-9C2B-2D1B1AE3B8E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A7B7D89B-2D46-4C57-9C2B-2D1B1AE3B8E2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{68B93C95-CB1B-4F7A-8B89-168C184F788D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{68B93C95-CB1B-4F7A-8B89-168C184F788D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{68B93C95-CB1B-4F7A-8B89-168C184F788D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{68B93C95-CB1B-4F7A-8B89-168C184F788D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

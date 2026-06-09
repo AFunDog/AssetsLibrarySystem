@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import unittest
-from pathlib import Path
-from datetime import datetime, timezone
 
 import numpy as np
 
 from app.application.services.search_service import SearchService
-from app.infrastructure.search.sqlite_vector_repository import IndexState, IndexedAssetVectorRecord
 from app.schemas.search import (
-    SearchExploreRequest,
     SearchIndexRequest,
     SearchModelCloseRequest,
     SearchModelStatusResponse,
@@ -157,163 +153,6 @@ class SearchServiceTestCase(unittest.TestCase):
         self.assertTrue(response.embedding_loaded)
         self.assertTrue(response.rerank_loaded)
         self.assertEqual(response.loaded_count, 2)
-
-    def test_reindex_rebuilds_index_from_source_vectors(self) -> None:
-        fake_repository = FakeVectorRepository()
-        fake_index_manager = FakeIndexManager()
-        fake_repository.documents = [
-            IndexedAssetVectorRecord(
-                doc_id=1,
-                asset_id="asset-1",
-                angle_type="全面",
-                asset_name="shock.png",
-                asset_format="图片",
-                asset_path=r"D:\Data\shock.png",
-                description="角色受到惊吓后退半步并停顿。",
-                segment_text="角色受到惊吓后退半步并停顿。",
-                tags=[],
-                generated_at=None,
-                embedding_model="fake-embed",
-                vector=np.asarray([1.0, 0.0, 0.0], dtype=np.float32),
-                updated_at=datetime.now(timezone.utc),
-            ),
-            IndexedAssetVectorRecord(
-                doc_id=2,
-                asset_id="asset-2",
-                angle_type="全面",
-                asset_name="happy.png",
-                asset_format="图片",
-                asset_path=r"D:\Data\happy.png",
-                description="角色开心挥手。",
-                segment_text="角色开心挥手。",
-                tags=[],
-                generated_at=None,
-                embedding_model="fake-embed",
-                vector=np.asarray([0.0, 1.0, 0.0], dtype=np.float32),
-                updated_at=datetime.now(timezone.utc),
-            ),
-        ]
-        service = SearchService(
-            model_bundle=FakeModelBundle(),
-            vector_repository=fake_repository,
-            vector_index_manager=fake_index_manager,
-        )
-
-        response = service.rebuild_index()
-
-        self.assertEqual(response.document_count, 2)
-        self.assertEqual(response.vector_dim, 3)
-        self.assertEqual(len(fake_index_manager.rebuild_calls), 1)
-        self.assertEqual(fake_index_manager.rebuild_calls[0][0], 2)
-
-    def test_explore_runs_vector_search_then_rerank(self) -> None:
-        fake_repository = FakeVectorRepository()
-        fake_index_manager = FakeIndexManager()
-        fake_repository.documents = [
-            IndexedAssetVectorRecord(
-                doc_id=1,
-                asset_id="asset-1",
-                angle_type="全面",
-                asset_name="shock.png",
-                asset_format="图片",
-                asset_path=r"D:\Data\shock.png",
-                description="惊吓 停顿",
-                segment_text="惊吓 停顿",
-                tags=[],
-                generated_at=None,
-                embedding_model="fake-embed",
-                vector=np.asarray([1.0, 0.0, 0.0], dtype=np.float32),
-                updated_at=datetime.now(timezone.utc),
-            ),
-            IndexedAssetVectorRecord(
-                doc_id=2,
-                asset_id="asset-2",
-                angle_type="全面",
-                asset_name="happy.png",
-                asset_format="图片",
-                asset_path=r"D:\Data\happy.png",
-                description="开心挥手的人物画面。",
-                segment_text="惊吓 后退 开心挥手",
-                tags=[],
-                generated_at=None,
-                embedding_model="fake-embed",
-                vector=np.asarray([0.0, 1.0, 0.0], dtype=np.float32),
-                updated_at=datetime.now(timezone.utc),
-            ),
-            IndexedAssetVectorRecord(
-                doc_id=3,
-                asset_id="asset-2",
-                angle_type="情感",
-                asset_name="happy.png",
-                asset_format="图片",
-                asset_path=r"D:\Data\happy.png",
-                description="开心挥手的人物画面。",
-                segment_text="惊吓 后退",
-                tags=[],
-                generated_at=None,
-                embedding_model="fake-embed",
-                vector=np.asarray([1.0, 0.0, 0.0], dtype=np.float32),
-                updated_at=datetime.now(timezone.utc),
-            ),
-        ]
-
-        service = SearchService(
-            model_bundle=FakeModelBundle(),
-            vector_repository=fake_repository,
-            vector_index_manager=fake_index_manager,
-        )
-
-        response = service.explore(
-            SearchExploreRequest(
-                query="惊吓 后退",
-                candidate_top_k=2,
-                final_top_k=2,
-            )
-        )
-
-        self.assertEqual(response.embedding_model, "fake-embed")
-        self.assertEqual(response.rerank_model, "fake-rerank")
-        self.assertEqual(response.candidate_top_k, 2)
-        self.assertEqual(len(response.results), 2)
-        self.assertEqual(response.results[0].asset_id, "asset-2")
-        self.assertIsNotNone(response.results[0].vector_distance)
-        self.assertIsNotNone(response.results[0].combined_score)
-        self.assertGreater(response.results[0].combined_score or 0.0, response.results[1].combined_score or 0.0)
-        self.assertEqual(response.results[0].description, "开心挥手的人物画面。")
-        self.assertEqual(fake_index_manager.ensure_current_calls[0][0], 3)
-        self.assertEqual(fake_index_manager.search_calls[0][1], 3)
-
-
-class FakeVectorRepository:
-    def __init__(self) -> None:
-        self.database_path = Path("fake.db")
-        self.documents: list[IndexedAssetVectorRecord] = []
-
-    def list_documents(self) -> list[IndexedAssetVectorRecord]:
-        return self.documents
-
-    def get_state(self) -> IndexState:
-        latest_updated_at = self.documents[-1].updated_at.isoformat() if self.documents else ""
-        return IndexState(document_count=len(self.documents), latest_updated_at=latest_updated_at)
-
-
-class FakeIndexManager:
-    def __init__(self) -> None:
-        self.index_path = Path("fake.index")
-        self.metadata_path = Path("fake.meta.json")
-        self.rebuild_calls: list[tuple[int, int]] = []
-        self.ensure_current_calls: list[tuple[int, int]] = []
-        self.search_calls: list[tuple[int, int]] = []
-
-    def rebuild(self, records: list[object], state: IndexState) -> None:
-        self.rebuild_calls.append((len(records), state.document_count))
-
-    def ensure_current(self, records: list[object], state: IndexState) -> None:
-        self.ensure_current_calls.append((len(records), state.document_count))
-
-    def search(self, query_vector: np.ndarray, top_k: int) -> list[tuple[int, float]]:
-        self.search_calls.append((len(query_vector), top_k))
-        return [(1, 0.95), (3, 0.92), (2, 0.60)]
 
 
 if __name__ == "__main__":

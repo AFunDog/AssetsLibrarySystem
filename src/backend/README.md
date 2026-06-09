@@ -47,8 +47,6 @@
 - `POST /api/v1/model/generate`
 - `POST /api/v1/search/index`
 - `POST /api/v1/search/query`
-- `POST /api/v1/search/explore`
-- `POST /api/v1/search/reindex`
 - `GET /api/v1/search/models/status`
 - `POST /api/v1/search/models/close`
 
@@ -92,9 +90,9 @@
 - `ALS_IMAGE_JPEG_QUALITY`
 - `ALS_VIDEO_CRF`
 
-`POST /api/v1/search/query` 只对调用方传入的候选文本做本地 rerank，不负责数据库读取或写入。返回结果里的 `rerank_score` 是重排序模型的原始分数，`vector_distance` 仅在 `explore` 场景下有意义，表示向量召回的距离；`combined_score` 是后端用于最终排序的综合分数。
+`POST /api/v1/search/query` 只对调用方传入的候选文本做本地 rerank，不负责数据库读取或写入。当前桌面端会先在 C# 本地完成向量召回和多角度聚合，再把候选文本发给这个接口做重排序。
 
-`POST /api/v1/search/reindex` 会直接读取 Avalonia 已写入的 `asset_descriptions.db` 中的 `asset_description_vectors` 表，重新构建本地 HNSW 索引文件，不再维护第二份向量 SQLite。
+当前推荐架构下，`asset_descriptions.db`、HNSW 索引文件和向量召回都由 Avalonia/C# 本地维护；Python 后端保持为纯模型网关，只负责 embedding、rerank 和模型状态控制。
 
 `POST /api/v1/search/models/close` 用来主动释放本地搜索模型缓存，当前可选值为 `embedding` 和 `rerank`。这个接口只影响进程内已经加载的 `SentenceTransformer` / `CrossEncoder` 对象，适合在长时间空闲后手动腾出显存；如果对应模型还没被加载，接口也会正常返回，只是 `closed=false`。
 

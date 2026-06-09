@@ -7,12 +7,9 @@ from app.core.dependencies import get_search_service
 from app.schemas.search import (
     SearchIndexRequest,
     SearchIndexResponse,
-    SearchExploreRequest,
-    SearchExploreResponse,
     SearchModelCloseRequest,
     SearchModelCloseResponse,
     SearchModelStatusResponse,
-    SearchReindexResponse,
     SearchWarmupResponse,
     SearchQueryRequest,
     SearchQueryResponse,
@@ -42,26 +39,6 @@ def search(
         return search_service.rerank(payload)
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/explore", response_model=SearchExploreResponse)
-def explore(
-    payload: SearchExploreRequest,
-    search_service: SearchService = Depends(get_search_service),
-) -> SearchExploreResponse:
-    try:
-        return search_service.explore(payload)
-    except (FileNotFoundError, ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/reindex", response_model=SearchReindexResponse)
-def reindex(search_service: SearchService = Depends(get_search_service)) -> SearchReindexResponse:
-    try:
-        return search_service.rebuild_index()
-    except (FileNotFoundError, ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
 
 @router.post("/warmup/embedding", response_model=SearchWarmupResponse)
 def warmup_embedding(search_service: SearchService = Depends(get_search_service)) -> SearchWarmupResponse:

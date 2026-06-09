@@ -75,40 +75,6 @@ class SearchQueryResponse(BaseModel):
     results: list[SearchQueryResultItem]
 
 
-class SearchExploreRequest(BaseModel):
-    query: str = Field(min_length=1, description="用户查询文本")
-    candidate_top_k: int = Field(default=20, ge=1, le=200, description="向量召回候选数量")
-    final_top_k: int = Field(default=5, ge=1, le=50, description="最终返回数量")
-    asset_format: AssetFormat | None = Field(default=None, description="可选：按素材类型过滤")
-
-    @field_validator("query")
-    @classmethod
-    def validate_query(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("query 不能为空")
-        return normalized
-
-
-class SearchExploreResponse(BaseModel):
-    query: str
-    candidate_top_k: int
-    final_top_k: int
-    asset_format: AssetFormat | None
-    embedding_model: str
-    rerank_model: str
-    results: list[SearchQueryResultItem]
-
-
-class SearchReindexResponse(BaseModel):
-    document_count: int = Field(ge=1)
-    vector_dim: int = Field(ge=1)
-    database_path: str
-    index_path: str
-    metadata_path: str
-    embedding_models: list[str]
-
-
 class SearchWarmupResponse(BaseModel):
     model_kind: Literal["embedding", "rerank"]
     model_name: str
@@ -147,5 +113,3 @@ class SearchModelStatusResponse(BaseModel):
 
 SearchQueryRequest.model_rebuild()
 SearchQueryResultItem.model_rebuild()
-SearchExploreRequest.model_rebuild()
-SearchExploreResponse.model_rebuild()

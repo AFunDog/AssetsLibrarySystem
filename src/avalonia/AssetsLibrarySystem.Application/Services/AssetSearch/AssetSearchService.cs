@@ -19,6 +19,7 @@ public sealed class AssetSearchService : IAssetSearchService
 {
     private HttpClient Http { get; } = new();
     private IAssetDatabase AssetDatabase { get; }
+    private LocalHnswSearchIndexManager IndexManager { get; } = new();
     private JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -69,23 +70,43 @@ public sealed class AssetSearchService : IAssetSearchService
             throw new InvalidOperationException("未找到符合条件的素材。");
         }
 
+        var state = BuildIndexState(records);
+        IndexManager.EnsureCurrent(records.Select(record => record.Vector).ToArray(), state);
+
         var expandedCandidateTopK = Math.Min(
-            filteredRecords.Count,
+            records.Count,
             Math.Max(candidateTopK * 8, Math.Max(candidateTopK, 50)));
 
-        var vectorCandidates = filteredRecords
-            .Select(record =>
+        var searchResults = IndexManager.Search(queryVector, expandedCandidateTopK);
+        var vectorCandidates = new List<VectorCandidateRecord>(searchResults.Count);
+        foreach (var (index, similarity) in searchResults)
+        {
+            if (index < 0 || index >= records.Count)
             {
-                var similarity = CosineSimilarity(queryVector, record.Vector);
-                return new VectorCandidateRecord(
-                    CandidateId: $"{record.AssetUid}::{record.AngleType}",
-                    Record: record,
-                    EmbeddingSimilarity: similarity,
-                    VectorDistance: Math.Max(0f, 1f - similarity));
-            })
-            .OrderByDescending(item => item.EmbeddingSimilarity)
-            .Take(expandedCandidateTopK)
-            .ToList();
+                continue;
+            }
+
+            var record = records[index];
+            if (normalizedAssetFormat is not null && !string.Equals(record.AssetType, normalizedAssetFormat, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            vectorCandidates.Add(new VectorCandidateRecord(
+                CandidateId: $"{record.AssetUid}::{record.AngleType}",
+                Record: record,
+                EmbeddingSimilarity: similarity,
+                VectorDistance: Math.Max(0f, 1f - similarity)));
+            if (vectorCandidates.Count >= candidateTopK * 8)
+            {
+                break;
+            }
+        }
+
+        if (vectorCandidates.Count == 0)
+        {
+            throw new InvalidOperationException("未找到符合条件的素材。");
+        }
 
         var rerankResponse = await RerankAsync(backendBaseUrl, normalizedQuery, vectorCandidates, finalTopK, ct).ConfigureAwait(false);
         var rerankScoreMap = rerankResponse.Results
@@ -140,6 +161,9 @@ public sealed class AssetSearchService : IAssetSearchService
             throw new InvalidOperationException("当前没有可用于本地检索的向量数据。");
         }
 
+        var state = BuildIndexState(records);
+        IndexManager.Rebuild(records.Select(record => record.Vector).ToArray(), state);
+
         var vectorDim = records[0].Vector.Length;
         var embeddingModels = records
             .Select(record => record.EmbeddingModel)
@@ -157,8 +181,8 @@ public sealed class AssetSearchService : IAssetSearchService
             DocumentCount: records.Count,
             VectorDim: vectorDim,
             DatabasePath: AssetDatabase.DatabasePath,
-            IndexPath: "C# 本地全量扫描模式，当前未生成独立 HNSW 文件",
-            MetadataPath: string.Empty,
+            IndexPath: IndexManager.IndexPath,
+            MetadataPath: IndexManager.MetadataPath,
             EmbeddingModels: embeddingModels);
     }
 
@@ -318,6 +342,7 @@ public sealed class AssetSearchService : IAssetSearchService
                 COALESCE(d.description, '') AS raw_description,
                 COALESCE(m.tags_json, '[]') AS tags_json,
                 d.generated_at,
+                v.vectorized_at,
                 v.embedding_model,
                 v.vector_dim,
                 v.vector_blob
@@ -344,8 +369,9 @@ public sealed class AssetSearchService : IAssetSearchService
                 SegmentText: StructuredDescriptionHelper.ExtractTextByAngle(rawDescription, angleType),
                 Tags: DeserializeTags(reader.IsDBNull(6) ? null : reader.GetString(6)),
                 GeneratedAt: reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7)),
-                EmbeddingModel: reader.GetString(8),
-                Vector: DeserializeVector(reader.GetFieldValue<byte[]>(10), reader.GetInt32(9))));
+                VectorizedAt: reader.IsDBNull(8) ? DateTimeOffset.MinValue : DateTimeOffset.Parse(reader.GetString(8)),
+                EmbeddingModel: reader.GetString(9),
+                Vector: DeserializeVector(reader.GetFieldValue<byte[]>(11), reader.GetInt32(10))));
         }
 
         return records;
@@ -404,29 +430,13 @@ public sealed class AssetSearchService : IAssetSearchService
         }
     }
 
-    private static float CosineSimilarity(float[] left, float[] right)
+    private static LocalVectorIndexState BuildIndexState(IReadOnlyList<LocalVectorRecord> records)
     {
-        if (left.Length != right.Length || left.Length == 0)
-        {
-            return 0f;
-        }
-
-        double dot = 0;
-        double leftNorm = 0;
-        double rightNorm = 0;
-        for (var index = 0; index < left.Length; index++)
-        {
-            dot += left[index] * right[index];
-            leftNorm += left[index] * left[index];
-            rightNorm += right[index] * right[index];
-        }
-
-        if (leftNorm <= 0 || rightNorm <= 0)
-        {
-            return 0f;
-        }
-
-        return (float)(dot / (Math.Sqrt(leftNorm) * Math.Sqrt(rightNorm)));
+        var latestUpdatedAt = records
+            .Select(record => record.VectorizedAt.ToString("O"))
+            .OrderBy(value => value, StringComparer.Ordinal)
+            .LastOrDefault() ?? string.Empty;
+        return new LocalVectorIndexState(records.Count, latestUpdatedAt);
     }
 
     private static float[] NormalizeScores(IReadOnlyList<float> scores)
@@ -612,6 +622,7 @@ public sealed class AssetSearchService : IAssetSearchService
         string SegmentText,
         string[] Tags,
         DateTimeOffset? GeneratedAt,
+        DateTimeOffset VectorizedAt,
         string EmbeddingModel,
         float[] Vector);
 

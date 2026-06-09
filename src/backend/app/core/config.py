@@ -19,15 +19,6 @@ class Settings(BaseSettings):
     data_root: str | None = Field(default=None, validation_alias="DATA_ROOT")
     dashscope_api_key: str = Field(default="", validation_alias="DASHSCOPE_API_KEY")
     search_cache_dir: str | None = Field(default=None, validation_alias="ALS_SEARCH_CACHE_DIR")
-    description_vector_database_path: str | None = Field(
-        default=None,
-        validation_alias="ALS_DESCRIPTION_VECTOR_DATABASE_PATH",
-    )
-    search_vector_index_path: str | None = Field(default=None, validation_alias="ALS_SEARCH_VECTOR_INDEX_PATH")
-    search_vector_metadata_path: str | None = Field(
-        default=None,
-        validation_alias="ALS_SEARCH_VECTOR_METADATA_PATH",
-    )
     search_embed_model: str = Field(default="Qwen/Qwen3-Embedding-0.6B", validation_alias="ALS_SEARCH_EMBED_MODEL")
     search_rerank_model: str = Field(default="Qwen/Qwen3-Reranker-0.6B", validation_alias="ALS_SEARCH_RERANK_MODEL")
     media_temp_dir: str | None = Field(default=None, validation_alias="ALS_MEDIA_TEMP_DIR")
