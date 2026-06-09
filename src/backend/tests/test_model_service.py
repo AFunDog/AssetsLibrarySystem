@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import subprocess
 import tempfile
+import types
 from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
@@ -184,6 +186,53 @@ class ModelServiceTestCase(unittest.TestCase):
         self.assertEqual(sent_content[1], {"text": "请描述"})
         self.assertEqual(output_text, "ok")
         self.assertIsNone(usage)
+
+    def test_call_generation_sync_requests_json_object_response(self) -> None:
+        service = ModelService()
+        provider = ProviderConfig(provider="dashscope", model="qwen-plus", api_key="sk-test")
+        fake_generation = types.SimpleNamespace(call=MagicMock(return_value={"output": {"choices": [{"message": {"content": "{}"}}]}}))
+        fake_dashscope = types.SimpleNamespace(Generation=fake_generation)
+
+        with patch.dict(sys.modules, {"dashscope": fake_dashscope}):
+            service._call_generation_sync(
+                provider,
+                "qwen-plus",
+                "system",
+                "user prompt",
+                "text body",
+            )
+
+        self.assertEqual(fake_generation.call.call_args.kwargs["response_format"], {"type": "json_object"})
+        self.assertEqual(fake_generation.call.call_args.kwargs["result_format"], "message")
+
+    def test_call_multimodal_sync_requests_json_object_response(self) -> None:
+        service = ModelService()
+        provider = ProviderConfig(provider="dashscope", model="qwen3-vl-plus", api_key="sk-test")
+        fake_multimodal = types.SimpleNamespace(
+            call=MagicMock(return_value={"output": {"choices": [{"message": {"content": [{"text": "{}"}]}}]}})
+        )
+        fake_dashscope = types.SimpleNamespace(MultiModalConversation=fake_multimodal)
+
+        with patch.dict(sys.modules, {"dashscope": fake_dashscope}):
+            service._call_multimodal_sync(
+                provider,
+                "qwen3-vl-plus",
+                "system",
+                [{"image": "file://D:/Data/cover.png"}],
+            )
+
+        self.assertEqual(fake_multimodal.call.call_args.kwargs["response_format"], {"type": "json_object"})
+
+    def test_build_response_format_prefers_provider_override(self) -> None:
+        service = ModelService()
+        provider = ProviderConfig(
+            provider="dashscope",
+            model="qwen-plus",
+            api_key="sk-test",
+            extra_body={"response_format": {"type": "json_object"}},
+        )
+
+        self.assertEqual(service._build_response_format(provider), {"type": "json_object"})
 
     def test_audio_format_uses_audio_compatible_model_when_needed(self) -> None:
         service = ModelService()

@@ -265,6 +265,7 @@ class ModelService:
             temperature=provider_config.temperature,
             max_tokens=provider_config.max_tokens,
             result_format="message",
+            response_format=self._build_response_format(provider_config),
         )
 
         return response
@@ -290,8 +291,16 @@ class ModelService:
             api_key=provider_config.api_key,
             model=model_name,
             messages=messages,
+            response_format=self._build_response_format(provider_config),
         )
         return response
+
+    def _build_response_format(self, provider_config: ProviderConfig) -> dict[str, Any]:
+        configured = provider_config.extra_body or {}
+        response_format = configured.get("response_format")
+        if isinstance(response_format, dict) and response_format.get("type"):
+            return response_format
+        return {"type": "json_object"}
 
     def _extract_response_text(self, response: Any) -> str:
         output = getattr(response, "output", None)
