@@ -12,7 +12,7 @@ internal static class SearchHttpClientExtensions
         string? requestUri,
         CancellationToken cancellationToken)
     {
-        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        var content = new StringContent("{}", Encoding.UTF8, "application/json");
         return client.PostAsync(requestUri, content, cancellationToken);
     }
 }
