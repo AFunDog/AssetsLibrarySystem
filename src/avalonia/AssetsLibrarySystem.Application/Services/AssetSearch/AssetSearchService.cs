@@ -44,7 +44,7 @@ public sealed class AssetSearchService : IAssetSearchService
     {
         var startedAt = DateTimeOffset.UtcNow;
         var normalizedQuery = query.Trim();
-        var normalizedAssetFormat = string.IsNullOrWhiteSpace(assetFormat) ? null : assetFormat.Trim();
+        var normalizedAssetFormat = NormalizeAssetFormat(normalizedQuery, assetFormat);
         if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
             throw new InvalidOperationException("搜索词不能为空。");
@@ -71,33 +71,41 @@ public sealed class AssetSearchService : IAssetSearchService
             throw new InvalidOperationException("未找到符合条件的素材。");
         }
 
-        var state = BuildIndexState(records);
-        var useExactSearch = filteredRecords.Count <= ExactSearchThreshold;
+        var indexRecords = filteredRecords;
+        var state = BuildIndexState(indexRecords);
+        var useExactSearch = indexRecords.Count <= ExactSearchThreshold;
         if (!useExactSearch)
         {
             IndexManager.EnsureCurrent(
-                records.Select(record => record.Vector).ToArray(),
-                records.Select(record => BuildVectorKey(record)).ToArray(),
+                indexRecords.Select(record => record.Vector).ToArray(),
+                indexRecords.Select(record => BuildVectorKey(record)).ToArray(),
                 state);
         }
 
         var expandedCandidateTopK = Math.Min(
-            filteredRecords.Count,
+            indexRecords.Count,
             Math.Max(candidateTopK * 8, Math.Max(candidateTopK, 50)));
 
+        Log.Information(
+            "素材搜索过滤: query={Query}, assetFormat={AssetFormat}, totalRecords={TotalRecords}, searchRecords={SearchRecords}, searchStrategy={SearchStrategy}",
+            normalizedQuery,
+            normalizedAssetFormat ?? "(all)",
+            records.Count,
+            indexRecords.Count,
+            useExactSearch ? "ExactCosine" : "Hnsw");
+
         IReadOnlyList<(int Index, float Similarity)> searchResults = useExactSearch
-            ? SearchExact(filteredRecords, queryVector, expandedCandidateTopK)
+            ? SearchExact(indexRecords, queryVector, expandedCandidateTopK)
             : IndexManager.Search(queryVector, expandedCandidateTopK);
         var vectorCandidates = new List<VectorCandidateRecord>(searchResults.Count);
         foreach (var (index, similarity) in searchResults)
         {
-            var searchSpace = useExactSearch ? filteredRecords : records;
-            if (index < 0 || index >= searchSpace.Count)
+            if (index < 0 || index >= indexRecords.Count)
             {
                 continue;
             }
 
-            var record = searchSpace[index];
+            var record = indexRecords[index];
 
             vectorCandidates.Add(new VectorCandidateRecord(
                 CandidateId: $"{record.AssetUid}::{record.AngleType}",
@@ -419,7 +427,7 @@ public sealed class AssetSearchService : IAssetSearchService
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/warmup/{modelKind}";
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
-        using var response = await Http.PostAsync(endpoint, content, ct).ConfigureAwait(false);
+        using var response = await Http.PostAsync(endpoint, ct).ConfigureAwait(false);
         var responseText = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
@@ -434,6 +442,41 @@ public sealed class AssetSearchService : IAssetSearchService
             ModelName: backendResponse.ModelName,
             Device: backendResponse.Device,
             Warmed: backendResponse.Warmed);
+    }
+
+    private static string? NormalizeAssetFormat(string query, string? explicitAssetFormat)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitAssetFormat))
+        {
+            return explicitAssetFormat.Trim();
+        }
+
+        if (ContainsAny(query, "图片", "图像", "照片", "插画", "壁纸", "立绘", "截图"))
+        {
+            return "图片";
+        }
+
+        if (ContainsAny(query, "音频", "音乐", "歌曲", "BGM", "bgm", "配乐", "声音"))
+        {
+            return "音频";
+        }
+
+        if (ContainsAny(query, "视频", "动画", "片段", "镜头", "录像"))
+        {
+            return "视频";
+        }
+
+        if (ContainsAny(query, "文本", "文档", "剧本", "台词", "字幕"))
+        {
+            return "文本";
+        }
+
+        return null;
+    }
+
+    private static bool ContainsAny(string text, params string[] keywords)
+    {
+        return keywords.Any(keyword => text.Contains(keyword, StringComparison.OrdinalIgnoreCase));
     }
 
     private static float[] DeserializeVector(byte[] bytes, int expectedDim)
