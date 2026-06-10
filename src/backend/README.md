@@ -75,6 +75,8 @@
 - `ALS_SEARCH_RERANK_MODEL`
 - `ALS_SEARCH_CACHE_DIR`
 
+如果没有显式设置 `ALS_SEARCH_CACHE_DIR`，后端会默认使用 `DATA_ROOT/huggingface` 作为本地搜索模型缓存目录；只有在 `DATA_ROOT` 也不可用时，才会退回 `sentence-transformers` / `huggingface_hub` 自己的默认缓存规则。
+
 多模态素材预处理默认开启，临时文件会写到 `DATA_ROOT/temp/`（或 `ALS_MEDIA_TEMP_DIR` 指定目录）：
 
 - 图片：优先使用 Pillow 进行缩放和有损/无损压缩

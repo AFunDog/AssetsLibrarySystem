@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from app.application.services.search_service import SearchService
+from app.application.services.search_service import SearchService, _resolve_search_cache_dir
 from app.schemas.search import (
     SearchIndexRequest,
     SearchModelCloseRequest,
@@ -75,6 +75,30 @@ class FakeModelBundle:
 
 
 class SearchServiceTestCase(unittest.TestCase):
+    def test_resolve_search_cache_dir_prefers_explicit_setting(self) -> None:
+        cache_dir = _resolve_search_cache_dir(
+            search_cache_dir=r"D:\Models\HF",
+            data_root=r"D:\Repo\data",
+        )
+
+        self.assertEqual(cache_dir, r"D:\Models\HF")
+
+    def test_resolve_search_cache_dir_falls_back_to_data_root_huggingface(self) -> None:
+        cache_dir = _resolve_search_cache_dir(
+            search_cache_dir="",
+            data_root=r"D:\Repo\data",
+        )
+
+        self.assertEqual(cache_dir, r"D:\Repo\data\huggingface")
+
+    def test_resolve_search_cache_dir_returns_none_when_no_inputs(self) -> None:
+        cache_dir = _resolve_search_cache_dir(
+            search_cache_dir="",
+            data_root="",
+        )
+
+        self.assertIsNone(cache_dir)
+
     def test_index_returns_vector_only(self) -> None:
         service = SearchService(model_bundle=FakeModelBundle())
 

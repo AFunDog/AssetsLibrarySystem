@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.core.config import get_settings
 from app.infrastructure.search.search_model_bundle import (
     DEFAULT_EMBED_MODEL_NAME,
@@ -26,7 +28,7 @@ class SearchService:
         model_bundle: LocalSearchModelBundle | None = None,
     ) -> None:
         settings = get_settings()
-        cache_folder = settings.search_cache_dir or ""
+        cache_folder = _resolve_search_cache_dir(settings.search_cache_dir, settings.data_root)
 
         self._model_bundle = model_bundle or LocalSearchModelBundle(
             SearchModelConfig(
@@ -132,3 +134,15 @@ class SearchService:
             rerank_model=self._model_bundle.rerank_model_name,
             results=ranked_items[: payload.final_top_k],
         )
+
+
+def _resolve_search_cache_dir(search_cache_dir: str | None, data_root: str | None) -> str | None:
+    normalized_cache_dir = (search_cache_dir or "").strip()
+    if normalized_cache_dir:
+        return str(Path(normalized_cache_dir).expanduser().resolve())
+
+    normalized_data_root = (data_root or "").strip()
+    if normalized_data_root:
+        return str((Path(normalized_data_root).expanduser().resolve() / "huggingface"))
+
+    return None

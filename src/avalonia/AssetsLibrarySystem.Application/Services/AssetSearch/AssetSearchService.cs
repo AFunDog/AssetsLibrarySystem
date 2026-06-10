@@ -17,6 +17,7 @@ namespace AssetsLibrarySystem.Application.Services.AssetSearch;
 
 public sealed class AssetSearchService : IAssetSearchService
 {
+    private const int ExactSearchThreshold = 5000;
     private HttpClient Http { get; } = new();
     private IAssetDatabase AssetDatabase { get; }
     private LocalHnswSearchIndexManager IndexManager { get; } = new();
@@ -71,26 +72,29 @@ public sealed class AssetSearchService : IAssetSearchService
         }
 
         var state = BuildIndexState(records);
-        IndexManager.EnsureCurrent(records.Select(record => record.Vector).ToArray(), state);
+        var useExactSearch = filteredRecords.Count <= ExactSearchThreshold;
+        if (!useExactSearch)
+        {
+            IndexManager.EnsureCurrent(records.Select(record => record.Vector).ToArray(), state);
+        }
 
         var expandedCandidateTopK = Math.Min(
-            records.Count,
+            filteredRecords.Count,
             Math.Max(candidateTopK * 8, Math.Max(candidateTopK, 50)));
 
-        var searchResults = IndexManager.Search(queryVector, expandedCandidateTopK);
+        IReadOnlyList<(int Index, float Similarity)> searchResults = useExactSearch
+            ? SearchExact(filteredRecords, queryVector, expandedCandidateTopK)
+            : IndexManager.Search(queryVector, expandedCandidateTopK);
         var vectorCandidates = new List<VectorCandidateRecord>(searchResults.Count);
         foreach (var (index, similarity) in searchResults)
         {
-            if (index < 0 || index >= records.Count)
+            var searchSpace = useExactSearch ? filteredRecords : records;
+            if (index < 0 || index >= searchSpace.Count)
             {
                 continue;
             }
 
-            var record = records[index];
-            if (normalizedAssetFormat is not null && !string.Equals(record.AssetType, normalizedAssetFormat, StringComparison.Ordinal))
-            {
-                continue;
-            }
+            var record = searchSpace[index];
 
             vectorCandidates.Add(new VectorCandidateRecord(
                 CandidateId: $"{record.AssetUid}::{record.AngleType}",
@@ -108,17 +112,41 @@ public sealed class AssetSearchService : IAssetSearchService
             throw new InvalidOperationException("未找到符合条件的素材。");
         }
 
-        var rerankResponse = await RerankAsync(backendBaseUrl, normalizedQuery, vectorCandidates, finalTopK, ct).ConfigureAwait(false);
+        var rerankCandidates = vectorCandidates
+            .Take(Math.Min(vectorCandidates.Count, 50))
+            .ToList();
+        var rerankResponse = await RerankAsync(
+            backendBaseUrl,
+            normalizedQuery,
+            rerankCandidates,
+            rerankCandidates.Count,
+            ct).ConfigureAwait(false);
         var rerankScoreMap = rerankResponse.Results
             .Where(item => !string.IsNullOrWhiteSpace(item.CandidateId))
             .ToDictionary(item => item.CandidateId!, item => item.RerankScore, StringComparer.Ordinal);
 
-        var rerankScores = vectorCandidates
-            .Select(candidate => rerankScoreMap.GetValueOrDefault(candidate.CandidateId, 0f))
+        var scoredSourceCandidates = rerankCandidates
+            .Where(candidate => rerankScoreMap.ContainsKey(candidate.CandidateId))
+            .ToList();
+        if (scoredSourceCandidates.Count == 0)
+        {
+            throw new InvalidOperationException("后端没有返回任何可用的重排序分数。");
+        }
+
+        if (scoredSourceCandidates.Count != rerankCandidates.Count)
+        {
+            Log.Warning(
+                "后端重排序结果不完整: requested={RequestedCount}, returned={ReturnedCount}",
+                rerankCandidates.Count,
+                scoredSourceCandidates.Count);
+        }
+
+        var rerankScores = scoredSourceCandidates
+            .Select(candidate => rerankScoreMap[candidate.CandidateId])
             .ToArray();
         var normalizedRerankScores = NormalizeScores(rerankScores);
 
-        var scoredCandidates = vectorCandidates
+        var scoredCandidates = scoredSourceCandidates
             .Select((candidate, index) => new ScoredVectorCandidateRecord(
                 candidate.CandidateId,
                 candidate.Record,
@@ -134,12 +162,13 @@ public sealed class AssetSearchService : IAssetSearchService
             .ToArray();
 
         Log.Information(
-            "素材搜索完成: elapsedMs={ElapsedMs}, localCandidates={LocalCandidates}, returned={ReturnedCount}, embeddingModel={EmbeddingModel}, rerankModel={RerankModel}",
+            "素材搜索完成: elapsedMs={ElapsedMs}, localCandidates={LocalCandidates}, returned={ReturnedCount}, embeddingModel={EmbeddingModel}, rerankModel={RerankModel}, searchStrategy={SearchStrategy}",
             (DateTimeOffset.UtcNow - startedAt).TotalMilliseconds,
             vectorCandidates.Count,
             aggregatedResults.Length,
             queryVectorResponse.EmbeddingModel,
-            rerankResponse.RerankModel);
+            rerankResponse.RerankModel,
+            useExactSearch ? "ExactCosine" : "Hnsw");
 
         return new AssetSearchResponseDocument(
             Query: normalizedQuery,
@@ -292,10 +321,11 @@ public sealed class AssetSearchService : IAssetSearchService
         string backendBaseUrl,
         string query,
         IReadOnlyList<VectorCandidateRecord> candidates,
-        int finalTopK,
+        int rerankTopK,
         CancellationToken ct)
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/query";
+        var requestedTopK = Math.Min(rerankTopK, Math.Min(candidates.Count, 50));
         var request = new SearchQueryRequest(
             Query: query,
             Candidates: candidates.Select(candidate => new SearchQueryCandidate(
@@ -307,7 +337,7 @@ public sealed class AssetSearchService : IAssetSearchService
                 Description: candidate.Record.SegmentText,
                 Tags: candidate.Record.Tags,
                 GeneratedAt: candidate.Record.GeneratedAt)).ToArray(),
-            FinalTopK: candidates.Count);
+            FinalTopK: requestedTopK);
 
         using var content = new StringContent(
             JsonSerializer.Serialize(request, JsonOptions),
@@ -540,6 +570,54 @@ public sealed class AssetSearchService : IAssetSearchService
         }
 
         return candidates.Sum(candidate => selector(candidate) * AngleWeight(candidate.Record.AngleType)) / totalWeight;
+    }
+
+    private static IReadOnlyList<(int Index, float Similarity)> SearchExact(
+        IReadOnlyList<LocalVectorRecord> records,
+        float[] queryVector,
+        int topK)
+    {
+        if (records.Count == 0 || topK <= 0)
+        {
+            return [];
+        }
+
+        return records
+            .Select((record, index) => (Index: index, Similarity: CosineSimilarity(queryVector, record.Vector)))
+            .OrderByDescending(item => item.Similarity)
+            .Take(topK)
+            .ToArray();
+    }
+
+    private static float CosineSimilarity(float[] left, float[] right)
+    {
+        if (left.Length != right.Length)
+        {
+            throw new InvalidOperationException($"查询向量维度不匹配，期望 {right.Length}，实际 {left.Length}。");
+        }
+
+        var dot = 0f;
+        var leftNorm = 0f;
+        var rightNorm = 0f;
+        for (var index = 0; index < left.Length; index++)
+        {
+            dot += left[index] * right[index];
+            leftNorm += left[index] * left[index];
+            rightNorm += right[index] * right[index];
+        }
+
+        if (leftNorm <= float.Epsilon || rightNorm <= float.Epsilon)
+        {
+            return 0f;
+        }
+
+        var denominator = MathF.Sqrt(leftNorm) * MathF.Sqrt(rightNorm);
+        if (denominator <= float.Epsilon)
+        {
+            return 0f;
+        }
+
+        return dot / denominator;
     }
 
     private sealed record SearchIndexRequest(
