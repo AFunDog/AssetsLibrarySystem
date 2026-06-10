@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-import subprocess
 import tempfile
 import types
 from pathlib import Path

@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using Avalonia;
 using Microsoft.Extensions.Configuration;
 using Serilog;

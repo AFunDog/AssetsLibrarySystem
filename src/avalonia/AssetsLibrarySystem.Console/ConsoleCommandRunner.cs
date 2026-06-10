@@ -53,12 +53,12 @@ public sealed class ConsoleCommandRunner
 
         try
         {
-        return args[0].ToLowerInvariant() switch
-        {
-            "libraries" => await RunLibrariesAsync(args.Skip(1).ToArray()),
-            "assets" => await RunAssetsAsync(args.Skip(1).ToArray()),
-            _ => await RunLegacyShortcutAsync(args),
-        };
+            return args[0].ToLowerInvariant() switch
+            {
+                "libraries" => await RunLibrariesAsync(args.Skip(1).ToArray()),
+                "assets" => await RunAssetsAsync(args.Skip(1).ToArray()),
+                _ => await RunLegacyShortcutAsync(args),
+            };
         }
         catch (Exception ex)
         {

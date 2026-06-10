@@ -53,9 +53,6 @@ public sealed class BackendLauncherService : IBackendLauncher
             psi.FileName,
             Environment.ProcessId);
 
-        // _ = BackendProcess.StandardOutput.ReadToEndAsync(ct);
-        // _ = BackendProcess.StandardError.ReadToEndAsync(ct);
-
         await WaitForHealthAsync(ct);
         StartHeartbeatLoop();
         Log.Information("后端健康检查通过，baseUrl={BaseUrl}", BaseUrl);

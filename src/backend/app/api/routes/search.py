@@ -40,6 +40,7 @@ def search(
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+
 @router.post("/warmup/embedding", response_model=SearchWarmupResponse)
 def warmup_embedding(search_service: SearchService = Depends(get_search_service)) -> SearchWarmupResponse:
     try:

@@ -1117,9 +1117,9 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     private sealed class ScanHashStats
     {
-        public int RecomputedHashCount;
-        public int ReusedHashCount;
-        public int SkippedPersistCount;
+        public int RecomputedHashCount { get; set; }
+        public int ReusedHashCount { get; set; }
+        public int SkippedPersistCount { get; set; }
     }
 
     private sealed record CachedUidSidecar(long Length, DateTime LastWriteTimeUtc, string? Uid);
