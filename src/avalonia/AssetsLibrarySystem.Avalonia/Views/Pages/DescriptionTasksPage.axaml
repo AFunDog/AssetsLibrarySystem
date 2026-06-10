@@ -83,9 +83,9 @@
                                     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                FontWeight="SemiBold"
                                                LetterSpacing="1.2"
-                                               Text="当前素材库" />
+                                               Text="所有素材库" />
                                     <TextBlock TextWrapping="Wrap"
-                                               Text="批量向量化会自动处理当前素材库里“已有描述但没有向量”以及“描述已更新、旧向量需要重建”的素材。" />
+                                               Text="批量向量化会自动处理所有素材库里&#x201C;已有描述但没有向量&#x201D;以及&#x201C;描述已更新、旧向量需要重建&#x201D;的素材。" />
                                 </StackPanel>
                             </Border>
 
@@ -105,7 +105,7 @@
                                     CornerRadius="4"
                                     Padding="10,8"
                                     Command="{Binding VectorizeSelectedDescriptionCommand}"
-                                    Content="批量向量化当前素材库" />
+                                    Content="批量向量化所有素材库" />
 
                             <Button Background="{DynamicResource AppSoftSurfaceBrush}"
                                     Foreground="{DynamicResource AppTextBrush}"

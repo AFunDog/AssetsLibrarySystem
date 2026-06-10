@@ -287,6 +287,11 @@ public sealed partial class LibraryCatalogService : ObservableObject
             .ToList();
     }
 
+    public IReadOnlyList<ManagedAssetRecord> GetAllLibraryAssets()
+    {
+        return AllAssets.ToList();
+    }
+
     public void MarkAssetDescriptionQueued(ManagedAssetRecord asset)
     {
         asset.Stage = "描述中";

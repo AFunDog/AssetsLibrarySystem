@@ -134,10 +134,10 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
 
     private async Task VectorizeSelectedDescriptionAsync()
     {
-        var assets = LibraryCatalogService.GetCurrentLibraryAssets();
+        var assets = LibraryCatalogService.GetAllLibraryAssets();
         if (assets.Count == 0)
         {
-            LibraryCatalogService.SetOperatorNotice("当前素材库下没有可向量化的素材。");
+            LibraryCatalogService.SetOperatorNotice("当前没有可向量化的素材。");
             return;
         }
 
@@ -153,8 +153,8 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
             return;
         }
 
-        LibraryCatalogService.SetOperatorNotice($"正在批量向量化当前素材库：{assets.Count} 个素材");
-        ActivityFeed.Insert(0, $"开始批量向量化当前素材库：{assets.Count} 个素材");
+        LibraryCatalogService.SetOperatorNotice($"正在批量向量化所有素材库：{assets.Count} 个素材");
+        ActivityFeed.Insert(0, $"开始批量向量化所有素材库：{assets.Count} 个素材");
 
         try
         {
@@ -180,12 +180,12 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
                 });
 
             LibraryCatalogService.SetOperatorNotice(
-                $"批量向量化完成：成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}。");
-            ActivityFeed.Insert(0, $"批量向量化完成：成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}");
+                $"批量向量化所有素材库完成：成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}。");
+            ActivityFeed.Insert(0, $"批量向量化所有素材库完成：成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}");
         }
         catch (Exception ex)
         {
-            LibraryCatalogService.SetOperatorNotice($"手动向量化失败：{ex.Message}");
+            LibraryCatalogService.SetOperatorNotice($"批量向量化失败：{ex.Message}");
             ActivityFeed.Insert(0, $"批量向量化失败：{ex.Message}");
         }
     }
