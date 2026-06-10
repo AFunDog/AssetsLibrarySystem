@@ -319,8 +319,14 @@
                         <StackPanel Spacing="8">
                             <TextBlock Classes="eyebrow" Text="动态" />
                             <TextBlock Classes="section-title" Text="活动纪要" />
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" Height="240">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Height="240"
+                                          >
                                 <ItemsControl ItemsSource="{Binding ActivityFeed}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <VirtualizingStackPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Classes="sub-card" Margin="0,0,0,4">

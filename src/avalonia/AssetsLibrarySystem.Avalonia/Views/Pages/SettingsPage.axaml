@@ -204,8 +204,14 @@
                                 <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                            FontWeight="SemiBold"
                                            Text="当前可用接口" />
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              >
                                     <ItemsControl ItemsSource="{Binding AiCapabilities}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <VirtualizingStackPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="models:AiCapabilityRecord">
                                                 <Border Background="{DynamicResource AppSoftSurfaceBrush}"
@@ -249,8 +255,14 @@
                                 <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                            FontWeight="SemiBold"
                                            Text="活动纪要" />
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              >
                                     <ItemsControl ItemsSource="{Binding ActivityFeed}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <VirtualizingStackPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Background="{DynamicResource AppSoftSurfaceBrush}"

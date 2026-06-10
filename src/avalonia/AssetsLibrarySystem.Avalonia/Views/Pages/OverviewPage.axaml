@@ -252,8 +252,14 @@
                         <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                    FontWeight="SemiBold"
                                    Text="活动纪要" />
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Height="220">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Height="220"
+                                      >
                             <ItemsControl ItemsSource="{Binding ActivityFeed}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Background="{DynamicResource AppSoftSurfaceBrush}"
