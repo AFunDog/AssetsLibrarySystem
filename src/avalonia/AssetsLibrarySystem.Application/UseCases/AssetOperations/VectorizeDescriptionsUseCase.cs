@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
@@ -50,9 +49,12 @@ public sealed class VectorizeDescriptionsUseCase
                 continue;
             }
 
-            var existingVectors = await VectorStore.ListByAssetIdAsync(asset.Id, ct).ConfigureAwait(false);
-            if (existingVectors.Count > 0 && !ShouldRefreshVectors(description, existingVectors))
+            var needsVectorization = await VectorStore.NeedsVectorizationAsync(
+                asset.Id, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
+            if (!needsVectorization)
             {
+                // 向量已是最新，同步 vector_state 为 'indexed' 以保持 UI 一致
+                await VectorStore.MarkAsIndexedAsync(asset.Id, ct).ConfigureAwait(false);
                 skipCount++;
                 await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "向量已是最新"), ct).ConfigureAwait(false);
                 continue;
@@ -89,45 +91,6 @@ public sealed class VectorizeDescriptionsUseCase
     {
         ct.ThrowIfCancellationRequested();
         return progress?.Invoke(value) ?? Task.CompletedTask;
-    }
-
-    private static bool ShouldRefreshVectors(
-        AssetDescriptionDocument description,
-        IReadOnlyList<AssetDescriptionVectorDocument> vectorDocuments)
-    {
-        var segments = StructuredDescriptionHelper.ExtractSegments(description.Description);
-        if (segments.Count != vectorDocuments.Count)
-        {
-            return true;
-        }
-
-        var expectedAngleTypes = new HashSet<string>(
-            segments.Select(segment => segment.NormalizedAngleType),
-            StringComparer.Ordinal);
-
-        foreach (var vectorDocument in vectorDocuments)
-        {
-            var sameContentHash = string.Equals(
-                description.ContentHash ?? string.Empty,
-                vectorDocument.ContentHash ?? string.Empty,
-                StringComparison.OrdinalIgnoreCase);
-            if (!sameContentHash)
-            {
-                return true;
-            }
-
-            if (vectorDocument.VectorizedAt < description.GeneratedAt)
-            {
-                return true;
-            }
-
-            if (!expectedAngleTypes.Remove(vectorDocument.AngleType))
-            {
-                return true;
-            }
-        }
-
-        return expectedAngleTypes.Count != 0;
     }
 }
 

@@ -142,6 +142,9 @@ public sealed class AssetLibraryService : IAssetLibraryService
             records.Add(record);
         });
 
+        // 扫描完成后清理 legacy 重复素材
+        await DeduplicateLegacyAssetsAsync(library, ct);
+
         var orderedRecords = records
             .OrderBy(item => item.RelativePath, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -879,6 +882,121 @@ public sealed class AssetLibraryService : IAssetLibraryService
                     yield return file;
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// 清理 assets 表中 library_id='legacy' 的重复素材。
+    /// 当同一个文件路径同时存在 legacy 和非 legacy 两条记录时，
+    /// 将 legacy 的描述/向量迁移到非 legacy 的 UID 上，然后删除 legacy 记录。
+    /// </summary>
+    private async Task DeduplicateLegacyAssetsAsync(LibraryWorkspace library, CancellationToken ct)
+    {
+        var result = await WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var transaction = await connection.BeginTransactionAsync(token);
+
+            // 1. 查找 legacy 与非 legacy 重复的 current_path
+            await using var findCmd = connection.CreateCommand();
+            findCmd.Transaction = (SqliteTransaction)transaction;
+            findCmd.CommandText = """
+                SELECT legacy.asset_uid, current.asset_uid, legacy.current_path
+                FROM assets legacy
+                INNER JOIN assets current
+                    ON legacy.current_path = current.current_path
+                    AND legacy.library_id = 'legacy'
+                    AND current.library_id <> 'legacy'
+                """;
+            await using var reader = await findCmd.ExecuteReaderAsync(token);
+
+            var pairs = new List<(string LegacyUid, string CurrentUid, string CurrentPath)>();
+            while (await reader.ReadAsync(token))
+            {
+                pairs.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2)));
+            }
+
+            reader.Close();
+
+            if (pairs.Count == 0)
+            {
+                await transaction.RollbackAsync(token);
+                return 0;
+            }
+
+            var migratedDescriptions = 0;
+            var migratedVectors = 0;
+            var deletedAssets = 0;
+
+            foreach (var (legacyUid, currentUid, currentPath) in pairs)
+            {
+                // 2. 迁移描述：仅当非 legacy 资产没有描述时
+                await using var descCmd = connection.CreateCommand();
+                descCmd.Transaction = (SqliteTransaction)transaction;
+                descCmd.CommandText = """
+                    UPDATE asset_descriptions
+                    SET asset_id = $current_uid
+                    WHERE asset_id = $legacy_uid
+                      AND NOT EXISTS (
+                          SELECT 1 FROM asset_descriptions WHERE asset_id = $current_uid
+                      );
+                    """;
+                AddParameter(descCmd, "$current_uid", currentUid);
+                AddParameter(descCmd, "$legacy_uid", legacyUid);
+                migratedDescriptions += await descCmd.ExecuteNonQueryAsync(token);
+
+                // 3. 迁移向量：仅当非 legacy 资产没有向量时
+                await using var vecCmd = connection.CreateCommand();
+                vecCmd.Transaction = (SqliteTransaction)transaction;
+                vecCmd.CommandText = """
+                    UPDATE asset_description_vectors
+                    SET asset_id = $current_uid
+                    WHERE asset_id = $legacy_uid
+                      AND NOT EXISTS (
+                          SELECT 1 FROM asset_description_vectors WHERE asset_id = $current_uid
+                      );
+                    """;
+                AddParameter(vecCmd, "$current_uid", currentUid);
+                AddParameter(vecCmd, "$legacy_uid", legacyUid);
+                migratedVectors += await vecCmd.ExecuteNonQueryAsync(token);
+
+                // 4. 迁移或删除 asset_metadata
+                await using var metaCmd = connection.CreateCommand();
+                metaCmd.Transaction = (SqliteTransaction)transaction;
+                metaCmd.CommandText = """
+                    -- 非legacy资产没有metadata时迁移，否则删除legacy的
+                    INSERT INTO asset_metadata (asset_uid, tags_json, metadata_status, vector_state, created_at, updated_at)
+                    SELECT asset_uid, tags_json, metadata_status, vector_state, created_at, updated_at
+                    FROM asset_metadata
+                    WHERE asset_uid = $legacy_uid
+                      AND NOT EXISTS (SELECT 1 FROM asset_metadata WHERE asset_uid = $current_uid)
+                    ON CONFLICT(asset_uid) DO NOTHING;
+                    DELETE FROM asset_metadata WHERE asset_uid = $legacy_uid;
+                    """;
+                AddParameter(metaCmd, "$current_uid", currentUid);
+                AddParameter(metaCmd, "$legacy_uid", legacyUid);
+                await metaCmd.ExecuteNonQueryAsync(token);
+
+                // 5. 删除 legacy 资产记录
+                await using var delCmd = connection.CreateCommand();
+                delCmd.Transaction = (SqliteTransaction)transaction;
+                delCmd.CommandText = "DELETE FROM assets WHERE asset_uid = $legacy_uid;";
+                AddParameter(delCmd, "$legacy_uid", legacyUid);
+                deletedAssets += await delCmd.ExecuteNonQueryAsync(token);
+            }
+
+            await transaction.CommitAsync(token);
+
+            Log.Information(
+                "Legacy 重复素材清理完成: libraryId={LibraryId}, 检查={CheckedCount} 对, 迁移描述={MigratedDescriptions}, 迁移向量={MigratedVectors}, 删除素材={DeletedAssets}",
+                library.Id, pairs.Count, migratedDescriptions, migratedVectors, deletedAssets);
+
+            return deletedAssets;
+        }, ct);
+
+        if (result > 0)
+        {
+            Log.Information("已清理 {Count} 条 legacy 重复素材记录", result);
         }
     }
 

@@ -111,6 +111,78 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         }, ct);
     }
 
+    public async Task<bool> NeedsVectorizationAsync(
+        string assetId,
+        string? descriptionContentHash = null,
+        DateTimeOffset? descriptionGeneratedAt = null,
+        CancellationToken ct = default)
+    {
+        await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
+
+        // 查询该素材的最新向量的 content_hash 和 vectorized_at
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT content_hash, vectorized_at
+            FROM asset_description_vectors
+            WHERE asset_id = $asset_id
+            ORDER BY vectorized_at DESC
+            LIMIT 1;
+            """;
+        AddParameter(command, "$asset_id", assetId);
+
+        await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            // 无向量记录 → 需要向量化
+            return true;
+        }
+
+        var vectorContentHash = reader.IsDBNull(0) ? null : reader.GetString(0);
+        var maxVectorizedAt = DateTimeOffset.Parse(reader.GetString(1));
+
+        // 描述生成时间晚于向量化时间 → 描述已更新，需要重新向量化
+        if (descriptionGeneratedAt.HasValue && descriptionGeneratedAt.Value > maxVectorizedAt)
+        {
+            return true;
+        }
+
+        // 双方 content_hash 均可用 → 精确比较
+        if (!string.IsNullOrEmpty(descriptionContentHash) && !string.IsNullOrEmpty(vectorContentHash))
+        {
+            return !string.Equals(descriptionContentHash, vectorContentHash, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // 描述生成时间 <= 向量化时间，且未触发上述任何条件 → 向量已是最新
+        if (descriptionGeneratedAt.HasValue && descriptionGeneratedAt.Value <= maxVectorizedAt)
+        {
+            return false;
+        }
+
+        // 信息不足 → 保守地认为需要向量化
+        return true;
+    }
+
+    public async Task MarkAsIndexedAsync(string assetId, CancellationToken ct = default)
+    {
+        await AssetDatabase.EnsureSchemaAsync(ct);
+        await WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE asset_metadata
+                SET vector_state = 'indexed',
+                    updated_at = $updated_at
+                WHERE asset_uid = $asset_uid
+                  AND vector_state <> 'indexed';
+                """;
+            AddParameter(command, "$asset_uid", assetId);
+            AddParameter(command, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
+            await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+        }, ct);
+    }
+
     private static async Task InsertVectorAsync(
         SqliteConnection connection,
         SqliteTransaction transaction,

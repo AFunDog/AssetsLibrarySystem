@@ -202,8 +202,8 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
         await using var pragma = connection.CreateCommand();
         pragma.CommandText = $"PRAGMA table_info({tableName});";
 
-        await using var reader = await pragma.ExecuteReaderAsync(ct).ConfigureAwait(false);
-        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+        await using var reader = await pragma.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
             if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
             {

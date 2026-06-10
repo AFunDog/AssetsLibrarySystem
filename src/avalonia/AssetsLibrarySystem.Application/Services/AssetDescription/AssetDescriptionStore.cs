@@ -274,6 +274,12 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             )
             ON CONFLICT(asset_uid) DO UPDATE SET
                 metadata_status = excluded.metadata_status,
+                vector_state = CASE
+                    WHEN asset_metadata.vector_state = 'indexed'
+                         AND excluded.vector_state = 'pending'
+                    THEN 'pending'
+                    ELSE asset_metadata.vector_state
+                END,
                 updated_at = excluded.updated_at;
             """;
 

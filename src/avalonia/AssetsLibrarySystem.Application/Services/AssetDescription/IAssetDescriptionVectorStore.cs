@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,4 +15,12 @@ public interface IAssetDescriptionVectorStore
     Task<IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetIdAsync(string assetId, CancellationToken ct = default);
 
     Task<bool> DeleteAsync(string assetId, CancellationToken ct = default);
+
+    Task<bool> NeedsVectorizationAsync(
+        string assetId,
+        string? descriptionContentHash = null,
+        DateTimeOffset? descriptionGeneratedAt = null,
+        CancellationToken ct = default);
+
+    Task MarkAsIndexedAsync(string assetId, CancellationToken ct = default);
 }

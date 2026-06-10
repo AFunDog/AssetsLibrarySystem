@@ -76,7 +76,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
         var vectorStore = new FakeVectorStore(listByAssetId: new Dictionary<string, IReadOnlyList<AssetDescriptionVectorDocument>>
         {
             [asset.AssetUid] = [freshVector],
-        });
+        }, needsVectorizationResult: false);
         var vectorizationService = new FakeTextVectorizationService();
         var assetSearchService = new FakeAssetSearchService();
         var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService);
@@ -167,18 +167,35 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
         {
             return Task.FromResult(DeleteResult);
         }
+
+        public Task<bool> NeedsVectorizationAsync(
+            string assetId,
+            string? descriptionContentHash = null,
+            DateTimeOffset? descriptionGeneratedAt = null,
+            CancellationToken ct = default)
+        {
+            return Task.FromResult(true);
+        }
+
+        public Task MarkAsIndexedAsync(string assetId, CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeVectorStore : IAssetDescriptionVectorStore
     {
         private IReadOnlyDictionary<string, IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetId { get; }
         private bool DeleteResult { get; }
+        private bool NeedsVectorizationResult { get; }
 
         public FakeVectorStore(
             bool deleteResult = false,
+            bool needsVectorizationResult = true,
             IReadOnlyDictionary<string, IReadOnlyList<AssetDescriptionVectorDocument>>? listByAssetId = null)
         {
             DeleteResult = deleteResult;
+            NeedsVectorizationResult = needsVectorizationResult;
             ListByAssetId = listByAssetId ?? new Dictionary<string, IReadOnlyList<AssetDescriptionVectorDocument>>();
         }
 
@@ -199,6 +216,20 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
         public Task<bool> DeleteAsync(string assetId, CancellationToken ct = default)
         {
             return Task.FromResult(DeleteResult);
+        }
+
+        public Task<bool> NeedsVectorizationAsync(
+            string assetId,
+            string? descriptionContentHash = null,
+            DateTimeOffset? descriptionGeneratedAt = null,
+            CancellationToken ct = default)
+        {
+            return Task.FromResult(NeedsVectorizationResult);
+        }
+
+        public Task MarkAsIndexedAsync(string assetId, CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
         }
     }
 
