@@ -75,7 +75,10 @@ public sealed class AssetSearchService : IAssetSearchService
         var useExactSearch = filteredRecords.Count <= ExactSearchThreshold;
         if (!useExactSearch)
         {
-            IndexManager.EnsureCurrent(records.Select(record => record.Vector).ToArray(), state);
+            IndexManager.EnsureCurrent(
+                records.Select(record => record.Vector).ToArray(),
+                records.Select(record => BuildVectorKey(record)).ToArray(),
+                state);
         }
 
         var expandedCandidateTopK = Math.Min(
@@ -190,7 +193,10 @@ public sealed class AssetSearchService : IAssetSearchService
         }
 
         var state = BuildIndexState(records);
-        IndexManager.Rebuild(records.Select(record => record.Vector).ToArray(), state);
+        IndexManager.Rebuild(
+            records.Select(record => record.Vector).ToArray(),
+            records.Select(record => BuildVectorKey(record)).ToArray(),
+            state);
 
         var vectorDim = records[0].Vector.Length;
         var embeddingModels = records
@@ -618,6 +624,11 @@ public sealed class AssetSearchService : IAssetSearchService
         }
 
         return dot / denominator;
+    }
+
+    private static string BuildVectorKey(LocalVectorRecord record)
+    {
+        return $"{record.AssetUid}::{record.AngleType}";
     }
 
     private sealed record SearchIndexRequest(
