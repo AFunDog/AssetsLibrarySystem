@@ -495,24 +495,14 @@ public sealed class ConsoleCommandRunner
             return 0;
         }
 
-        // 先停掉可能残留的旧后端进程，再拉起当前代码对应的后端。
-        await BackendLauncher.StopAsync();
-        await BackendLauncher.StartAsync();
-        try
-        {
-            var response = await RebuildSearchIndexUseCase.ExecuteAsync(BackendLauncher.BaseUrl);
-            Console.WriteLine("向量索引重建完成。");
-            Console.WriteLine($"- 素材描述数: {response.DocumentCount}");
-            Console.WriteLine($"- 向量维度: {response.VectorDim}");
-            Console.WriteLine($"- 数据库: {response.DatabasePath}");
-            Console.WriteLine($"- 索引: {response.IndexPath}");
-            Console.WriteLine($"- 元数据: {response.MetadataPath}");
-            Console.WriteLine($"- 向量模型: {string.Join(", ", response.EmbeddingModels)}");
-        }
-        finally
-        {
-            await BackendLauncher.StopAsync();
-        }
+        var response = await RebuildSearchIndexUseCase.ExecuteAsync();
+        Console.WriteLine("本地向量索引重建完成。");
+        Console.WriteLine($"- 素材描述数: {response.DocumentCount}");
+        Console.WriteLine($"- 向量维度: {response.VectorDim}");
+        Console.WriteLine($"- 数据库: {response.DatabasePath}");
+        Console.WriteLine($"- 索引: {response.IndexPath}");
+        Console.WriteLine($"- 元数据: {response.MetadataPath}");
+        Console.WriteLine($"- 向量模型: {string.Join(", ", response.EmbeddingModels)}");
 
         return 0;
     }

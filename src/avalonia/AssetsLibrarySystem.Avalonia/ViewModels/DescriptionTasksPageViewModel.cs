@@ -198,18 +198,12 @@ public sealed class DescriptionTasksPageViewModel : ObservableObject
             return;
         }
 
-        if (!BackendSessionService.IsBackendReady)
-        {
-            LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
-            return;
-        }
-
-        LibraryCatalogService.SetOperatorNotice("正在重建后端向量索引...");
-        ActivityFeed.Insert(0, "开始重建后端向量索引。");
+        LibraryCatalogService.SetOperatorNotice("正在重建本地向量索引...");
+        ActivityFeed.Insert(0, "开始重建本地向量索引。");
 
         try
         {
-            var response = await RebuildSearchIndexUseCase.ExecuteAsync(BackendSessionService.BaseUrl);
+            var response = await RebuildSearchIndexUseCase.ExecuteAsync();
             LibraryCatalogService.SetOperatorNotice($"索引已重建：{response.DocumentCount} 条，{response.VectorDim} 维。");
             ActivityFeed.Insert(0, $"索引重建完成：{response.DocumentCount} 条素材描述。");
         }

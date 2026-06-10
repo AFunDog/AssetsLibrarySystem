@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
+using AssetsLibrarySystem.Application.Services.AssetSearch;
 
 namespace AssetsLibrarySystem.Application.UseCases.AssetOperations;
 
@@ -13,15 +14,18 @@ public sealed class VectorizeDescriptionsUseCase
     private IAssetDescriptionStore DescriptionStore { get; }
     private IAssetDescriptionVectorStore VectorStore { get; }
     private IAssetTextVectorizationService TextVectorizationService { get; }
+    private IAssetSearchService AssetSearchService { get; }
 
     public VectorizeDescriptionsUseCase(
         IAssetDescriptionStore descriptionStore,
         IAssetDescriptionVectorStore vectorStore,
-        IAssetTextVectorizationService textVectorizationService)
+        IAssetTextVectorizationService textVectorizationService,
+        IAssetSearchService assetSearchService)
     {
         DescriptionStore = descriptionStore;
         VectorStore = vectorStore;
         TextVectorizationService = textVectorizationService;
+        AssetSearchService = assetSearchService;
     }
 
     public async Task<VectorizeDescriptionsResult> ExecuteAsync(
@@ -68,6 +72,11 @@ public sealed class VectorizeDescriptionsUseCase
                 failureCount++;
                 await ReportAsync(progress, VectorizeDescriptionProgress.Failed(asset, ex), ct).ConfigureAwait(false);
             }
+        }
+
+        if (successCount > 0)
+        {
+            await AssetSearchService.ReindexAsync(ct).ConfigureAwait(false);
         }
 
         return new VectorizeDescriptionsResult(successCount, skipCount, failureCount);

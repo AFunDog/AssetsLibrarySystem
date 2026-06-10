@@ -14,8 +14,8 @@ public sealed class RebuildSearchIndexUseCase
         AssetSearchService = assetSearchService;
     }
 
-    public Task<AssetReindexResponseDocument> ExecuteAsync(string backendBaseUrl, CancellationToken ct = default)
+    public Task<AssetReindexResponseDocument> ExecuteAsync(CancellationToken ct = default)
     {
-        return AssetSearchService.ReindexAsync(backendBaseUrl, ct);
+        return AssetSearchService.ReindexAsync(ct);
     }
 }

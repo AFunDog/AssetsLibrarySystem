@@ -152,7 +152,6 @@ public sealed class AssetSearchService : IAssetSearchService
     }
 
     public async Task<AssetReindexResponseDocument> ReindexAsync(
-        string backendBaseUrl,
         CancellationToken ct = default)
     {
         var records = await LoadVectorRecordsAsync(ct).ConfigureAwait(false);

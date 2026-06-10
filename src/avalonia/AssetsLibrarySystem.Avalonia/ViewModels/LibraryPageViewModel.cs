@@ -382,8 +382,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
 
         try
         {
-            await BackendSessionService.EnsureRunningAsync();
-            var response = await RebuildSearchIndexUseCase.ExecuteAsync(BackendSessionService.BaseUrl);
+            var response = await RebuildSearchIndexUseCase.ExecuteAsync();
             SearchIndexSummary = $"索引已重建：{response.DocumentCount} 条，{response.VectorDim} 维。";
             SearchIndexDetail = $"数据库：{response.DatabasePath}\n索引：{response.IndexPath}\n元数据：{response.MetadataPath}\n模型：{string.Join(", ", response.EmbeddingModels)}";
             LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);

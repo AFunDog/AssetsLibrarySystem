@@ -15,7 +15,6 @@ public interface IAssetSearchService
         CancellationToken ct = default);
 
     Task<AssetReindexResponseDocument> ReindexAsync(
-        string backendBaseUrl,
         CancellationToken ct = default);
 
     Task<AssetSearchWarmupDocument> WarmupEmbeddingAsync(
