@@ -65,38 +65,31 @@ public static class StructuredDescriptionHelper
             return [new StructuredDescriptionSegment(AssetDescriptionVectorDocument.DefaultAngleType, trimmed)];
         }
 
-        try
+        using var document = JsonDocument.Parse(trimmed);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
-            using var document = JsonDocument.Parse(trimmed);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                return [new StructuredDescriptionSegment(AssetDescriptionVectorDocument.DefaultAngleType, trimmed)];
-            }
-
-            var segments = new List<StructuredDescriptionSegment>();
-            foreach (var property in document.RootElement.EnumerateObject())
-            {
-                var text = ExtractSegmentText(property.Value);
-                if (string.IsNullOrWhiteSpace(text))
-                {
-                    continue;
-                }
-
-                segments.Add(new StructuredDescriptionSegment(property.Name, text));
-            }
-
-            if (segments.Count > 0)
-            {
-                SortSegments(segments);
-                return segments;
-            }
-        }
-        catch (JsonException)
-        {
-            return [new StructuredDescriptionSegment(AssetDescriptionVectorDocument.DefaultAngleType, trimmed)];
+            throw new JsonException($"素材描述 JSON 顶层不是对象类型: {document.RootElement.ValueKind}");
         }
 
-        return [new StructuredDescriptionSegment(AssetDescriptionVectorDocument.DefaultAngleType, trimmed)];
+        var segments = new List<StructuredDescriptionSegment>();
+        foreach (var property in document.RootElement.EnumerateObject())
+        {
+            var text = ExtractSegmentText(property.Value);
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                continue;
+            }
+
+            segments.Add(new StructuredDescriptionSegment(property.Name, text));
+        }
+
+        if (segments.Count > 0)
+        {
+            SortSegments(segments);
+            return segments;
+        }
+
+        throw new JsonException("素材描述 JSON 中没有可向量化的有效角度文本。");
     }
 
     public static string ExtractTextByAngle(string? rawDescription, string? angleType)
@@ -105,13 +98,20 @@ public static class StructuredDescriptionHelper
             ? AssetDescriptionVectorDocument.DefaultAngleType
             : angleType.Trim();
 
-        var segments = ExtractSegments(rawDescription);
-        foreach (var segment in segments)
+        try
         {
-            if (string.Equals(segment.NormalizedAngleType, normalizedAngleType, StringComparison.Ordinal))
+            var segments = ExtractSegments(rawDescription);
+            foreach (var segment in segments)
             {
-                return segment.NormalizedText;
+                if (string.Equals(segment.NormalizedAngleType, normalizedAngleType, StringComparison.Ordinal))
+                {
+                    return segment.NormalizedText;
+                }
             }
+        }
+        catch (JsonException)
+        {
+            // 搜索展示场景下，JSON 解析失败不阻断流程，回退到通用提取
         }
 
         return ExtractPrimaryText(rawDescription);

@@ -98,7 +98,7 @@ class ModelService:
         if provider_context.provider.lower() != "dashscope":
             raise ValueError(f"当前仅实现 dashscope live 调用，实际 provider 为: {provider_context.provider}")
 
-        output_text, usage = await self._call_dashscope(
+        raw_output_text, usage = await self._call_dashscope(
             provider_context,
             system_prompt,
             prompt,
@@ -106,6 +106,7 @@ class ModelService:
             payload.asset_path,
             call_model,
         )
+        output_text = self._clean_llm_output(raw_output_text)
         return ModelGenerateResponse(
             provider_slot=DEFAULT_PROVIDER_SLOT,
             provider=provider_context.provider,
@@ -545,6 +546,26 @@ class ModelService:
         if asset_format == "音频" and "omni" not in configured_model.lower() and "audio" not in configured_model.lower():
             return AUDIO_FALLBACK_MODEL
         return configured_model
+
+    @staticmethod
+    def _clean_llm_output(text: str) -> str:
+        """清理 LLM 输出中可能混入的 Markdown 代码块标记等杂质。
+
+        LLM 在配置了 ``response_format=json_object`` 后仍可能在输出首尾包裹
+        ```json / ``` 等 Markdown 代码块语法，此方法负责剥离这些标记，
+        确保返回纯净的 JSON 文本。
+        """
+        cleaned = text.strip()
+        # 去掉开头的 `` ```json `` 或 `` ``` ``
+        fence_patterns = ("```json", "```")
+        for prefix in fence_patterns:
+            if cleaned.startswith(prefix):
+                cleaned = cleaned[len(prefix):].lstrip()
+                break
+        # 去掉结尾的 `` ``` ``
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3].rstrip()
+        return cleaned.strip()
 
     def _read_text_asset(self, asset_path: str) -> str:
         path = Path(asset_path)
