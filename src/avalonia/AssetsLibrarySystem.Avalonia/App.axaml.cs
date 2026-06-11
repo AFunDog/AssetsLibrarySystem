@@ -33,7 +33,7 @@ public partial class App : global::Avalonia.Application
         Log.Information("初始化 Avalonia XAML");
         AvaloniaXamlLoader.Load(this);
 #if DEBUG
-        AttachDeveloperTools();
+        this.AttachDeveloperTools();
 #endif
     }
 

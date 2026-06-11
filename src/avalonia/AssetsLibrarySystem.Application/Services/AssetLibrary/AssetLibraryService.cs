@@ -209,7 +209,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             else if (CanReuseStoredHash(assetRecord, fileInfo))
             {
                 currentHash = assetRecord.ContentHash;
-                Interlocked.Increment(ref stats.ReusedHashCount);
+                stats.IncrementReusedHashCount();
                 CacheContentHash(normalizedPath, fileInfo, currentHash);
                 if (IsSameAssetSnapshot(
                         assetRecord,
@@ -223,7 +223,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         fileInfo.LastWriteTimeUtc,
                         "ok"))
                 {
-                    Interlocked.Increment(ref stats.SkippedPersistCount);
+                    stats.IncrementSkippedPersistCount();
                 }
                 else
                 {
@@ -264,7 +264,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                             fileInfo.LastWriteTimeUtc,
                             "ok"))
                     {
-                        Interlocked.Increment(ref stats.SkippedPersistCount);
+                        stats.IncrementSkippedPersistCount();
                     }
                     else
                     {
@@ -330,7 +330,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         fileInfo.LastWriteTimeUtc,
                         "ok"))
                 {
-                    Interlocked.Increment(ref stats.SkippedPersistCount);
+                    stats.IncrementSkippedPersistCount();
                 }
                 else
                 {
@@ -797,11 +797,11 @@ public sealed class AssetLibraryService : IAssetLibraryService
             cached.Length == fileInfo.Length &&
             cached.LastWriteTimeUtc == fileInfo.LastWriteTimeUtc)
         {
-            Interlocked.Increment(ref stats.ReusedHashCount);
+            stats.IncrementReusedHashCount();
             return cached.Hash;
         }
 
-        Interlocked.Increment(ref stats.RecomputedHashCount);
+        stats.IncrementRecomputedHashCount();
         var hash = ComputeContentHash(path);
         CacheContentHash(path, fileInfo, hash);
         return hash;
@@ -1117,9 +1117,17 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     private sealed class ScanHashStats
     {
-        public int RecomputedHashCount { get; set; }
-        public int ReusedHashCount { get; set; }
-        public int SkippedPersistCount { get; set; }
+        private int _recomputedHashCount;
+        private int _reusedHashCount;
+        private int _skippedPersistCount;
+
+        public int RecomputedHashCount => _recomputedHashCount;
+        public int ReusedHashCount => _reusedHashCount;
+        public int SkippedPersistCount => _skippedPersistCount;
+
+        public void IncrementRecomputedHashCount() => Interlocked.Increment(ref _recomputedHashCount);
+        public void IncrementReusedHashCount() => Interlocked.Increment(ref _reusedHashCount);
+        public void IncrementSkippedPersistCount() => Interlocked.Increment(ref _skippedPersistCount);
     }
 
     private sealed record CachedUidSidecar(long Length, DateTime LastWriteTimeUtc, string? Uid);
