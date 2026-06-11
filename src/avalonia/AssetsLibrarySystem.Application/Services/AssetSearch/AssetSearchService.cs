@@ -542,18 +542,6 @@ public sealed class AssetSearchService : IAssetSearchService
         return (embeddingSimilarity * vectorWeight) + (normalizedRerankScore * rerankWeight);
     }
 
-    private static float AngleWeight(string angleType)
-    {
-        return angleType switch
-        {
-            "全面" => 0.4f,
-            "风格" => 0.25f,
-            "乐器" => 0.2f,
-            "情感" => 0.15f,
-            _ => 0.1f,
-        };
-    }
-
     private static List<AssetSearchDocument> AggregateCandidates(IReadOnlyList<ScoredVectorCandidateRecord> candidates, int candidateTopK)
     {
         var grouped = new Dictionary<string, Dictionary<string, ScoredVectorCandidateRecord>>(StringComparer.Ordinal);
@@ -576,14 +564,9 @@ public sealed class AssetSearchService : IAssetSearchService
         foreach (var assetCandidates in grouped.Values)
         {
             var selectedCandidates = assetCandidates.Values.ToArray();
-            var totalWeight = selectedCandidates.Sum(item => AngleWeight(item.Record.AngleType));
-            if (totalWeight <= 0)
-            {
-                continue;
-            }
-
+            var bestCandidate = selectedCandidates.OrderByDescending(item => item.CombinedScore).First();
             var displayCandidate = selectedCandidates.FirstOrDefault(item => item.Record.AngleType == "全面")
-                ?? selectedCandidates.OrderByDescending(item => item.CombinedScore).First();
+                ?? bestCandidate;
 
             var result = new AssetSearchDocument(
                 assetUid: displayCandidate.Record.AssetUid,
@@ -592,12 +575,12 @@ public sealed class AssetSearchService : IAssetSearchService
                 currentPath: displayCandidate.Record.AssetPath,
                 description: displayCandidate.Record.PrimaryDescription,
                 generatedAt: displayCandidate.Record.GeneratedAt,
-                embeddingSimilarity: WeightedAverage(selectedCandidates, totalWeight, item => item.EmbeddingSimilarity),
-                vectorDistance: WeightedAverage(selectedCandidates, totalWeight, item => item.VectorDistance),
-                rerankScore: WeightedAverage(selectedCandidates, totalWeight, item => item.RerankScore),
+                embeddingSimilarity: bestCandidate.EmbeddingSimilarity,
+                vectorDistance: bestCandidate.VectorDistance,
+                rerankScore: bestCandidate.RerankScore,
                 tags: displayCandidate.Record.Tags)
             {
-                CombinedScore = WeightedAverage(selectedCandidates, totalWeight, item => item.CombinedScore),
+                CombinedScore = bestCandidate.CombinedScore,
             };
             results.Add(result);
         }
@@ -606,19 +589,6 @@ public sealed class AssetSearchService : IAssetSearchService
             .OrderByDescending(item => item.CombinedScore ?? item.RerankScore)
             .Take(candidateTopK)
             .ToList();
-    }
-
-    private static float WeightedAverage(
-        IReadOnlyList<ScoredVectorCandidateRecord> candidates,
-        float totalWeight,
-        Func<ScoredVectorCandidateRecord, float> selector)
-    {
-        if (totalWeight <= 0)
-        {
-            return 0f;
-        }
-
-        return candidates.Sum(candidate => selector(candidate) * AngleWeight(candidate.Record.AngleType)) / totalWeight;
     }
 
     private static IReadOnlyList<(int Index, float Similarity)> SearchExact(
