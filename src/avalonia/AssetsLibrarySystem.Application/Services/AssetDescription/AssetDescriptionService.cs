@@ -17,7 +17,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
     private HttpClient Http { get; } = new();
     private JsonSerializerOptions JsonOptions { get; } = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -81,29 +81,23 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
     }
 
     private sealed record AssetDescriptionRequest(
-        [property: JsonPropertyName("asset_format")] string AssetType,
-        [property: JsonPropertyName("asset_path")] string AssetPath,
-        [property: JsonPropertyName("prompt")] string? Prompt,
-        [property: JsonPropertyName("system_prompt")] string? SystemPrompt,
-        [property: JsonPropertyName("mock_response")] bool MockResponse);
+        string AssetType,
+        string AssetPath,
+        string? Prompt,
+        string? SystemPrompt,
+        bool MockResponse);
 
     private sealed record AssetDescriptionBackendResponse(
-        [property: JsonPropertyName("provider_slot")] string ProviderSlot,
-        [property: JsonPropertyName("provider")] string Provider,
-        [property: JsonPropertyName("model")] string Model,
-        [property: JsonPropertyName("mode")] string Mode,
-        [property: JsonPropertyName("output_text")] string OutputText,
-        [property: JsonPropertyName("system_prompt")] string SystemPrompt,
-        [property: JsonPropertyName("token_usage")] AssetDescriptionBackendTokenUsage? TokenUsage);
+        string ProviderSlot,
+        string Provider,
+        string Model,
+        string Mode,
+        string OutputText,
+        string SystemPrompt,
+        AssetDescriptionBackendTokenUsage? TokenUsage);
 
-    private static AssetDescriptionTokenUsage? MapTokenUsage(AssetDescriptionBackendTokenUsage? usage)
-    {
-        if (usage is null)
-        {
-            return null;
-        }
-
-        return new AssetDescriptionTokenUsage(
+    private static AssetDescriptionTokenUsage? MapTokenUsage(AssetDescriptionBackendTokenUsage? usage) =>
+        usage is null ? null : new AssetDescriptionTokenUsage(
             usage.InputTokens,
             usage.OutputTokens,
             usage.TotalTokens,
@@ -113,16 +107,15 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             usage.InputTokensDetails,
             usage.OutputTokensDetails,
             usage.PromptTokensDetails);
-    }
 
     private sealed record AssetDescriptionBackendTokenUsage(
-        [property: JsonPropertyName("input_tokens")] int InputTokens,
-        [property: JsonPropertyName("output_tokens")] int OutputTokens,
-        [property: JsonPropertyName("total_tokens")] int TotalTokens,
-        [property: JsonPropertyName("image_tokens")] int? ImageTokens,
-        [property: JsonPropertyName("video_tokens")] int? VideoTokens,
-        [property: JsonPropertyName("audio_tokens")] int? AudioTokens,
-        [property: JsonPropertyName("input_tokens_details")] JsonElement? InputTokensDetails,
-        [property: JsonPropertyName("output_tokens_details")] JsonElement? OutputTokensDetails,
-        [property: JsonPropertyName("prompt_tokens_details")] JsonElement? PromptTokensDetails);
+        int InputTokens,
+        int OutputTokens,
+        int TotalTokens,
+        int? ImageTokens,
+        int? VideoTokens,
+        int? AudioTokens,
+        JsonElement? InputTokensDetails,
+        JsonElement? OutputTokensDetails,
+        JsonElement? PromptTokensDetails);
 }

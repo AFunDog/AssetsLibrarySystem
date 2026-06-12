@@ -23,7 +23,7 @@ public sealed class AssetSearchService : IAssetSearchService
     private LocalHnswSearchIndexManager IndexManager { get; } = new();
     private JsonSerializerOptions JsonOptions { get; } = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -645,73 +645,73 @@ public sealed class AssetSearchService : IAssetSearchService
     }
 
     private sealed record SearchIndexRequest(
-        [property: JsonPropertyName("asset_id")] string AssetId,
-        [property: JsonPropertyName("asset_name")] string AssetName,
-        [property: JsonPropertyName("asset_format")] string AssetFormat,
-        [property: JsonPropertyName("asset_path")] string AssetPath,
-        [property: JsonPropertyName("description")] string Description,
-        [property: JsonPropertyName("generated_at")] DateTimeOffset? GeneratedAt);
+        string AssetId,
+        string AssetName,
+        string AssetFormat,
+        string AssetPath,
+        string Description,
+        DateTimeOffset? GeneratedAt);
 
     private sealed record SearchIndexResponse(
-        [property: JsonPropertyName("asset_id")] string AssetId,
-        [property: JsonPropertyName("asset_name")] string AssetName,
-        [property: JsonPropertyName("asset_format")] string AssetFormat,
-        [property: JsonPropertyName("asset_path")] string AssetPath,
-        [property: JsonPropertyName("description")] string Description,
-        [property: JsonPropertyName("vector")] JsonElement Vector,
-        [property: JsonPropertyName("vector_dim")] int VectorDim,
-        [property: JsonPropertyName("embedding_model")] string EmbeddingModel);
+        string AssetId,
+        string AssetName,
+        string AssetFormat,
+        string AssetPath,
+        string Description,
+        JsonElement Vector,
+        int VectorDim,
+        string EmbeddingModel);
 
     private sealed record SearchQueryRequest(
-        [property: JsonPropertyName("query")] string Query,
-        [property: JsonPropertyName("candidates")] SearchQueryCandidate[] Candidates,
-        [property: JsonPropertyName("final_top_k")] int FinalTopK);
+        string Query,
+        SearchQueryCandidate[] Candidates,
+        int FinalTopK);
 
     private sealed record SearchQueryCandidate(
-        [property: JsonPropertyName("candidate_id")] string CandidateId,
-        [property: JsonPropertyName("asset_id")] string AssetId,
-        [property: JsonPropertyName("asset_name")] string AssetName,
-        [property: JsonPropertyName("asset_format")] string AssetFormat,
-        [property: JsonPropertyName("asset_path")] string AssetPath,
-        [property: JsonPropertyName("description")] string Description,
-        [property: JsonPropertyName("tags")] string[] Tags,
-        [property: JsonPropertyName("generated_at")] DateTimeOffset? GeneratedAt);
+        string CandidateId,
+        string AssetId,
+        string AssetName,
+        string AssetFormat,
+        string AssetPath,
+        string Description,
+        string[] Tags,
+        DateTimeOffset? GeneratedAt);
 
     private sealed record SearchQueryResponse(
-        [property: JsonPropertyName("query")] string Query,
-        [property: JsonPropertyName("final_top_k")] int FinalTopK,
-        [property: JsonPropertyName("rerank_model")] string RerankModel,
-        [property: JsonPropertyName("results")] SearchQueryResult[] Results);
+        string Query,
+        int FinalTopK,
+        string RerankModel,
+        SearchQueryResult[] Results);
 
     private sealed record SearchQueryResult(
-        [property: JsonPropertyName("candidate_id")] string? CandidateId,
-        [property: JsonPropertyName("rerank_score")] float RerankScore);
+        string? CandidateId,
+        float RerankScore);
 
     private sealed record SearchWarmupResponse(
-        [property: JsonPropertyName("model_kind")] string ModelKind,
-        [property: JsonPropertyName("model_name")] string ModelName,
-        [property: JsonPropertyName("device")] string Device,
-        [property: JsonPropertyName("warmed")] bool Warmed);
+        string ModelKind,
+        string ModelName,
+        string Device,
+        bool Warmed);
 
     private sealed record SearchModelStatusResponse(
-        [property: JsonPropertyName("embedding_model_name")] string EmbeddingModelName,
-        [property: JsonPropertyName("rerank_model_name")] string RerankModelName,
-        [property: JsonPropertyName("device")] string Device,
-        [property: JsonPropertyName("loaded_model_kinds")] string[] LoadedModelKinds,
-        [property: JsonPropertyName("embedding_loaded")] bool EmbeddingLoaded,
-        [property: JsonPropertyName("rerank_loaded")] bool RerankLoaded,
-        [property: JsonPropertyName("loaded_count")] int LoadedCount);
+        string EmbeddingModelName,
+        string RerankModelName,
+        string Device,
+        string[] LoadedModelKinds,
+        bool EmbeddingLoaded,
+        bool RerankLoaded,
+        int LoadedCount);
 
     private sealed record SearchModelCloseRequest(
-        [property: JsonPropertyName("model_kind")] string ModelKind);
+        string ModelKind);
 
     private sealed record SearchModelCloseResponse(
-        [property: JsonPropertyName("model_kind")] string ModelKind,
-        [property: JsonPropertyName("model_name")] string ModelName,
-        [property: JsonPropertyName("device")] string Device,
-        [property: JsonPropertyName("closed")] bool Closed,
-        [property: JsonPropertyName("cuda_cache_cleared")] bool CudaCacheCleared,
-        [property: JsonPropertyName("remaining_loaded_models")] string[] RemainingLoadedModels);
+        string ModelKind,
+        string ModelName,
+        string Device,
+        bool Closed,
+        bool CudaCacheCleared,
+        string[] RemainingLoadedModels);
 
     private sealed record LocalVectorRecord(
         string AssetUid,

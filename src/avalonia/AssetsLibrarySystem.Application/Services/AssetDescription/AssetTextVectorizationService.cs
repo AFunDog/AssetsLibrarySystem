@@ -18,7 +18,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
     private HttpClient Http { get; } = new();
     private JsonSerializerOptions JsonOptions { get; } = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -82,20 +82,20 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
     }
 
     private sealed record SearchIndexRequest(
-        [property: JsonPropertyName("asset_id")] string AssetId,
-        [property: JsonPropertyName("asset_name")] string AssetName,
-        [property: JsonPropertyName("asset_format")] string AssetType,
-        [property: JsonPropertyName("asset_path")] string AssetPath,
-        [property: JsonPropertyName("description")] string Description,
-        [property: JsonPropertyName("generated_at")] DateTimeOffset? GeneratedAt);
+        string AssetId,
+        string AssetName,
+        string AssetType,
+        string AssetPath,
+        string Description,
+        DateTimeOffset? GeneratedAt);
 
     private sealed record SearchIndexResponse(
-        [property: JsonPropertyName("asset_id")] string AssetId,
-        [property: JsonPropertyName("asset_name")] string AssetName,
-        [property: JsonPropertyName("asset_format")] string AssetFormat,
-        [property: JsonPropertyName("asset_path")] string AssetPath,
-        [property: JsonPropertyName("description")] string Description,
-        [property: JsonPropertyName("vector")] JsonElement Vector,
-        [property: JsonPropertyName("vector_dim")] int VectorDim,
-        [property: JsonPropertyName("embedding_model")] string EmbeddingModel);
+        string AssetId,
+        string AssetName,
+        string AssetFormat,
+        string AssetPath,
+        string Description,
+        JsonElement Vector,
+        int VectorDim,
+        string EmbeddingModel);
 }
