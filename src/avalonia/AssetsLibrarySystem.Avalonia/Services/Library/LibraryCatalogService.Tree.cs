@@ -500,16 +500,22 @@ public sealed partial class LibraryCatalogService
         Metrics.Clear();
 
         var totalAssets = AllAssets.Count;
-        var pendingModel = AllAssets.Count(asset => asset.AiState.Contains("待", StringComparison.Ordinal));
-        var recognizedTypes = AllAssets
-            .Select(asset => asset.AssetType)
-            .Distinct(StringComparer.Ordinal)
-            .Count();
+        var describedAssets = AllAssets.Count(asset => asset.IsDescribed);
+        var vectorizedAssets = AllAssets.Count(asset => asset.IsVectorized);
 
-        Metrics.Add(new DashboardMetric("本地素材库", Libraries.Count.ToString("D2"), "Avalonia 侧维护目录登记"));
-        Metrics.Add(new DashboardMetric("已扫描素材", totalAssets.ToString("D2"), "文本 | 图片 | 视频 | 音频"));
-        Metrics.Add(new DashboardMetric("待模型处理", pendingModel.ToString("D2"), "仅把提示词和推理请求交给 Python"));
-        Metrics.Add(new DashboardMetric("素材类型", recognizedTypes.ToString("D2"), "当前已识别的文件类型数量"));
+        Metrics.Add(new DashboardMetric("素材总数", totalAssets.ToString("D2"), $"{Libraries.Count} 个本地素材库"));
+        Metrics.Add(new DashboardMetric("文本", CountAssetsByType("文本").ToString("D2"), "已扫描的文本素材"));
+        Metrics.Add(new DashboardMetric("图片", CountAssetsByType("图片").ToString("D2"), "已扫描的图片素材"));
+        Metrics.Add(new DashboardMetric("视频", CountAssetsByType("视频").ToString("D2"), "已扫描的视频素材"));
+        Metrics.Add(new DashboardMetric("音频", CountAssetsByType("音频").ToString("D2"), "已扫描的音频素材"));
+        Metrics.Add(new DashboardMetric("已描述", describedAssets.ToString("D2"), $"{totalAssets - describedAssets} 个素材尚未描述"));
+        Metrics.Add(new DashboardMetric("已向量化", vectorizedAssets.ToString("D2"), $"{describedAssets - vectorizedAssets} 个描述待向量化"));
+        Metrics.Add(new DashboardMetric("待描述", (totalAssets - describedAssets).ToString("D2"), "可从素材库顶部批量派发"));
+    }
+
+    private int CountAssetsByType(string assetType)
+    {
+        return AllAssets.Count(asset => string.Equals(asset.AssetType, assetType, StringComparison.Ordinal));
     }
 
     private void SetEmptyWorkspaceState()

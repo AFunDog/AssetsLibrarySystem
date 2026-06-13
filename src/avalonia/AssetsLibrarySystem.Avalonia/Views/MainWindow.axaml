@@ -3,9 +3,9 @@
         xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
         xmlns:models="using:AssetsLibrarySystem.Application.Models"
         xmlns:pages="using:AssetsLibrarySystem.Avalonia.Views.Pages"
-        mc:Ignorable="d"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
         x:Class="AssetsLibrarySystem.Avalonia.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         d:DesignWidth="1440"
@@ -23,238 +23,68 @@
     </Design.DataContext>
 
     <Border Margin="4">
-        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
-            <Border Background="Transparent"
-                    BorderThickness="0"
-                    CornerRadius="0"
-                    Padding="0">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
-                    <Border WindowDecorationProperties.ElementRole="TitleBar"
-                            Background="Transparent"
-                            CornerRadius="0"
-                            Padding="12">
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <Border Background="{DynamicResource AppAccentSurfaceBrush}"
-                                    BorderBrush="{DynamicResource AppAccentBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="4"
-                                    Padding="4">
-                                <LucideIcon HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Margin="0"
-                                            Kind="LibraryBig" />
-                            </Border>
-                            <StackPanel Spacing="1" VerticalAlignment="Center">
-                                <TextBlock FontWeight="SemiBold"
-                                           FontSize="20"
-                                           Foreground="{DynamicResource AppTextBrush}"
-                                           Text="Assets Library System" />
-                                <Button Command="{Binding ToggleBackgroundTaskPanelCommand}"
-                                        IsVisible="{Binding HasTitleBarTask}"
-                                        Background="Transparent"
-                                        BorderBrush="Transparent"
-                                        BorderThickness="0"
-                                        CornerRadius="4"
-                                        Padding="0"
-                                        HorizontalAlignment="Left">
-                                    <Button.Styles>
-                                        <Style Selector="Button:pointerover">
-                                            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-                                        </Style>
-                                    </Button.Styles>
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <LucideIcon HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center"
-                                                    Kind="ListTodo"
-                                                    Size="12" />
-                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                   Text="{Binding TitleBarTaskText}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <StackPanel.Styles>
-                            <Style Selector="Button.window-control">
-                                <Setter Property="Width" Value="24" />
-                                <Setter Property="Height" Value="24" />
-                                <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="BorderBrush" Value="Transparent" />
-                                <Setter Property="BorderThickness" Value="0" />
-                                <Setter Property="CornerRadius" Value="4" />
-                                <Setter Property="Padding" Value="0" />
-                            </Style>
-                            <Style Selector="Button.window-control:pointerover">
-                                <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-                            </Style>
-                            <Style Selector="Button.window-control:pressed">
-                                <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
-                            </Style>
-                        </StackPanel.Styles>
-
-                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                            <Border Background="Transparent"
-                                    BorderThickness="0"
-                                    CornerRadius="0"
-                                    Padding="0">
-                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-
-                                    <LucideIcon HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                Margin="0"
-                                                Kind="Bot" />
-                                    <StackPanel Spacing="1">
-                                        <TextBlock FontWeight="SemiBold"
-                                                   Text="{Binding BackendStatusTitle}" />
-                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                   Text="{Binding BackendStatusStage}" />
-                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                   Text="{Binding BackendEndpoint}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-
-                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-
-                                <LucideIcon HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Margin="0"
-                                            Kind="Cpu" />
-
-                                <StackPanel Spacing="1">
-                                    <TextBlock FontWeight="SemiBold"
-                                               Text="{Binding SearchModelStatusTitle}" />
-                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                               Text="{Binding SearchModelStatusStage}" />
-                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                               Text="{Binding SearchModelStatusDetail}"
-                                               TextWrapping="NoWrap"
-                                               TextTrimming="CharacterEllipsis"
-                                               MaxWidth="280" />
-                                </StackPanel>
-                            </StackPanel>
-                        </StackPanel>
-
-                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                            <Button WindowDecorationProperties.ElementRole="MinimizeButton"
-                                    Classes="window-control"
-                                    Click="MinimizeWindow_Click">
-                                <LucideIcon HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Margin="0"
-                                            Kind="Minus" />
-                            </Button>
-                            <Button WindowDecorationProperties.ElementRole="MaximizeButton"
-                                    Classes="window-control"
-                                    Click="ToggleMaximizeWindow_Click">
-                                <LucideIcon HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Margin="0"
-                                            Size="16"
-                                            Kind="Square" />
-                            </Button>
-                            <Button WindowDecorationProperties.ElementRole="CloseButton"
-                                    Classes="window-control"
-                                    Click="CloseWindow_Click">
-                                <LucideIcon HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Margin="0"
-                                            Kind="X" />
-                            </Button>
-                        </StackPanel>
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <Border Grid.Row="1"
-                    IsVisible="{Binding IsBackgroundTaskPanelOpen}"
-                    Background="{DynamicResource AppSurfaceBrush}"
-                    BorderBrush="{DynamicResource AppBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="12">
-                <Grid RowDefinitions="Auto,*" RowSpacing="10">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <StackPanel Spacing="2">
-                            <TextBlock FontWeight="SemiBold"
-                                       Text="后台任务" />
-                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                       Text="显示当前正在执行的任务，并保留最近完成或失败的记录。" />
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Command="{Binding CloseBackgroundTaskPanelCommand}"
-                                Background="Transparent"
-                                BorderBrush="Transparent"
-                                BorderThickness="0"
+        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                <Border WindowDecorationProperties.ElementRole="TitleBar"
+                        Background="Transparent"
+                        Padding="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Border Background="{DynamicResource AppAccentSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppAccentBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
                                 Padding="4">
-                            <LucideIcon HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Kind="X"
-                                        Size="12" />
-                        </Button>
-                    </Grid>
+                            <LucideIcon Kind="LibraryBig" />
+                        </Border>
+                        <TextBlock FontWeight="SemiBold"
+                                   FontSize="18"
+                                   VerticalAlignment="Center"
+                                   Text="Assets Library System" />
+                    </StackPanel>
+                </Border>
 
-                    <ScrollViewer Grid.Row="1"
-                                  MaxHeight="260"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding BackgroundTasks}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="models:BackgroundTaskEntry">
-                                    <Border Margin="0,0,0,8"
-                                            Padding="10"
-                                            Background="{DynamicResource AppSoftSurfaceBrush}"
-                                            BorderBrush="{DynamicResource AppBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="6">
-                                        <StackPanel Spacing="4">
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                <TextBlock FontWeight="SemiBold"
-                                                           Text="{Binding Title}" />
-                                                <Border Grid.Column="1"
-                                                        Background="{DynamicResource AppAccentSurfaceBrush}"
-                                                        BorderBrush="{DynamicResource AppAccentBrush}"
-                                                        BorderThickness="1"
-                                                        CornerRadius="4"
-                                                        Padding="6,2">
-                                                    <TextBlock FontSize="12"
-                                                               Text="{Binding StatusText}" />
-                                                </Border>
-                                            </Grid>
-                                            <TextBlock Text="{Binding StageText}" />
-                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                       Text="{Binding DetailText}"
-                                                       TextWrapping="Wrap" />
-                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                       FontSize="12"
-                                                       Text="{Binding TimelineText}" />
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Grid>
-            </Border>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <StackPanel.Styles>
+                        <Style Selector="Button.window-control">
+                            <Setter Property="Width" Value="24" />
+                            <Setter Property="Height" Value="24" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderBrush" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="CornerRadius" Value="4" />
+                            <Setter Property="Padding" Value="0" />
+                        </Style>
+                        <Style Selector="Button.window-control:pointerover">
+                            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+                        </Style>
+                    </StackPanel.Styles>
+                    <Button WindowDecorationProperties.ElementRole="MinimizeButton"
+                            Classes="window-control"
+                            Click="MinimizeWindow_Click">
+                        <LucideIcon Kind="Minus" />
+                    </Button>
+                    <Button WindowDecorationProperties.ElementRole="MaximizeButton"
+                            Classes="window-control"
+                            Click="ToggleMaximizeWindow_Click">
+                        <LucideIcon Kind="Square" Size="16" />
+                    </Button>
+                    <Button WindowDecorationProperties.ElementRole="CloseButton"
+                            Classes="window-control"
+                            Click="CloseWindow_Click">
+                        <LucideIcon Kind="X" />
+                    </Button>
+                </StackPanel>
+            </Grid>
 
-            <TabControl Grid.Row="2"
+            <TabControl Grid.Row="1"
                         Classes="shell-tabs"
                         Background="Transparent"
                         TabStripPlacement="Left">
                 <TabControl.Styles>
-                    <Style Selector="TabControl.shell-tabs">
-                        <Setter Property="Background" Value="Transparent" />
-                    </Style>
                     <Style Selector="TabControl.shell-tabs > TabStrip">
                         <Setter Property="Width" Value="240" />
                         <Setter Property="Background" Value="Transparent" />
                         <Setter Property="Padding" Value="0,4,0,0" />
-                    </Style>
-                    <Style Selector="TabControl.shell-tabs > ContentPresenter">
-                        <Setter Property="Padding" Value="0" />
                     </Style>
                     <Style Selector="TabItem.nav-item">
                         <Setter Property="Foreground" Value="{DynamicResource AppMutedTextBrush}" />
@@ -262,7 +92,6 @@
                         <Setter Property="Padding" Value="8,6" />
                         <Setter Property="Margin" Value="0,0,0,4" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="VerticalContentAlignment" Value="Center" />
                     </Style>
                     <Style Selector="TabItem.nav-item /template/ Border#PART_Border">
                         <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
@@ -274,47 +103,31 @@
                         <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
                         <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
                     </Style>
-                    <Style Selector="TabItem.nav-item:pointerover /template/ Border#PART_Border">
-                        <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
-                    </Style>
-                    <Style Selector="TabItem.nav-item:selected Border.nav-icon">
-                        <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
-                        <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
-                    </Style>
                     <Style Selector="Border.nav-icon">
                         <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
                         <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
                         <Setter Property="BorderThickness" Value="1" />
                         <Setter Property="CornerRadius" Value="4" />
                         <Setter Property="Padding" Value="4" />
-                        <Setter Property="VerticalAlignment" Value="Center" />
-                        <Setter Property="HorizontalAlignment" Value="Center" />
                     </Style>
-                    <Style Selector="LucideIcon.nav-icon">
-                        <Setter Property="Margin" Value="4"></Setter>
-                    </Style>
-                    <Style Selector="TabItem.nav-item TextBlock.nav-title">
-                        <Setter Property="FontSize" Value="16"></Setter>
+                    <Style Selector="TextBlock.nav-title">
+                        <Setter Property="FontSize" Value="16" />
                         <Setter Property="FontWeight" Value="SemiBold" />
                         <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
                     </Style>
-                    <Style Selector="TabItem.nav-item TextBlock.nav-subtitle">
-                        <Setter Property="FontSize" Value="12"></Setter>
+                    <Style Selector="TextBlock.nav-subtitle">
+                        <Setter Property="FontSize" Value="12" />
                         <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
                     </Style>
                 </TabControl.Styles>
 
                 <TabItem Classes="nav-item">
                     <TabItem.Header>
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
-                            <Border Classes="nav-icon">
-                                <LucideIcon HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Kind="House" />
-                            </Border>
-                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <Border Classes="nav-icon"><LucideIcon Kind="House" /></Border>
+                            <StackPanel Grid.Column="1">
                                 <TextBlock Classes="nav-title" Text="概览" />
-                                <TextBlock Classes="nav-subtitle" Text="工作台总览" />
+                                <TextBlock Classes="nav-subtitle" Text="素材统计" />
                             </StackPanel>
                         </Grid>
                     </TabItem.Header>
@@ -323,15 +136,11 @@
 
                 <TabItem Classes="nav-item">
                     <TabItem.Header>
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
-                            <Border Classes="nav-icon">
-                                <LucideIcon HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Kind="LibraryBig" />
-                            </Border>
-                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <Border Classes="nav-icon"><LucideIcon Kind="LibraryBig" /></Border>
+                            <StackPanel Grid.Column="1">
                                 <TextBlock Classes="nav-title" Text="素材库" />
-                                <TextBlock Classes="nav-subtitle" Text="目录与队列" />
+                                <TextBlock Classes="nav-subtitle" Text="浏览与处理" />
                             </StackPanel>
                         </Grid>
                     </TabItem.Header>
@@ -340,30 +149,9 @@
 
                 <TabItem Classes="nav-item">
                     <TabItem.Header>
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
-                            <Border Classes="nav-icon">
-                                <LucideIcon HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Kind="BotMessageSquare" />
-                            </Border>
-                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
-                                <TextBlock Classes="nav-title" Text="描述任务" />
-                                <TextBlock Classes="nav-subtitle" Text="后端工作列表" />
-                            </StackPanel>
-                        </Grid>
-                    </TabItem.Header>
-                    <pages:DescriptionTasksPage DataContext="{Binding DescriptionTasksPage}" />
-                </TabItem>
-
-                <TabItem Classes="nav-item">
-                    <TabItem.Header>
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalAlignment="Center">
-                            <Border Classes="nav-icon">
-                                <LucideIcon HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Kind="Settings2" />
-                            </Border>
-                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <Border Classes="nav-icon"><LucideIcon Kind="Settings2" /></Border>
+                            <StackPanel Grid.Column="1">
                                 <TextBlock Classes="nav-title" Text="设置" />
                                 <TextBlock Classes="nav-subtitle" Text="模型与日志" />
                             </StackPanel>
@@ -372,6 +160,100 @@
                     <pages:SettingsPage DataContext="{Binding SettingsPage}" />
                 </TabItem>
             </TabControl>
+
+            <Border Grid.Row="2"
+                    Background="{DynamicResource AppSurfaceBrush}"
+                    BorderBrush="{DynamicResource AppBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="8,4">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <Button Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
+                            Padding="4">
+                        <Button.Flyout>
+                            <Flyout Placement="TopEdgeAlignedLeft">
+                                <StackPanel Spacing="8" MaxWidth="440">
+                                    <TextBlock FontWeight="SemiBold" Text="模型服务详情" />
+                                    <TextBlock Text="{Binding BackendStatusTitle}" />
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               Text="{Binding BackendStatusStage}" />
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding BackendEndpoint}" />
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding SearchModelStatusTitle}" />
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               Text="{Binding SearchModelStatusStage}" />
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SearchModelStatusDetail}" />
+                                </StackPanel>
+                            </Flyout>
+                        </Button.Flyout>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <LucideIcon Kind="Cpu" Size="14" />
+                            <TextBlock Text="{Binding SearchModelStatusTitle}" />
+                        </StackPanel>
+                    </Button>
+
+                    <TextBlock Grid.Column="1"
+                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                               VerticalAlignment="Center"
+                               Text="{Binding BackendStatusStage}" />
+
+                    <Button Grid.Column="2"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
+                            Padding="4">
+                        <Button.Flyout>
+                            <Flyout Placement="TopEdgeAlignedRight">
+                                <Grid RowDefinitions="Auto,*" RowSpacing="8" MinWidth="420">
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" Text="描述任务" />
+                                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                   Text="最近的描述任务与执行状态" />
+                                    </StackPanel>
+                                    <ScrollViewer Grid.Row="1" MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding DescriptionTasks}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="models:BackgroundTaskEntry">
+                                                    <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                                            BorderBrush="{DynamicResource AppBorderBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="4"
+                                                            Padding="8"
+                                                            Margin="0,0,0,4">
+                                                        <StackPanel Spacing="4">
+                                                            <Grid ColumnDefinitions="*,Auto">
+                                                                <TextBlock FontWeight="SemiBold" Text="{Binding StageText}" />
+                                                                <TextBlock Grid.Column="1" Text="{Binding StatusText}" />
+                                                            </Grid>
+                                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                       TextWrapping="Wrap"
+                                                                       Text="{Binding DetailText}" />
+                                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                       FontSize="12"
+                                                                       Text="{Binding TimelineText}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Flyout>
+                        </Button.Flyout>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <LucideIcon Kind="ListTodo" Size="14" />
+                            <TextBlock Text="{Binding LatestDescriptionTaskText}"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxWidth="360" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
         </Grid>
     </Border>
 </Window>

@@ -66,6 +66,12 @@ public sealed class ManagedAssetRecord : ObservableModel
         get => field;
         set => SetProperty(ref field, value);
     }
+
+    public bool IsVectorized
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
     public string Summary { get; init; } = string.Empty;
     public ObservableCollection<string> Tags { get; init; } = new();
     public string DescriptionStatusLabel => IsDescribed ? "已描述" : "未描述";

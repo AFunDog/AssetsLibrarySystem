@@ -88,14 +88,17 @@
                                    Text="中央用大图标浏览素材库、目录和文件，右键可定位位置或加入描述任务队列。" />
                     </StackPanel>
 
-                    <!-- <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"> -->
-                    <!--     <TextBlock Classes="eyebrow" Text="后端状态" /> -->
-                    <!--     <TextBlock Foreground="{DynamicResource AppTextBrush}" -->
-                    <!--                FontWeight="SemiBold" -->
-                    <!--                Text="{Binding BackendStatusTitle}" /> -->
-                    <!--     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
-                    <!--                Text="{Binding BackendStatusStage}" /> -->
-                    <!-- </StackPanel> -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <Button Classes="primary-action"
+                                Command="{Binding QueueDescriptionsForSelectionCommand}"
+                                Content="描述当前范围" />
+                        <Button Classes="secondary-action"
+                                Command="{Binding QueueSelectedDescriptionCommand}"
+                                Content="描述当前素材" />
+                        <Button Classes="secondary-action"
+                                Command="{Binding VectorizeDescriptionsCommand}"
+                                Content="批量向量化" />
+                    </StackPanel>
                 </Grid>
             </Border>
 

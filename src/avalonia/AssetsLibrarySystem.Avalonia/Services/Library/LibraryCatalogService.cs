@@ -316,6 +316,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
     {
         asset.Stage = document.Mode == "live" ? "已描述" : "已描述（占位）";
         asset.AiState = $"SQLite 已保存 · {document.Mode}";
+        asset.IsDescribed = true;
         Log.Information(
             "素材描述完成: assetUid={AssetUid}, assetName={AssetName}, storePath={StorePath}, mode={Mode}",
             asset.AssetUid,
@@ -337,6 +338,17 @@ public sealed partial class LibraryCatalogService : ObservableObject
         var databasePath = AssetDescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
         OperatorNotice = $"描述已写入 SQLite：{databasePath}";
         ActivityFeedService.Add($"描述完成：{asset.Name} -> {databasePath}");
+        RebuildMetrics();
+    }
+
+    public void MarkAssetVectorized(ManagedAssetRecord asset)
+    {
+        asset.IsVectorized = true;
+    }
+
+    public void RefreshMetrics()
+    {
+        RebuildMetrics();
     }
 
     public void FailAssetDescription(ManagedAssetRecord asset, string error)
@@ -362,6 +374,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
     public void RemoveAssetDescription(ManagedAssetRecord asset, bool vectorDeleted)
     {
         asset.IsDescribed = false;
+        asset.IsVectorized = false;
         asset.Stage = "已识别";
         asset.AiState = vectorDeleted ? "描述与向量已删除" : "描述已删除";
         Log.Information(
@@ -388,6 +401,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
             ? $"已删除 {asset.Name} 的描述和向量记录。"
             : $"已删除 {asset.Name} 的描述记录。";
         ActivityFeedService.Add(OperatorNotice);
+        RebuildMetrics();
     }
 
     public void SetOperatorNotice(string message)

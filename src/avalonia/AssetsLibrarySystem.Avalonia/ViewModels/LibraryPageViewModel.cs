@@ -24,6 +24,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
     private LibraryCatalogService LibraryCatalogService { get; }
     private IAssetSearchService? AssetSearchService { get; }
     private DescribeAssetsUseCase? DescribeAssetsUseCase { get; }
+    private VectorizeDescriptionsUseCase? VectorizeDescriptionsUseCase { get; }
     private DeleteAssetDescriptionUseCase? DeleteAssetDescriptionUseCase { get; }
     private RebuildSearchIndexUseCase? RebuildSearchIndexUseCase { get; }
 
@@ -31,6 +32,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         : this(
             new BackendSessionService(),
             new LibraryCatalogService(),
+            null,
             null,
             null,
             null,
@@ -44,6 +46,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         LibraryCatalogService libraryCatalogService,
         IAssetSearchService? assetSearchService,
         DescribeAssetsUseCase? describeAssetsUseCase,
+        VectorizeDescriptionsUseCase? vectorizeDescriptionsUseCase,
         DeleteAssetDescriptionUseCase? deleteAssetDescriptionUseCase,
         RebuildSearchIndexUseCase? rebuildSearchIndexUseCase,
         ActivityFeedService activityFeedService)
@@ -52,6 +55,7 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         LibraryCatalogService = libraryCatalogService;
         AssetSearchService = assetSearchService;
         DescribeAssetsUseCase = describeAssetsUseCase;
+        VectorizeDescriptionsUseCase = vectorizeDescriptionsUseCase;
         DeleteAssetDescriptionUseCase = deleteAssetDescriptionUseCase;
         RebuildSearchIndexUseCase = rebuildSearchIndexUseCase;
         ActivityFeed = activityFeedService.Entries;
@@ -67,6 +71,9 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         ScanSelectedLibraryCommand = new AsyncRelayCommand(() => LibraryCatalogService.ScanSelectedLibraryAsync());
         ExecuteSearchCommand = new AsyncRelayCommand(ExecuteSearchAsync);
         RebuildSearchIndexCommand = new AsyncRelayCommand(RebuildSearchIndexAsync);
+        QueueDescriptionsForSelectionCommand = new AsyncRelayCommand(QueueDescriptionsForSelectionAsync);
+        QueueSelectedDescriptionCommand = new AsyncRelayCommand(QueueSelectedDescriptionAsync);
+        VectorizeDescriptionsCommand = new AsyncRelayCommand(VectorizeDescriptionsAsync);
         DeleteSelectedDescriptionCommand = new AsyncRelayCommand(DeleteSelectedDescriptionAsync);
         OpenLibraryCommand = new RelayCommand<LibraryWorkspace?>(SelectLibrary);
         OpenExplorerItemCommand = new RelayCommand<AssetLibraryTreeNode?>(OpenExplorerItem);
@@ -139,6 +146,9 @@ public sealed partial class LibraryPageViewModel : ObservableObject
     public IAsyncRelayCommand ScanSelectedLibraryCommand { get; }
     public IAsyncRelayCommand ExecuteSearchCommand { get; }
     public IAsyncRelayCommand RebuildSearchIndexCommand { get; }
+    public IAsyncRelayCommand QueueDescriptionsForSelectionCommand { get; }
+    public IAsyncRelayCommand QueueSelectedDescriptionCommand { get; }
+    public IAsyncRelayCommand VectorizeDescriptionsCommand { get; }
     public IAsyncRelayCommand DeleteSelectedDescriptionCommand { get; }
     public IRelayCommand<LibraryWorkspace?> OpenLibraryCommand { get; }
     public IRelayCommand<AssetLibraryTreeNode?> OpenExplorerItemCommand { get; }
@@ -265,6 +275,77 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             assets.Count);
 
         await DescribeAssetsAsync(assets);
+    }
+
+    private async Task QueueDescriptionsForSelectionAsync()
+    {
+        var assets = LibraryCatalogService.GetDescriptionSelectionAssets();
+        if (assets.Count == 0)
+        {
+            LibraryCatalogService.SetOperatorNotice("当前范围内没有可描述的素材。");
+            return;
+        }
+
+        await DescribeAssetsAsync(assets);
+    }
+
+    private async Task QueueSelectedDescriptionAsync()
+    {
+        if (LibraryCatalogService.SelectedAsset is not { } asset)
+        {
+            LibraryCatalogService.SetOperatorNotice("请先选择一个素材。");
+            return;
+        }
+
+        await DescribeAssetsAsync([asset]);
+    }
+
+    private async Task VectorizeDescriptionsAsync()
+    {
+        var assets = LibraryCatalogService.GetAllLibraryAssets();
+        if (assets.Count == 0)
+        {
+            LibraryCatalogService.SetOperatorNotice("当前没有可向量化的素材。");
+            return;
+        }
+
+        if (!BackendSessionService.IsBackendReady)
+        {
+            LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
+            return;
+        }
+
+        if (VectorizeDescriptionsUseCase is null)
+        {
+            LibraryCatalogService.SetOperatorNotice("向量化服务未注册，当前无法执行批量向量化。");
+            return;
+        }
+
+        LibraryCatalogService.SetOperatorNotice($"正在增量向量化全部素材库：{assets.Count} 个素材");
+        try
+        {
+            var result = await VectorizeDescriptionsUseCase.ExecuteAsync(
+                assets,
+                BackendSessionService.BaseUrl,
+                progress =>
+                {
+                    if (progress.Kind == VectorizeDescriptionProgressKind.Completed)
+                    {
+                        LibraryCatalogService.MarkAssetVectorized(progress.Asset);
+                    }
+
+                    return Task.CompletedTask;
+                });
+
+            LibraryCatalogService.RefreshMetrics();
+            LibraryCatalogService.SetOperatorNotice(
+                $"批量向量化完成：成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}。");
+        }
+        catch (Exception ex)
+        {
+            LibraryCatalogService.SetOperatorNotice($"批量向量化失败：{ex.Message}");
+            Log.Error(ex, "批量向量化失败。");
+        }
     }
 
     public async Task DeleteDescriptionForNodeAsync(AssetLibraryTreeNode? node)

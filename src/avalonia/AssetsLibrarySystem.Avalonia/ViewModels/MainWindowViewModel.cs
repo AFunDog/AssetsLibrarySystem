@@ -2,15 +2,13 @@ using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
-using AssetsLibrarySystem.Avalonia.Models;
-using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 
 namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
@@ -28,7 +26,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
             new BackgroundTaskService(),
             new OverviewPageViewModel(),
             new LibraryPageViewModel(),
-            new DescriptionTasksPageViewModel(),
             new SettingsPageViewModel())
     {
     }
@@ -39,7 +36,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IBackgroundTaskService backgroundTaskService,
         OverviewPageViewModel overviewPage,
         LibraryPageViewModel libraryPage,
-        DescriptionTasksPageViewModel descriptionTasksPage,
         SettingsPageViewModel settingsPage)
     {
         BackendSessionService = backendSessionService;
@@ -47,26 +43,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
         BackgroundTaskService = backgroundTaskService;
         OverviewPage = overviewPage;
         LibraryPage = libraryPage;
-        DescriptionTasksPage = descriptionTasksPage;
         SettingsPage = settingsPage;
-
-        ToggleBackgroundTaskPanelCommand = new RelayCommand(ToggleBackgroundTaskPanel);
-        CloseBackgroundTaskPanelCommand = new RelayCommand(CloseBackgroundTaskPanel);
+        DescriptionTasks = [];
 
         BackgroundTaskService.PropertyChanged += OnBackgroundTaskServicePropertyChanged;
         BackgroundTaskService.Tasks.CollectionChanged += OnBackgroundTasksCollectionChanged;
         BackendSessionService.PropertyChanged += OnBackendSessionPropertyChanged;
 
-        TitleBarTaskText = BackgroundTaskService.ActiveTaskSummary;
-        HasTitleBarTask = BackgroundTaskService.HasActiveTaskSummary;
-        HasBackgroundTaskEntries = BackgroundTaskService.Tasks.Count > 0;
+        RefreshDescriptionTasks();
     }
 
     public OverviewPageViewModel OverviewPage { get; }
     public LibraryPageViewModel LibraryPage { get; }
-    public DescriptionTasksPageViewModel DescriptionTasksPage { get; }
     public SettingsPageViewModel SettingsPage { get; }
     public ObservableCollection<BackgroundTaskEntry> BackgroundTasks => BackgroundTaskService.Tasks;
+    public ObservableCollection<BackgroundTaskEntry> DescriptionTasks { get; }
 
     public string BackendStatusTitle => BackendSessionService.BackendStatusTitle;
     public string BackendStatusStage => BackendSessionService.BackendStatusStage;
@@ -76,19 +67,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public string SearchModelStatusDetail => BackendSessionService.SearchModelStatusDetail;
 
     [ObservableProperty]
-    public partial string TitleBarTaskText { get; set; } = string.Empty;
+    public partial string LatestDescriptionTaskText { get; set; } = "暂无描述任务";
 
     [ObservableProperty]
-    public partial bool HasTitleBarTask { get; set; }
-
-    [ObservableProperty]
-    public partial bool HasBackgroundTaskEntries { get; set; }
-
-    [ObservableProperty]
-    public partial bool IsBackgroundTaskPanelOpen { get; set; }
-
-    public IRelayCommand ToggleBackgroundTaskPanelCommand { get; }
-    public IRelayCommand CloseBackgroundTaskPanelCommand { get; }
+    public partial bool HasDescriptionTasks { get; set; }
 
     public async Task InitializeAsync()
     {
@@ -96,44 +78,61 @@ public sealed partial class MainWindowViewModel : ObservableObject
         await LibraryCatalogService.InitializeAsync();
     }
 
-    private void ToggleBackgroundTaskPanel()
-    {
-        if (BackgroundTaskService.Tasks.Count == 0)
-        {
-            return;
-        }
-
-        IsBackgroundTaskPanelOpen = !IsBackgroundTaskPanelOpen;
-    }
-
-    private void CloseBackgroundTaskPanel()
-    {
-        IsBackgroundTaskPanelOpen = false;
-    }
-
     private void OnBackgroundTaskServicePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(IBackgroundTaskService.ActiveTaskSummary))
-        {
-            TitleBarTaskText = BackgroundTaskService.ActiveTaskSummary;
-        }
-        else if (e.PropertyName == nameof(IBackgroundTaskService.HasActiveTaskSummary))
-        {
-            HasTitleBarTask = BackgroundTaskService.HasActiveTaskSummary;
-        }
+        RefreshDescriptionTaskSummary();
     }
 
     private void OnBackgroundTasksCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        HasBackgroundTaskEntries = BackgroundTaskService.Tasks.Count > 0;
-        if (BackgroundTaskService.Tasks.Count == 0)
+        if (e.OldItems is not null)
         {
-            IsBackgroundTaskPanelOpen = false;
+            foreach (BackgroundTaskEntry task in e.OldItems)
+            {
+                task.PropertyChanged -= OnDescriptionTaskPropertyChanged;
+            }
         }
+
+        if (e.NewItems is not null)
+        {
+            foreach (BackgroundTaskEntry task in e.NewItems)
+            {
+                task.PropertyChanged += OnDescriptionTaskPropertyChanged;
+            }
+        }
+
+        RefreshDescriptionTasks();
     }
 
     private void OnBackendSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         OnPropertyChanged(e.PropertyName);
+    }
+
+    private void OnDescriptionTaskPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        RefreshDescriptionTaskSummary();
+    }
+
+    private void RefreshDescriptionTasks()
+    {
+        DescriptionTasks.Clear();
+        foreach (var task in BackgroundTaskService.Tasks.Where(task =>
+                     string.Equals(task.Title, "素材描述", StringComparison.Ordinal)))
+        {
+            task.PropertyChanged -= OnDescriptionTaskPropertyChanged;
+            task.PropertyChanged += OnDescriptionTaskPropertyChanged;
+            DescriptionTasks.Add(task);
+        }
+
+        RefreshDescriptionTaskSummary();
+    }
+
+    private void RefreshDescriptionTaskSummary()
+    {
+        HasDescriptionTasks = DescriptionTasks.Count > 0;
+        LatestDescriptionTaskText = DescriptionTasks.Count == 0
+            ? "暂无描述任务"
+            : $"{DescriptionTasks[0].StageText} · {DescriptionTasks[0].StatusText}";
     }
 }

@@ -168,9 +168,6 @@ public partial class App : global::Avalonia.Application
         builder.RegisterType<LibraryPageViewModel>()
             .AsSelf()
             .SingleInstance();
-        builder.RegisterType<DescriptionTasksPageViewModel>()
-            .AsSelf()
-            .SingleInstance();
         builder.RegisterType<SettingsPageViewModel>()
             .AsSelf()
             .SingleInstance();

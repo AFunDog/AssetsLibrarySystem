@@ -377,6 +377,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         }
 
         var isDescribed = descriptionTableExists && HasDescription(connection, assetRecord.AssetUid, normalizedPath, assetRecord.ContentHash);
+        var isVectorized = HasVector(connection, assetRecord.AssetUid);
         var metadataTags = ReadMetadataTags(connection, assetRecord.AssetUid);
         var tags = BuildTags(assetType, extension, metadataTags);
         var summary = BuildSummary(assetType, fileInfo.Length, fileInfo.LastWriteTime, assetRecord.AssetUid, assetRecord.Status);
@@ -396,6 +397,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             ModifiedTimeUtc = fileInfo.LastWriteTimeUtc,
             HasUidSidecar = hasUidSidecar,
             IsDescribed = isDescribed,
+            IsVectorized = isVectorized,
             Summary = summary,
             Tags = new(tags),
             Stage = stage,
@@ -694,6 +696,19 @@ public sealed class AssetLibraryService : IAssetLibraryService
         AddParameter(command, "$current_path", currentPath);
         AddParameter(command, "$content_hash", contentHash ?? string.Empty);
 
+        return command.ExecuteScalar() is not null;
+    }
+
+    private static bool HasVector(SqliteConnection connection, string assetUid)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT 1
+            FROM asset_description_vectors
+            WHERE asset_id = $asset_uid
+            LIMIT 1;
+            """;
+        AddParameter(command, "$asset_uid", assetUid);
         return command.ExecuteScalar() is not null;
     }
 

@@ -1,8 +1,6 @@
 using System.ComponentModel;
 using System.Collections.ObjectModel;
 using AssetsLibrarySystem.Application.Models;
-using AssetsLibrarySystem.Avalonia.Models;
-using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -16,20 +14,17 @@ public sealed class OverviewPageViewModel : ObservableObject
     private LibraryCatalogService LibraryCatalogService { get; }
 
     public OverviewPageViewModel()
-        : this(new BackendSessionService(), new LibraryCatalogService(), new ActivityFeedService())
+        : this(new BackendSessionService(), new LibraryCatalogService())
     {
     }
 
     public OverviewPageViewModel(
         BackendSessionService backendSessionService,
-        LibraryCatalogService libraryCatalogService,
-        ActivityFeedService activityFeedService)
+        LibraryCatalogService libraryCatalogService)
     {
         BackendSessionService = backendSessionService;
         LibraryCatalogService = libraryCatalogService;
-        ActivityFeed = activityFeedService.Entries;
         RefreshWorkspaceCommand = new AsyncRelayCommand(() => LibraryCatalogService.RefreshSelectedLibraryAsync());
-        MarkManagedCommand = new RelayCommand(LibraryCatalogService.MarkSelectedAssetManaged);
 
         BackendSessionService.PropertyChanged += OnDependencyPropertyChanged;
         LibraryCatalogService.PropertyChanged += OnDependencyPropertyChanged;
@@ -44,16 +39,7 @@ public sealed class OverviewPageViewModel : ObservableObject
     public string WorkspaceSummary => LibraryCatalogService.WorkspaceSummary;
     public string AssetSummary => LibraryCatalogService.AssetSummary;
     public string OperatorNotice => LibraryCatalogService.OperatorNotice;
-    public string SelectedAssetName => LibraryCatalogService.SelectedAssetName;
-    public string SelectedAssetLibrary => LibraryCatalogService.SelectedAssetLibrary;
-    public string SelectedAssetPath => LibraryCatalogService.SelectedAssetPath;
-    public string SelectedAssetType => LibraryCatalogService.SelectedAssetType;
-    public string SelectedAssetStage => LibraryCatalogService.SelectedAssetStage;
-    public string SelectedAssetAiState => LibraryCatalogService.SelectedAssetAiState;
-    public string SelectedAssetDetail => LibraryCatalogService.SelectedAssetDetail;
-    public ObservableCollection<string> ActivityFeed { get; }
     public IAsyncRelayCommand RefreshWorkspaceCommand { get; }
-    public IRelayCommand MarkManagedCommand { get; }
 
     private void OnDependencyPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
