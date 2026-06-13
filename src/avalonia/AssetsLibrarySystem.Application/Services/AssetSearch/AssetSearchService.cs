@@ -43,18 +43,26 @@ public sealed class AssetSearchService : IAssetSearchService
         int candidateTopK = 20,
         int finalTopK = 5,
         string? assetFormat = null,
+        int expandedCandidateTopK = 160,
+        int rerankTopK = 50,
         CancellationToken ct = default)
     {
         var stopwatch = Stopwatch.StartNew();
         var normalizedQuery = query.Trim();
-        var normalizedAssetFormat = NormalizeAssetFormat(normalizedQuery, assetFormat);
-        var assetFormatMode = ResolveAssetFormatMode(assetFormat);
-        var searchModels = SearchModelOptionsProvider.Current;
-        var embeddingModelKey = searchModels.EmbeddingModelKey;
         if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
             throw new InvalidOperationException("搜索词不能为空。");
         }
+
+        candidateTopK = NormalizePositive(candidateTopK, 20, 1, 500);
+        finalTopK = Math.Min(NormalizePositive(finalTopK, 5, 1, 100), candidateTopK);
+        expandedCandidateTopK = Math.Max(NormalizePositive(expandedCandidateTopK, 160, 1, 5000), candidateTopK);
+        rerankTopK = NormalizePositive(rerankTopK, 50, 1, 1000);
+
+        var normalizedAssetFormat = NormalizeAssetFormat(normalizedQuery, assetFormat);
+        var assetFormatMode = ResolveAssetFormatMode(assetFormat);
+        var searchModels = SearchModelOptionsProvider.Current;
+        var embeddingModelKey = searchModels.EmbeddingModelKey;
 
         var records = await LoadVectorRecordsAsync(embeddingModelKey, ct).ConfigureAwait(false);
         if (records.Count == 0)
@@ -69,15 +77,15 @@ public sealed class AssetSearchService : IAssetSearchService
             throw new InvalidOperationException("后端返回的查询向量为空。");
         }
 
-        var filteredRecords = records
+        var indexRecords = records
             .Where(record => normalizedAssetFormat is null || string.Equals(record.AssetType, normalizedAssetFormat, StringComparison.Ordinal))
             .ToList();
-        if (filteredRecords.Count == 0)
+        if (indexRecords.Count == 0)
         {
             throw new InvalidOperationException("未找到符合条件的素材。");
         }
 
-        var indexRecords = filteredRecords;
+        var effectiveExpandedCandidateTopK = Math.Min(indexRecords.Count, expandedCandidateTopK);
         var indexManager = new LocalHnswSearchIndexManager(embeddingModelKey);
         var state = BuildIndexState(indexRecords);
         var useExactSearch = indexRecords.Count <= ExactSearchThreshold;
@@ -89,26 +97,24 @@ public sealed class AssetSearchService : IAssetSearchService
                 state);
         }
 
-        var expandedCandidateTopK = Math.Min(
-            indexRecords.Count,
-            Math.Max(candidateTopK * 8, Math.Max(candidateTopK, 50)));
         var searchStrategy = useExactSearch ? "ExactCosine" : "Hnsw";
-
         Log.Information(
-            "素材搜索过滤: query={Query}, assetFormatMode={AssetFormatMode}, assetFormat={AssetFormat}, totalRecords={TotalRecords}, searchRecords={SearchRecords}, candidateTopK={CandidateTopK}, expandedCandidateTopK={ExpandedCandidateTopK}, finalTopK={FinalTopK}, searchStrategy={SearchStrategy}",
+            "素材搜索过滤: query={Query}, assetFormatMode={AssetFormatMode}, assetFormat={AssetFormat}, totalRecords={TotalRecords}, searchRecords={SearchRecords}, candidateTopK={CandidateTopK}, expandedCandidateTopK={ExpandedCandidateTopK}, finalTopK={FinalTopK}, rerankTopK={RerankTopK}, searchStrategy={SearchStrategy}",
             normalizedQuery,
             assetFormatMode,
             normalizedAssetFormat ?? "(all)",
             records.Count,
             indexRecords.Count,
             candidateTopK,
-            expandedCandidateTopK,
+            effectiveExpandedCandidateTopK,
             finalTopK,
+            rerankTopK,
             searchStrategy);
 
         IReadOnlyList<(int Index, float Similarity)> searchResults = useExactSearch
-            ? SearchExact(indexRecords, queryVector, expandedCandidateTopK)
-            : indexManager.Search(queryVector, expandedCandidateTopK);
+            ? SearchExact(indexRecords, queryVector, effectiveExpandedCandidateTopK)
+            : indexManager.Search(queryVector, effectiveExpandedCandidateTopK);
+
         var vectorCandidates = new List<VectorCandidateRecord>(searchResults.Count);
         foreach (var (index, similarity) in searchResults)
         {
@@ -118,13 +124,13 @@ public sealed class AssetSearchService : IAssetSearchService
             }
 
             var record = indexRecords[index];
-
             vectorCandidates.Add(new VectorCandidateRecord(
                 CandidateId: $"{record.AssetUid}::{record.AngleType}",
                 Record: record,
                 EmbeddingSimilarity: similarity,
                 VectorDistance: Math.Max(0f, 1f - similarity)));
-            if (vectorCandidates.Count >= candidateTopK * 8)
+
+            if (vectorCandidates.Count >= effectiveExpandedCandidateTopK)
             {
                 break;
             }
@@ -136,7 +142,7 @@ public sealed class AssetSearchService : IAssetSearchService
         }
 
         var rerankCandidates = vectorCandidates
-            .Take(Math.Min(vectorCandidates.Count, 50))
+            .Take(Math.Min(vectorCandidates.Count, rerankTopK))
             .ToList();
         var rerankResponse = await RerankAsync(
             backendBaseUrl,
@@ -194,7 +200,7 @@ public sealed class AssetSearchService : IAssetSearchService
             queryVectorResponse.TokenUsage,
             rerankResponse.TokenUsage,
             candidateTopK,
-            expandedCandidateTopK,
+            effectiveExpandedCandidateTopK,
             finalTopK,
             vectorCandidates.Count,
             rerankCandidates.Count,
@@ -216,7 +222,7 @@ public sealed class AssetSearchService : IAssetSearchService
             SearchStrategy: searchStrategy,
             TotalVectorRecordCount: records.Count,
             FilteredVectorRecordCount: indexRecords.Count,
-            ExpandedCandidateTopK: expandedCandidateTopK,
+            ExpandedCandidateTopK: effectiveExpandedCandidateTopK,
             VectorCandidateCount: vectorCandidates.Count,
             RerankCandidateCount: rerankCandidates.Count,
             ReturnedCount: aggregatedResults.Length,
@@ -376,7 +382,7 @@ public sealed class AssetSearchService : IAssetSearchService
         CancellationToken ct)
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/query";
-        var requestedTopK = Math.Min(rerankTopK, Math.Min(candidates.Count, 50));
+        var requestedTopK = Math.Min(rerankTopK, candidates.Count);
         var request = new SearchQueryRequest(
             Provider: searchModels.RerankProvider,
             Model: searchModels.RerankModel,
@@ -466,7 +472,7 @@ public sealed class AssetSearchService : IAssetSearchService
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/warmup/{modelKind}";
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
-        using var response = await Http.PostAsync(endpoint, ct).ConfigureAwait(false);
+        using var response = await Http.PostAsync(endpoint, content, ct).ConfigureAwait(false);
         var responseText = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
@@ -486,36 +492,13 @@ public sealed class AssetSearchService : IAssetSearchService
     private static string? NormalizeAssetFormat(string query, string? explicitAssetFormat)
     {
         var mode = ResolveAssetFormatMode(explicitAssetFormat);
-        if (mode == "all")
-        {
-            return null;
-        }
+        if (mode == "all") return null;
+        if (mode == "explicit") return explicitAssetFormat!.Trim();
 
-        if (mode == "explicit")
-        {
-            return explicitAssetFormat!.Trim();
-        }
-
-        if (ContainsAny(query, "图片", "图像", "照片", "插画", "壁纸", "立绘", "截图"))
-        {
-            return "图片";
-        }
-
-        if (ContainsAny(query, "音频", "音乐", "歌曲", "BGM", "bgm", "配乐", "声音"))
-        {
-            return "音频";
-        }
-
-        if (ContainsAny(query, "视频", "动画", "片段", "镜头", "录像"))
-        {
-            return "视频";
-        }
-
-        if (ContainsAny(query, "文本", "文档", "剧本", "台词", "字幕"))
-        {
-            return "文本";
-        }
-
+        if (ContainsAny(query, "图片", "图像", "照片", "插画", "壁纸", "立绘", "截图")) return "图片";
+        if (ContainsAny(query, "音频", "音乐", "歌曲", "BGM", "bgm", "配乐", "声音")) return "音频";
+        if (ContainsAny(query, "视频", "动画", "片段", "镜头", "录像")) return "视频";
+        if (ContainsAny(query, "文本", "文档", "剧本", "台词", "字幕")) return "文本";
         return null;
     }
 
@@ -531,14 +514,20 @@ public sealed class AssetSearchService : IAssetSearchService
             : "explicit";
     }
 
-    private static bool ContainsAny(string text, params string[] keywords)
-    {
-        return keywords.Any(keyword => text.Contains(keyword, StringComparison.OrdinalIgnoreCase));
-    }
+    private static bool ContainsAny(string text, params string[] keywords) =>
+        keywords.Any(keyword => text.Contains(keyword, StringComparison.OrdinalIgnoreCase));
 
-    private static int? SumTokenUsage(int? left, int? right)
+    private static int? SumTokenUsage(int? left, int? right) =>
+        left is null && right is null ? null : (left ?? 0) + (right ?? 0);
+
+    private static int NormalizePositive(int value, int fallback, int min, int max)
     {
-        return left is null && right is null ? null : (left ?? 0) + (right ?? 0);
+        if (value <= 0)
+        {
+            return fallback;
+        }
+
+        return Math.Clamp(value, min, max);
     }
 
     private static float[] DeserializeVector(byte[] bytes, int expectedDim)
@@ -555,11 +544,7 @@ public sealed class AssetSearchService : IAssetSearchService
 
     private static string[] DeserializeTags(string? tagsJson)
     {
-        if (string.IsNullOrWhiteSpace(tagsJson))
-        {
-            return [];
-        }
-
+        if (string.IsNullOrWhiteSpace(tagsJson)) return [];
         try
         {
             return JsonSerializer.Deserialize<string[]>(tagsJson) ?? [];
@@ -581,11 +566,7 @@ public sealed class AssetSearchService : IAssetSearchService
 
     private static float[] NormalizeScores(IReadOnlyList<float> scores)
     {
-        if (scores.Count == 0)
-        {
-            return [];
-        }
-
+        if (scores.Count == 0) return [];
         var minScore = scores.Min();
         var maxScore = scores.Max();
         if (Math.Abs(maxScore - minScore) < float.Epsilon)
@@ -627,8 +608,7 @@ public sealed class AssetSearchService : IAssetSearchService
         {
             var selectedCandidates = assetCandidates.Values.ToArray();
             var bestCandidate = selectedCandidates.OrderByDescending(item => item.CombinedScore).First();
-            var displayCandidate = selectedCandidates.FirstOrDefault(item => item.Record.AngleType == "全面")
-                ?? bestCandidate;
+            var displayCandidate = selectedCandidates.FirstOrDefault(item => item.Record.AngleType == "全面") ?? bestCandidate;
 
             var result = new AssetSearchDocument(
                 assetUid: displayCandidate.Record.AssetUid,
@@ -653,16 +633,9 @@ public sealed class AssetSearchService : IAssetSearchService
             .ToList();
     }
 
-    private static IReadOnlyList<(int Index, float Similarity)> SearchExact(
-        IReadOnlyList<LocalVectorRecord> records,
-        float[] queryVector,
-        int topK)
+    private static IReadOnlyList<(int Index, float Similarity)> SearchExact(IReadOnlyList<LocalVectorRecord> records, float[] queryVector, int topK)
     {
-        if (records.Count == 0 || topK <= 0)
-        {
-            return [];
-        }
-
+        if (records.Count == 0 || topK <= 0) return [];
         return records
             .Select((record, index) => (Index: index, Similarity: CosineSimilarity(queryVector, record.Vector)))
             .OrderByDescending(item => item.Similarity)
@@ -687,24 +660,12 @@ public sealed class AssetSearchService : IAssetSearchService
             rightNorm += right[index] * right[index];
         }
 
-        if (leftNorm <= float.Epsilon || rightNorm <= float.Epsilon)
-        {
-            return 0f;
-        }
-
+        if (leftNorm <= float.Epsilon || rightNorm <= float.Epsilon) return 0f;
         var denominator = MathF.Sqrt(leftNorm) * MathF.Sqrt(rightNorm);
-        if (denominator <= float.Epsilon)
-        {
-            return 0f;
-        }
-
-        return dot / denominator;
+        return denominator <= float.Epsilon ? 0f : dot / denominator;
     }
 
-    private static string BuildVectorKey(LocalVectorRecord record)
-    {
-        return $"{record.AssetUid}::{record.AngleType}";
-    }
+    private static string BuildVectorKey(LocalVectorRecord record) => $"{record.AssetUid}::{record.AngleType}";
 
     private sealed record SearchIndexRequest(
         string Provider,
@@ -752,15 +713,9 @@ public sealed class AssetSearchService : IAssetSearchService
         SearchQueryResult[] Results,
         int? TokenUsage);
 
-    private sealed record SearchQueryResult(
-        string? CandidateId,
-        float RerankScore);
+    private sealed record SearchQueryResult(string? CandidateId, float RerankScore);
 
-    private sealed record SearchWarmupResponse(
-        string ModelKind,
-        string ModelName,
-        string Device,
-        bool Warmed);
+    private sealed record SearchWarmupResponse(string ModelKind, string ModelName, string Device, bool Warmed);
 
     private sealed record SearchModelStatusResponse(
         string EmbeddingModelName,
