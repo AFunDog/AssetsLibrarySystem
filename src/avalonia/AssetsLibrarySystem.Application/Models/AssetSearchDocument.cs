@@ -62,8 +62,20 @@ public sealed record AssetSearchResponseDocument(
     int CandidateTopK,
     int FinalTopK,
     string? AssetFormat,
+    string AssetFormatMode,
     string EmbeddingModel,
     string RerankModel,
+    string SearchStrategy,
+    int TotalVectorRecordCount,
+    int FilteredVectorRecordCount,
+    int ExpandedCandidateTopK,
+    int VectorCandidateCount,
+    int RerankCandidateCount,
+    int ReturnedCount,
+    double ElapsedMs,
+    int? EmbeddingTokenUsage,
+    int? RerankTokenUsage,
+    int? TotalTokenUsage,
     AssetSearchDocument[] Results);
 
 public sealed record AssetReindexResponseDocument(
