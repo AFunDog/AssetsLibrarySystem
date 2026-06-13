@@ -29,10 +29,15 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
         string backendBaseUrl,
         string provider,
         string model,
+        int embeddingDimensions,
+        string embeddingModelKey,
         CancellationToken ct = default)
     {
         var segments = StructuredDescriptionHelper.ExtractSegments(document.Description);
         var vectorDocuments = new List<AssetDescriptionVectorDocument>(segments.Count);
+        var requestedDimensions = string.Equals(provider, "dashscope", StringComparison.OrdinalIgnoreCase)
+            ? embeddingDimensions
+            : (int?)null;
         foreach (var segment in segments)
         {
             if (string.IsNullOrWhiteSpace(segment.NormalizedText))
@@ -43,6 +48,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
             var request = new SearchIndexRequest(
                 Provider: provider,
                 Model: model,
+                EmbeddingDimensions: requestedDimensions,
                 AssetId: document.AssetUid,
                 AssetName: document.AssetName,
                 AssetFormat: document.AssetType,
@@ -71,7 +77,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
                 AssetId: document.AssetId,
                 AssetUid: vectorResponse.AssetId,
                 AngleType: segment.NormalizedAngleType,
-                EmbeddingModel: vectorResponse.EmbeddingModel,
+                EmbeddingModel: embeddingModelKey,
                 VectorDim: vectorResponse.VectorDim,
                 Vector: JsonSerializer.Deserialize<float[]>(vectorResponse.Vector.GetRawText(), JsonOptions) ?? [],
                 VectorizedAt: DateTimeOffset.UtcNow,
@@ -89,6 +95,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
     private sealed record SearchIndexRequest(
         string Provider,
         string Model,
+        int? EmbeddingDimensions,
         string AssetId,
         string AssetName,
         string AssetFormat,
