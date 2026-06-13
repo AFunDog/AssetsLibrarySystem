@@ -89,6 +89,18 @@ public sealed class UserSettingsService : IUserSettingsService
         }
     } = "text-embedding-v4";
 
+    public int EmbeddingDimensions
+    {
+        get => field;
+        set
+        {
+            value = SearchModelOptions.NormalizeEmbeddingDimensions(value);
+            if (field == value) return;
+            field = value;
+            SaveIfReady();
+        }
+    } = 1024;
+
     public string RerankProvider
     {
         get => field;
@@ -113,7 +125,7 @@ public sealed class UserSettingsService : IUserSettingsService
         }
     } = "qwen3-rerank";
 
-    public SearchModelOptions Current => new(EmbeddingProvider, EmbeddingModel, RerankProvider, RerankModel);
+    public SearchModelOptions Current => new(EmbeddingProvider, EmbeddingModel, EmbeddingDimensions, RerankProvider, RerankModel);
 
     private static string CreateFallbackSettingsPath()
     {
@@ -153,13 +165,15 @@ public sealed class UserSettingsService : IUserSettingsService
             AutoWarmupRerankModel = snapshot.AutoWarmupRerankModel;
             EmbeddingProvider = snapshot.EmbeddingProvider;
             EmbeddingModel = snapshot.EmbeddingModel;
+            EmbeddingDimensions = snapshot.EmbeddingDimensions;
             RerankProvider = snapshot.RerankProvider;
             RerankModel = snapshot.RerankModel;
             Log.Debug(
-                "用户设置已加载: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}",
+                "用户设置已加载: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}, embeddingDimensions={EmbeddingDimensions}",
                 SettingsPath,
                 AutoWarmupEmbeddingModel,
-                AutoWarmupRerankModel);
+                AutoWarmupRerankModel,
+                EmbeddingDimensions);
         }
         catch (Exception ex)
         {
@@ -189,6 +203,7 @@ public sealed class UserSettingsService : IUserSettingsService
                 AutoWarmupRerankModel = AutoWarmupRerankModel,
                 EmbeddingProvider = EmbeddingProvider,
                 EmbeddingModel = EmbeddingModel,
+                EmbeddingDimensions = EmbeddingDimensions,
                 RerankProvider = RerankProvider,
                 RerankModel = RerankModel,
             };
@@ -196,10 +211,11 @@ public sealed class UserSettingsService : IUserSettingsService
             var json = JsonSerializer.Serialize(snapshot, JsonOptions);
             File.WriteAllText(SettingsPath, json);
             Log.Information(
-                "用户设置已保存: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}",
+                "用户设置已保存: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}, embeddingDimensions={EmbeddingDimensions}",
                 SettingsPath,
                 AutoWarmupEmbeddingModel,
-                AutoWarmupRerankModel);
+                AutoWarmupRerankModel,
+                EmbeddingDimensions);
         }
         catch (Exception ex)
         {
@@ -216,6 +232,8 @@ public sealed class UserSettingsService : IUserSettingsService
         public string EmbeddingProvider { get; set; } = "dashscope";
 
         public string EmbeddingModel { get; set; } = "text-embedding-v4";
+
+        public int EmbeddingDimensions { get; set; } = 1024;
 
         public string RerankProvider { get; set; } = "dashscope";
 
