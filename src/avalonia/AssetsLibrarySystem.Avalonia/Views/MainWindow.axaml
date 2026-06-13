@@ -211,12 +211,12 @@
                             <Flyout Placement="TopEdgeAlignedRight">
                                 <Grid RowDefinitions="Auto,*" RowSpacing="8" MinWidth="420">
                                     <StackPanel>
-                                        <TextBlock FontWeight="SemiBold" Text="描述任务" />
+                                        <TextBlock FontWeight="SemiBold" Text="后台任务" />
                                         <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                   Text="最近的描述任务与执行状态" />
+                                                   Text="描述、向量化、索引刷新与素材库扫描等异步任务" />
                                     </StackPanel>
                                     <ScrollViewer Grid.Row="1" MaxHeight="320" VerticalScrollBarVisibility="Auto">
-                                        <ItemsControl ItemsSource="{Binding DescriptionTasks}">
+                                        <ItemsControl ItemsSource="{Binding BackgroundTasks}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="models:BackgroundTaskEntry">
                                                     <Border Background="{DynamicResource AppSoftSurfaceBrush}"
@@ -227,7 +227,11 @@
                                                             Margin="0,0,0,4">
                                                         <StackPanel Spacing="4">
                                                             <Grid ColumnDefinitions="*,Auto">
-                                                                <TextBlock FontWeight="SemiBold" Text="{Binding StageText}" />
+                                                                <StackPanel>
+                                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                               Text="{Binding StageText}" />
+                                                                </StackPanel>
                                                                 <TextBlock Grid.Column="1" Text="{Binding StatusText}" />
                                                             </Grid>
                                                             <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
@@ -247,7 +251,7 @@
                         </Button.Flyout>
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <LucideIcon Kind="ListTodo" Size="14" />
-                            <TextBlock Text="{Binding LatestDescriptionTaskText}"
+                            <TextBlock Text="{Binding LatestBackgroundTaskText}"
                                        TextTrimming="CharacterEllipsis"
                                        MaxWidth="360" />
                         </StackPanel>
