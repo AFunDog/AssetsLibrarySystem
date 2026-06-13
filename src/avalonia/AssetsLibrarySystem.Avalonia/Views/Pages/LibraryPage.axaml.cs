@@ -63,6 +63,18 @@ public partial class LibraryPage : UserControl
         await viewModel.QueueDescriptionForNodeAsync(node);
     }
 
+    private async void VectorizeDescriptionsForNode_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem ||
+            menuItem.CommandParameter is not AssetLibraryTreeNode node ||
+            DataContext is not LibraryPageViewModel viewModel)
+        {
+            return;
+        }
+
+        await viewModel.VectorizeDescriptionsForNodeAsync(node);
+    }
+
     private async void DeleteDescriptionForNode_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem menuItem ||
