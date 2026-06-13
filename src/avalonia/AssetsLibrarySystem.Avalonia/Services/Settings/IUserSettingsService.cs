@@ -17,4 +17,12 @@ public interface IUserSettingsService : ISearchModelOptionsProvider
     string RerankProvider { get; set; }
 
     string RerankModel { get; set; }
+
+    int SearchCandidateTopK { get; set; }
+
+    int SearchExpandedCandidateTopK { get; set; }
+
+    int SearchRerankTopK { get; set; }
+
+    int SearchFinalTopK { get; set; }
 }
