@@ -73,6 +73,34 @@ public sealed class AssetSearchModule : Module
 {
     protected override void Load(ContainerBuilder builder)
     {
+        builder.RegisterType<SearchParameterNormalizer>()
+            .As<ISearchParameterNormalizer>()
+            .SingleInstance();
+
+        builder.RegisterType<AssetFormatResolver>()
+            .As<IAssetFormatResolver>()
+            .SingleInstance();
+
+        builder.RegisterType<VectorRecordRepository>()
+            .As<IVectorRecordRepository>()
+            .SingleInstance();
+
+        builder.RegisterType<AssetSearchBackendClient>()
+            .As<IAssetSearchBackendClient>()
+            .SingleInstance();
+
+        builder.RegisterType<VectorCandidateRetriever>()
+            .As<IVectorCandidateRetriever>()
+            .SingleInstance();
+
+        builder.RegisterType<ScoreFusionService>()
+            .As<IScoreFusionService>()
+            .SingleInstance();
+
+        builder.RegisterType<SearchResultAggregator>()
+            .As<ISearchResultAggregator>()
+            .SingleInstance();
+
         builder.RegisterType<AssetSearchService>()
             .As<IAssetSearchService>()
             .SingleInstance();
