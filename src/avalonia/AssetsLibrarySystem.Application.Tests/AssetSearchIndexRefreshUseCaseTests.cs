@@ -113,6 +113,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             {
                 ["SearchModels:EmbeddingProvider"] = "local",
                 ["SearchModels:EmbeddingModel"] = "bge-test",
+                ["SearchModels:EmbeddingDimensions"] = "1024",
                 ["SearchModels:RerankProvider"] = "local",
                 ["SearchModels:RerankModel"] = "rerank-test",
             })
@@ -269,6 +270,8 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             string backendBaseUrl,
             string provider,
             string model,
+            int embeddingDimensions,
+            string embeddingModelKey,
             CancellationToken ct = default)
         {
             if (ResultsByAssetId.TryGetValue(document.AssetUid, out var documents))
