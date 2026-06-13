@@ -12,6 +12,8 @@ public interface IAssetSearchService
         int candidateTopK = 20,
         int finalTopK = 5,
         string? assetFormat = null,
+        int expandedCandidateTopK = 160,
+        int rerankTopK = 50,
         CancellationToken ct = default);
 
     Task<AssetReindexResponseDocument> ReindexAsync(
