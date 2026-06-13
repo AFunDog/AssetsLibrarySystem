@@ -12,5 +12,7 @@ public interface IAssetTextVectorizationService
         string backendBaseUrl,
         string provider,
         string model,
+        int embeddingDimensions,
+        string embeddingModelKey,
         CancellationToken ct = default);
 }
