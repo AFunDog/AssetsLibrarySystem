@@ -49,10 +49,12 @@ class SearchService:
 
     def vectorize(self, payload: SearchIndexRequest) -> SearchIndexResponse:
         if payload.provider == "dashscope":
-            vector = self._dashscope_vectorize(payload.model, payload.description)
+            vector = self._dashscope_vectorize(payload.model, payload.description, payload.embedding_dimensions)
+            embedding_model = _format_dashscope_embedding_model(payload.model, payload.embedding_dimensions)
         else:
             self._require_local_model(payload.model, self._model_bundle.embedding_model_name)
             vector = self._model_bundle.encode_documents([payload.description])[0]
+            embedding_model = payload.model
         return SearchIndexResponse(
             asset_id=payload.asset_id,
             asset_name=payload.asset_name,
@@ -61,7 +63,7 @@ class SearchService:
             description=payload.description,
             vector=[float(item) for item in vector.tolist()],
             vector_dim=int(vector.shape[0]),
-            embedding_model=payload.model,
+            embedding_model=embedding_model,
         )
 
     def warmup_embedding_model(self) -> SearchWarmupResponse:
@@ -157,11 +159,19 @@ class SearchService:
         if requested_model != configured_model:
             raise ValueError(f"本地模型未加载：{requested_model}，当前配置为：{configured_model}")
 
-    def _dashscope_vectorize(self, model: str, text: str):
+    def _dashscope_vectorize(self, model: str, text: str, embedding_dimensions: int | None = None):
         import dashscope
         import numpy as np
 
-        response = dashscope.TextEmbedding.call(api_key=self._dashscope_api_key or None, model=model, input=text)
+        request_args = {
+            "api_key": self._dashscope_api_key or None,
+            "model": model,
+            "input": text,
+        }
+        if embedding_dimensions is not None:
+            request_args["dimension"] = embedding_dimensions
+
+        response = dashscope.TextEmbedding.call(**request_args)
         if response.status_code != HTTPStatus.OK:
             raise RuntimeError(f"DashScope 向量化失败：{response}")
         embeddings = response.output["embeddings"]
@@ -187,6 +197,12 @@ class SearchService:
         for result in results:
             scores[int(result["index"])] = float(result["relevance_score"])
         return scores
+
+
+def _format_dashscope_embedding_model(model: str, embedding_dimensions: int | None) -> str:
+    if embedding_dimensions is None:
+        return model
+    return f"{model}@{embedding_dimensions}d"
 
 
 def _resolve_search_cache_dir(search_cache_dir: str | None, data_root: str | None) -> str | None:
