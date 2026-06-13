@@ -3,6 +3,7 @@ using System;
 namespace AssetsLibrarySystem.Application.Models;
 
 public sealed record AssetDescriptionDocument(
+    long AssetId,
     string AssetUid,
     string AssetName,
     string AssetType,
@@ -17,7 +18,6 @@ public sealed record AssetDescriptionDocument(
     string? ContentHash,
     string MetadataStatus)
 {
-    public string AssetId => AssetUid;
     public string AssetPath => CurrentPath;
     public string PrimaryDescription => StructuredDescriptionHelper.ExtractPrimaryText(Description);
 }

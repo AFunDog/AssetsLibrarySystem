@@ -27,6 +27,9 @@ internal static class Program
             builder.RegisterInstance(ApplicationConfigurationFactory.CreateConfiguration())
                 .As<IConfiguration>()
                 .SingleInstance();
+            builder.RegisterType<ConfigurationSearchModelOptionsProvider>()
+                .As<ISearchModelOptionsProvider>()
+                .SingleInstance();
             builder.RegisterType<DatabaseWriteQueue>()
                 .As<IDatabaseWriteQueue>()
                 .SingleInstance();

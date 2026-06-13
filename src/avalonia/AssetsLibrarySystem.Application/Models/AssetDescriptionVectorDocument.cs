@@ -3,6 +3,7 @@ using System;
 namespace AssetsLibrarySystem.Application.Models;
 
 public sealed record AssetDescriptionVectorDocument(
+    long AssetId,
     string AssetUid,
     string AngleType,
     string EmbeddingModel,
@@ -12,5 +13,4 @@ public sealed record AssetDescriptionVectorDocument(
     string? ContentHash)
 {
     public const string DefaultAngleType = "全面";
-    public string AssetId => AssetUid;
 }

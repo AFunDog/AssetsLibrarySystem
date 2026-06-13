@@ -68,6 +68,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
                 ?? throw new InvalidOperationException("后端返回空向量响应。");
 
             vectorDocuments.Add(new AssetDescriptionVectorDocument(
+                AssetId: document.AssetId,
                 AssetUid: vectorResponse.AssetId,
                 AngleType: segment.NormalizedAngleType,
                 EmbeddingModel: vectorResponse.EmbeddingModel,

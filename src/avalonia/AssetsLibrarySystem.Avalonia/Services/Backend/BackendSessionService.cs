@@ -2,7 +2,6 @@ using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
-using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
@@ -22,7 +21,7 @@ public sealed partial class BackendSessionService : ObservableObject
     private IBackgroundTaskService? BackgroundTaskService { get; }
     private IUserSettingsService UserSettings { get; }
     private ActivityFeedService ActivityFeedService { get; }
-    private SearchModelOptions SearchModels { get; }
+    private AssetsLibrarySystem.Application.Infrastructure.SearchModelOptions SearchModels => UserSettings.Current;
 
     public BackendSessionService()
         : this(null, null, null, new ActivityFeedService(), new UserSettingsService(), null)
@@ -42,9 +41,6 @@ public sealed partial class BackendSessionService : ObservableObject
         BackgroundTaskService = backgroundTaskService;
         ActivityFeedService = activityFeedService;
         UserSettings = userSettingsService;
-        SearchModels = configuration is null
-            ? new SearchModelOptions("dashscope", "text-embedding-v4", "dashscope", "qwen3-rerank")
-            : SearchModelOptions.FromConfiguration(configuration);
         AiCapabilities = [];
 
         BackendStatusTitle = "Python 模型服务待连接";

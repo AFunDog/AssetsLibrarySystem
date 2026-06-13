@@ -21,7 +21,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 
     public string DatabasePath => AssetDatabase.DatabasePath;
 
-    public async Task ReplaceForAssetAsync(string assetId, string embeddingModel, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default)
+    public async Task ReplaceForAssetAsync(long assetId, string embeddingModel, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(documents);
 
@@ -49,23 +49,25 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         }, ct);
     }
 
-    public async Task<IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetIdAsync(string assetId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetIdAsync(long assetId, CancellationToken ct = default)
     {
         await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT
-                asset_id,
+                v.asset_id,
+                a.asset_uid,
                 angle_type,
                 embedding_model,
                 vector_dim,
                 vector_blob,
                 vectorized_at,
                 content_hash
-            FROM asset_description_vectors
-            WHERE asset_id = $asset_id
-            ORDER BY angle_type;
+            FROM asset_description_vectors AS v
+            INNER JOIN assets AS a ON a.id = v.asset_id
+            WHERE v.asset_id = $asset_id
+            ORDER BY v.angle_type;
             """;
         AddParameter(command, "$asset_id", assetId);
 
@@ -73,21 +75,22 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         var documents = new List<AssetDescriptionVectorDocument>();
         while (await reader.ReadAsync(ct))
         {
-            var vector = DeserializeVector(reader.GetFieldValue<byte[]>(4));
+            var vector = DeserializeVector(reader.GetFieldValue<byte[]>(5));
             documents.Add(new AssetDescriptionVectorDocument(
-                reader.GetString(0),
+                reader.GetInt64(0),
                 reader.GetString(1),
                 reader.GetString(2),
-                reader.GetInt32(3),
+                reader.GetString(3),
+                reader.GetInt32(4),
                 vector,
-                DateTimeOffset.Parse(reader.GetString(5)),
-                reader.IsDBNull(6) ? null : reader.GetString(6)));
+                DateTimeOffset.Parse(reader.GetString(6)),
+                reader.IsDBNull(7) ? null : reader.GetString(7)));
         }
 
         return documents;
     }
 
-    public async Task<bool> DeleteAsync(string assetId, CancellationToken ct = default)
+    public async Task<bool> DeleteAsync(long assetId, CancellationToken ct = default)
     {
         await AssetDatabase.EnsureSchemaAsync(ct);
         return await WriteQueue.EnqueueAsync(async token =>
@@ -112,7 +115,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
     }
 
     public async Task<bool> NeedsVectorizationAsync(
-        string assetId,
+        long assetId,
         string embeddingModel,
         string? descriptionContentHash = null,
         DateTimeOffset? descriptionGeneratedAt = null,
@@ -165,7 +168,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         return true;
     }
 
-    public async Task MarkAsIndexedAsync(string assetId, CancellationToken ct = default)
+    public async Task MarkAsIndexedAsync(long assetId, CancellationToken ct = default)
     {
         await AssetDatabase.EnsureSchemaAsync(ct);
         await WriteQueue.EnqueueAsync(async token =>
@@ -177,10 +180,10 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 UPDATE asset_metadata
                 SET vector_state = 'indexed',
                     updated_at = $updated_at
-                WHERE asset_uid = $asset_uid
+                WHERE asset_id = $asset_id
                   AND vector_state <> 'indexed';
                 """;
-            AddParameter(command, "$asset_uid", assetId);
+            AddParameter(command, "$asset_id", assetId);
             AddParameter(command, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
             await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
         }, ct);
@@ -220,7 +223,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 content_hash = excluded.content_hash;
             """;
 
-        AddParameter(command, "$asset_id", document.AssetUid);
+        AddParameter(command, "$asset_id", document.AssetId);
         AddParameter(command, "$angle_type", string.IsNullOrWhiteSpace(document.AngleType) ? AssetDescriptionVectorDocument.DefaultAngleType : document.AngleType.Trim());
         AddParameter(command, "$embedding_model", document.EmbeddingModel);
         AddParameter(command, "$vector_dim", document.VectorDim);
@@ -237,7 +240,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
     private static async Task DeleteVectorsAsync(
         SqliteConnection connection,
         SqliteTransaction transaction,
-        string assetId,
+        long assetId,
         string embeddingModel,
         CancellationToken ct)
     {
@@ -282,7 +285,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         command.Transaction = transaction;
         command.CommandText = """
             INSERT INTO asset_metadata (
-                asset_uid,
+                asset_id,
                 tags_json,
                 metadata_status,
                 vector_state,
@@ -290,19 +293,19 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 updated_at
             )
             VALUES (
-                $asset_uid,
+                $asset_id,
                 '[]',
                 'described',
                 'indexed',
                 $created_at,
                 $updated_at
             )
-            ON CONFLICT(asset_uid) DO UPDATE SET
+            ON CONFLICT(asset_id) DO UPDATE SET
                 vector_state = excluded.vector_state,
                 updated_at = excluded.updated_at;
             """;
 
-        AddParameter(command, "$asset_uid", document.AssetUid);
+        AddParameter(command, "$asset_id", document.AssetId);
         AddParameter(command, "$created_at", document.VectorizedAt.ToString("O"));
         AddParameter(command, "$updated_at", document.VectorizedAt.ToString("O"));
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
@@ -310,7 +313,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 
     private static async Task ResetAssetMetadataAsync(
         SqliteConnection connection,
-        string assetId,
+        long assetId,
         CancellationToken ct)
     {
         await using var command = connection.CreateCommand();
@@ -318,10 +321,10 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             UPDATE asset_metadata
             SET vector_state = 'pending',
                 updated_at = $updated_at
-            WHERE asset_uid = $asset_uid;
+            WHERE asset_id = $asset_id;
             """;
 
-        AddParameter(command, "$asset_uid", assetId);
+        AddParameter(command, "$asset_id", assetId);
         AddParameter(command, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }

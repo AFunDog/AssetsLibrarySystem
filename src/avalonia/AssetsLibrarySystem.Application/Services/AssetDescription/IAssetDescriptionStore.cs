@@ -10,9 +10,9 @@ public interface IAssetDescriptionStore
 
     Task SaveAsync(AssetDescriptionDocument document, CancellationToken ct = default);
 
-    Task<AssetDescriptionDocument?> TryGetAsync(string assetId, CancellationToken ct = default);
+    Task<AssetDescriptionDocument?> TryGetAsync(long assetId, CancellationToken ct = default);
 
     Task<AssetDescriptionDocument?> TryGetForAssetAsync(ManagedAssetRecord asset, CancellationToken ct = default);
 
-    Task<bool> DeleteAsync(string assetId, CancellationToken ct = default);
+    Task<bool> DeleteAsync(long assetId, CancellationToken ct = default);
 }

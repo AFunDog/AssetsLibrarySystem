@@ -46,7 +46,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
         WriteIndented = true
     };
 
-    private string LibraryStorePath { get; }
     private IDatabaseWriteQueue WriteQueue { get; }
     private IAssetDatabase AssetDatabase { get; }
     private ConcurrentDictionary<string, CachedUidSidecar> UidSidecarCache { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -56,21 +55,27 @@ public sealed class AssetLibraryService : IAssetLibraryService
     {
         WriteQueue = writeQueue;
         AssetDatabase = assetDatabase;
-        LibraryStorePath = SharedDataPathHelper.GetDataFilePath("libraries.json");
     }
 
     public async Task<IReadOnlyList<LibraryWorkspace>> GetLibrariesAsync(CancellationToken ct = default)
     {
-        var items = await ReadStoreAsync(ct);
-        return items
-            .Select(item => new LibraryWorkspace(
-                item.Id,
-                item.Name,
-                item.RootPath,
-                "尚未扫描，点击“扫描当前素材库”加载素材文件。",
-                "已登记目录",
-                0))
-            .ToList();
+        await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT l.id, l.name, l.root_path, COUNT(a.id)
+            FROM libraries AS l
+            LEFT JOIN assets AS a ON a.library_id = l.id
+            GROUP BY l.id, l.name, l.root_path
+            ORDER BY l.name;
+            """;
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        var items = new List<LibraryWorkspace>();
+        while (await reader.ReadAsync(ct))
+        {
+            items.Add(new LibraryWorkspace(reader.GetInt64(0), reader.GetString(1), reader.GetString(2),
+                "素材库信息已存储在数据库中。", "已登记目录", reader.GetInt32(3)));
+        }
+        return items;
     }
 
     public async Task<LibraryWorkspace> AddLibraryAsync(string folderPath, CancellationToken ct = default)
@@ -81,7 +86,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             throw new DirectoryNotFoundException($"目录不存在：{normalizedPath}");
         }
 
-        var items = await ReadStoreAsync(ct);
+        var items = await GetLibrariesAsync(ct);
         var existing = items.FirstOrDefault(item =>
             string.Equals(item.RootPath, normalizedPath, StringComparison.OrdinalIgnoreCase));
         if (existing is not null)
@@ -95,23 +100,24 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 0);
         }
 
-        var created = new LibraryStoreItem
+        var name = BuildLibraryName(normalizedPath, items);
+        var now = DateTimeOffset.UtcNow.ToString("O");
+        var id = await WriteQueue.EnqueueAsync(async token =>
         {
-            Id = Guid.NewGuid().ToString("N"),
-            Name = BuildLibraryName(normalizedPath, items),
-            RootPath = normalizedPath
-        };
-
-        items.Add(created);
-        await WriteStoreAsync(items, ct);
-
-        return new LibraryWorkspace(
-            created.Id,
-            created.Name,
-            created.RootPath,
-            "目录已登记，等待首次扫描。",
-            "已登记目录",
-            0);
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO libraries (name, root_path, created_at, updated_at)
+                VALUES ($name, $root_path, $created_at, $updated_at);
+                SELECT last_insert_rowid();
+                """;
+            AddParameter(command, "$name", name);
+            AddParameter(command, "$root_path", normalizedPath);
+            AddParameter(command, "$created_at", now);
+            AddParameter(command, "$updated_at", now);
+            return Convert.ToInt64(await command.ExecuteScalarAsync(token), CultureInfo.InvariantCulture);
+        }, ct);
+        return new LibraryWorkspace(id, name, normalizedPath, "目录已登记，等待首次扫描。", "已登记目录", 0);
     }
 
     public Task<IReadOnlyList<ManagedAssetRecord>> ScanLibraryAsync(LibraryWorkspace library, CancellationToken ct = default)
@@ -141,9 +147,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
             var record = await ImportOrRefreshAssetAsync(library, path, scanAt, descriptionTableExists, stats, token);
             records.Add(record);
         });
-
-        // 扫描完成后清理 legacy 重复素材
-        await DeduplicateLegacyAssetsAsync(library, ct);
 
         var orderedRecords = records
             .OrderBy(item => item.RelativePath, StringComparer.OrdinalIgnoreCase)
@@ -202,7 +205,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                     modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
                     status: "ok",
                     scanAt: scanAt);
-                await EnsureAssetMetadataAsync(sidecarUid!, "pending", scanAt, ct);
+                await EnsureAssetMetadataAsync(assetRecord.Id, "pending", scanAt, ct);
                 stage = "已迁入";
                 aiState = "待生成描述与向量";
             }
@@ -242,7 +245,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         createdAt: assetRecord.CreatedAt,
                         createdBy: assetRecord.CreatedBy,
                         uidVersion: assetRecord.UidVersion);
-                    await EnsureAssetMetadataAsync(assetRecord.AssetUid, "ready", scanAt, ct);
+                    await EnsureAssetMetadataAsync(assetRecord.Id, "ready", scanAt, ct);
                 }
                 stage = "已同步";
                 aiState = "身份已确认";
@@ -283,7 +286,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                             createdAt: assetRecord.CreatedAt,
                             createdBy: assetRecord.CreatedBy,
                             uidVersion: assetRecord.UidVersion);
-                        await EnsureAssetMetadataAsync(assetRecord.AssetUid, "ready", scanAt, ct);
+                        await EnsureAssetMetadataAsync(assetRecord.Id, "ready", scanAt, ct);
                     }
                     stage = "已同步";
                     aiState = "身份已确认";
@@ -305,7 +308,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         createdAt: assetRecord.CreatedAt,
                         createdBy: assetRecord.CreatedBy,
                         uidVersion: assetRecord.UidVersion);
-                    await EnsureAssetMetadataAsync(assetRecord.AssetUid, "changed", scanAt, ct);
+                    await EnsureAssetMetadataAsync(assetRecord.Id, "changed", scanAt, ct);
                     stage = "内容已变化";
                     aiState = "等待版本处理策略";
                 }
@@ -349,7 +352,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         createdAt: assetRecord.CreatedAt,
                         createdBy: assetRecord.CreatedBy,
                         uidVersion: assetRecord.UidVersion);
-                    await EnsureAssetMetadataAsync(assetRecord.AssetUid, "ready", scanAt, ct);
+                    await EnsureAssetMetadataAsync(assetRecord.Id, "ready", scanAt, ct);
                 }
                 stage = "已识别";
                 aiState = "按内容指纹补写 uid";
@@ -370,20 +373,21 @@ public sealed class AssetLibraryService : IAssetLibraryService
                     modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
                     status: "ok",
                     scanAt: scanAt);
-                await EnsureAssetMetadataAsync(assetUid, "pending", scanAt, ct);
+                await EnsureAssetMetadataAsync(assetRecord.Id, "pending", scanAt, ct);
                 stage = "新素材";
                 aiState = "待生成描述与向量";
             }
         }
 
-        var isDescribed = descriptionTableExists && HasDescription(connection, assetRecord.AssetUid, normalizedPath, assetRecord.ContentHash);
-        var isVectorized = HasVector(connection, assetRecord.AssetUid);
-        var metadataTags = ReadMetadataTags(connection, assetRecord.AssetUid);
+        var isDescribed = descriptionTableExists && HasDescription(connection, assetRecord.Id);
+        var isVectorized = HasVector(connection, assetRecord.Id);
+        var metadataTags = ReadMetadataTags(connection, assetRecord.Id);
         var tags = BuildTags(assetType, extension, metadataTags);
         var summary = BuildSummary(assetType, fileInfo.Length, fileInfo.LastWriteTime, assetRecord.AssetUid, assetRecord.Status);
 
         return new ManagedAssetRecord
         {
+            DatabaseId = assetRecord.Id,
             AssetUid = assetRecord.AssetUid,
             Name = fileInfo.Name,
             LibraryName = library.Name,
@@ -493,7 +497,13 @@ public sealed class AssetLibraryService : IAssetLibraryService
             AddParameter(command, "$uid_version", uidVersion);
             await command.ExecuteNonQueryAsync(token);
 
+            await using var idCommand = connection.CreateCommand();
+            idCommand.CommandText = "SELECT id FROM assets WHERE asset_uid = $asset_uid LIMIT 1;";
+            AddParameter(idCommand, "$asset_uid", assetUid);
+            var id = Convert.ToInt64(await idCommand.ExecuteScalarAsync(token), CultureInfo.InvariantCulture);
+
             return new AssetDbRecord(
+                id,
                 assetUid,
                 library.Id,
                 assetName,
@@ -511,7 +521,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         }, ct).AsTask();
     }
 
-    private Task EnsureAssetMetadataAsync(string assetUid, string metadataStatus, DateTimeOffset scanAt, CancellationToken ct)
+    private Task EnsureAssetMetadataAsync(long assetId, string metadataStatus, DateTimeOffset scanAt, CancellationToken ct)
     {
         return WriteQueue.EnqueueAsync(async token =>
         {
@@ -520,7 +530,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             await using var command = connection.CreateCommand();
             command.CommandText = """
             INSERT INTO asset_metadata (
-                asset_uid,
+                asset_id,
                 tags_json,
                 metadata_status,
                 vector_state,
@@ -528,19 +538,19 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 updated_at
             )
             VALUES (
-                $asset_uid,
+                $asset_id,
                 '[]',
                 $metadata_status,
                 'pending',
                 $created_at,
                 $updated_at
             )
-            ON CONFLICT(asset_uid) DO UPDATE SET
+            ON CONFLICT(asset_id) DO UPDATE SET
                 metadata_status = excluded.metadata_status,
                 updated_at = excluded.updated_at;
             """;
 
-            AddParameter(command, "$asset_uid", assetUid);
+            AddParameter(command, "$asset_id", assetId);
             AddParameter(command, "$metadata_status", metadataStatus);
             AddParameter(command, "$created_at", scanAt.ToString("O"));
             AddParameter(command, "$updated_at", scanAt.ToString("O"));
@@ -550,7 +560,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     private static bool IsSameAssetSnapshot(
         AssetDbRecord assetRecord,
-        string libraryId,
+        long libraryId,
         string assetName,
         string assetType,
         string currentPath,
@@ -560,7 +570,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         DateTime modifiedTimeUtc,
         string status)
     {
-        return string.Equals(assetRecord.LibraryId, libraryId, StringComparison.OrdinalIgnoreCase) &&
+        return assetRecord.LibraryId == libraryId &&
                string.Equals(assetRecord.AssetName, assetName, StringComparison.Ordinal) &&
                string.Equals(assetRecord.AssetType, assetType, StringComparison.Ordinal) &&
                string.Equals(assetRecord.CurrentPath, currentPath, StringComparison.OrdinalIgnoreCase) &&
@@ -571,16 +581,16 @@ public sealed class AssetLibraryService : IAssetLibraryService
                string.Equals(assetRecord.Status, status, StringComparison.OrdinalIgnoreCase);
     }
 
-    private string[] ReadMetadataTags(SqliteConnection connection, string assetUid)
+    private string[] ReadMetadataTags(SqliteConnection connection, long assetId)
     {
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT tags_json
             FROM asset_metadata
-            WHERE asset_uid = $asset_uid
+            WHERE asset_id = $asset_id
             LIMIT 1;
             """;
-        AddParameter(command, "$asset_uid", assetUid);
+        AddParameter(command, "$asset_id", assetId);
 
         var tagsJson = command.ExecuteScalar() as string;
         if (string.IsNullOrWhiteSpace(tagsJson))
@@ -603,6 +613,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT
+                id,
                 asset_uid,
                 library_id,
                 asset_name,
@@ -632,6 +643,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT
+                id,
                 asset_uid,
                 library_id,
                 asset_name,
@@ -661,54 +673,47 @@ public sealed class AssetLibraryService : IAssetLibraryService
     private static AssetDbRecord ReadAssetDbRecord(SqliteDataReader reader)
     {
         return new AssetDbRecord(
-            reader.GetString(0),
+            reader.GetInt64(0),
             reader.GetString(1),
-            reader.GetString(2),
+            reader.GetInt64(2),
             reader.GetString(3),
             reader.GetString(4),
             reader.GetString(5),
             reader.GetString(6),
-            reader.GetInt64(7),
-            DateTimeOffset.Parse(reader.GetString(8), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind).UtcDateTime,
-            reader.GetString(9),
-            DateTimeOffset.Parse(reader.GetString(10)),
+            reader.GetString(7),
+            reader.GetInt64(8),
+            DateTimeOffset.Parse(reader.GetString(9), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind).UtcDateTime,
+            reader.GetString(10),
             DateTimeOffset.Parse(reader.GetString(11)),
-            reader.GetString(12),
-            reader.GetInt32(13));
+            DateTimeOffset.Parse(reader.GetString(12)),
+            reader.GetString(13),
+            reader.GetInt32(14));
     }
 
-    private static bool HasDescription(SqliteConnection connection, string assetUid, string currentPath, string contentHash)
+    private static bool HasDescription(SqliteConnection connection, long assetId)
     {
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT 1
             FROM asset_descriptions
-            WHERE asset_id = $asset_uid
-               OR asset_path = $current_path
-               OR (
-                    $content_hash <> ''
-                    AND content_hash IS NOT NULL
-                    AND content_hash = $content_hash
-               )
+            WHERE asset_id = $asset_id
             LIMIT 1;
             """;
-        AddParameter(command, "$asset_uid", assetUid);
-        AddParameter(command, "$current_path", currentPath);
-        AddParameter(command, "$content_hash", contentHash ?? string.Empty);
+        AddParameter(command, "$asset_id", assetId);
 
         return command.ExecuteScalar() is not null;
     }
 
-    private static bool HasVector(SqliteConnection connection, string assetUid)
+    private static bool HasVector(SqliteConnection connection, long assetId)
     {
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT 1
             FROM asset_description_vectors
-            WHERE asset_id = $asset_uid
+            WHERE asset_id = $asset_id
             LIMIT 1;
             """;
-        AddParameter(command, "$asset_uid", assetUid);
+        AddParameter(command, "$asset_id", assetId);
         return command.ExecuteScalar() is not null;
     }
 
@@ -900,122 +905,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         }
     }
 
-    /// <summary>
-    /// 清理 assets 表中 library_id='legacy' 的重复素材。
-    /// 当同一个文件路径同时存在 legacy 和非 legacy 两条记录时，
-    /// 将 legacy 的描述/向量迁移到非 legacy 的 UID 上，然后删除 legacy 记录。
-    /// </summary>
-    private async Task DeduplicateLegacyAssetsAsync(LibraryWorkspace library, CancellationToken ct)
-    {
-        var result = await WriteQueue.EnqueueAsync(async token =>
-        {
-            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
-            await using var transaction = await connection.BeginTransactionAsync(token);
-
-            // 1. 查找 legacy 与非 legacy 重复的 current_path
-            await using var findCmd = connection.CreateCommand();
-            findCmd.Transaction = (SqliteTransaction)transaction;
-            findCmd.CommandText = """
-                SELECT legacy.asset_uid, current.asset_uid, legacy.current_path
-                FROM assets legacy
-                INNER JOIN assets current
-                    ON legacy.current_path = current.current_path
-                    AND legacy.library_id = 'legacy'
-                    AND current.library_id <> 'legacy'
-                """;
-            await using var reader = await findCmd.ExecuteReaderAsync(token);
-
-            var pairs = new List<(string LegacyUid, string CurrentUid, string CurrentPath)>();
-            while (await reader.ReadAsync(token))
-            {
-                pairs.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2)));
-            }
-
-            reader.Close();
-
-            if (pairs.Count == 0)
-            {
-                await transaction.RollbackAsync(token);
-                return 0;
-            }
-
-            var migratedDescriptions = 0;
-            var migratedVectors = 0;
-            var deletedAssets = 0;
-
-            foreach (var (legacyUid, currentUid, currentPath) in pairs)
-            {
-                // 2. 迁移描述：仅当非 legacy 资产没有描述时
-                await using var descCmd = connection.CreateCommand();
-                descCmd.Transaction = (SqliteTransaction)transaction;
-                descCmd.CommandText = """
-                    UPDATE asset_descriptions
-                    SET asset_id = $current_uid
-                    WHERE asset_id = $legacy_uid
-                      AND NOT EXISTS (
-                          SELECT 1 FROM asset_descriptions WHERE asset_id = $current_uid
-                      );
-                    """;
-                AddParameter(descCmd, "$current_uid", currentUid);
-                AddParameter(descCmd, "$legacy_uid", legacyUid);
-                migratedDescriptions += await descCmd.ExecuteNonQueryAsync(token);
-
-                // 3. 迁移向量：仅当非 legacy 资产没有向量时
-                await using var vecCmd = connection.CreateCommand();
-                vecCmd.Transaction = (SqliteTransaction)transaction;
-                vecCmd.CommandText = """
-                    UPDATE asset_description_vectors
-                    SET asset_id = $current_uid
-                    WHERE asset_id = $legacy_uid
-                      AND NOT EXISTS (
-                          SELECT 1 FROM asset_description_vectors WHERE asset_id = $current_uid
-                      );
-                    """;
-                AddParameter(vecCmd, "$current_uid", currentUid);
-                AddParameter(vecCmd, "$legacy_uid", legacyUid);
-                migratedVectors += await vecCmd.ExecuteNonQueryAsync(token);
-
-                // 4. 迁移或删除 asset_metadata
-                await using var metaCmd = connection.CreateCommand();
-                metaCmd.Transaction = (SqliteTransaction)transaction;
-                metaCmd.CommandText = """
-                    -- 非legacy资产没有metadata时迁移，否则删除legacy的
-                    INSERT INTO asset_metadata (asset_uid, tags_json, metadata_status, vector_state, created_at, updated_at)
-                    SELECT asset_uid, tags_json, metadata_status, vector_state, created_at, updated_at
-                    FROM asset_metadata
-                    WHERE asset_uid = $legacy_uid
-                      AND NOT EXISTS (SELECT 1 FROM asset_metadata WHERE asset_uid = $current_uid)
-                    ON CONFLICT(asset_uid) DO NOTHING;
-                    DELETE FROM asset_metadata WHERE asset_uid = $legacy_uid;
-                    """;
-                AddParameter(metaCmd, "$current_uid", currentUid);
-                AddParameter(metaCmd, "$legacy_uid", legacyUid);
-                await metaCmd.ExecuteNonQueryAsync(token);
-
-                // 5. 删除 legacy 资产记录
-                await using var delCmd = connection.CreateCommand();
-                delCmd.Transaction = (SqliteTransaction)transaction;
-                delCmd.CommandText = "DELETE FROM assets WHERE asset_uid = $legacy_uid;";
-                AddParameter(delCmd, "$legacy_uid", legacyUid);
-                deletedAssets += await delCmd.ExecuteNonQueryAsync(token);
-            }
-
-            await transaction.CommitAsync(token);
-
-            Log.Information(
-                "Legacy 重复素材清理完成: libraryId={LibraryId}, 检查={CheckedCount} 对, 迁移描述={MigratedDescriptions}, 迁移向量={MigratedVectors}, 删除素材={DeletedAssets}",
-                library.Id, pairs.Count, migratedDescriptions, migratedVectors, deletedAssets);
-
-            return deletedAssets;
-        }, ct);
-
-        if (result > 0)
-        {
-            Log.Information("已清理 {Count} 条 legacy 重复素材记录", result);
-        }
-    }
-
-    private static string BuildLibraryName(string normalizedPath, IEnumerable<LibraryStoreItem> existing)
+    private static string BuildLibraryName(string normalizedPath, IEnumerable<LibraryWorkspace> existing)
     {
         var baseName = Path.GetFileName(normalizedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         if (string.IsNullOrWhiteSpace(baseName))
@@ -1094,33 +984,9 @@ public sealed class AssetLibraryService : IAssetLibraryService
         return $"{bytes / 1024d / 1024 / 1024:F1} GB";
     }
 
-    private async Task<List<LibraryStoreItem>> ReadStoreAsync(CancellationToken ct)
-    {
-        if (!File.Exists(LibraryStorePath))
-        {
-            return [];
-        }
-
-        await using var stream = File.OpenRead(LibraryStorePath);
-        return await JsonSerializer.DeserializeAsync<List<LibraryStoreItem>>(stream, JsonOptions, ct) ?? [];
-    }
-
-    private async Task WriteStoreAsync(List<LibraryStoreItem> items, CancellationToken ct)
-    {
-        await using var stream = File.Create(LibraryStorePath);
-        await JsonSerializer.SerializeAsync(stream, items, JsonOptions, ct);
-    }
-
     private static void AddParameter(SqliteCommand command, string name, object? value)
     {
         command.Parameters.AddWithValue(name, value ?? DBNull.Value);
-    }
-
-    private sealed class LibraryStoreItem
-    {
-        public string Id { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string RootPath { get; set; } = string.Empty;
     }
 
     private sealed class UidSidecarDocument
@@ -1150,8 +1016,9 @@ public sealed class AssetLibraryService : IAssetLibraryService
     private sealed record CachedContentHash(long Length, DateTime LastWriteTimeUtc, string Hash);
 
     private sealed record AssetDbRecord(
+        long Id,
         string AssetUid,
-        string LibraryId,
+        long LibraryId,
         string AssetName,
         string AssetType,
         string CurrentPath,

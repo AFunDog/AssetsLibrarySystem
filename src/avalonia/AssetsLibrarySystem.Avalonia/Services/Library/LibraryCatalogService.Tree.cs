@@ -430,7 +430,7 @@ public sealed partial class LibraryCatalogService
         }
     }
 
-    private AssetLibraryTreeNode? FindLibraryTreeNode(string libraryId)
+    private AssetLibraryTreeNode? FindLibraryTreeNode(long libraryId)
     {
         return AssetTreeRoots.FirstOrDefault(node => node.Library?.Id == libraryId);
     }

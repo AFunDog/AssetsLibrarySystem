@@ -11,7 +11,7 @@ public sealed class LibraryWorkspace : ObservableModel
     {
     }
 
-    public LibraryWorkspace(string id, string name, string rootPath, string summary, string syncMode, int assetCount)
+    public LibraryWorkspace(long id, string name, string rootPath, string summary, string syncMode, int assetCount)
     {
         Id = id;
         Name = name;
@@ -21,7 +21,7 @@ public sealed class LibraryWorkspace : ObservableModel
         AssetCount = assetCount;
     }
 
-    public string Id { get; init; } = string.Empty;
+    public long Id { get; init; }
     public string Name { get; init; } = string.Empty;
     public string RootPath { get; init; } = string.Empty;
 
@@ -46,6 +46,7 @@ public sealed class LibraryWorkspace : ObservableModel
 
 public sealed class ManagedAssetRecord : ObservableModel
 {
+    public long DatabaseId { get; init; }
     public string AssetUid { get; init; } = string.Empty;
     public string Id => AssetUid;
     public string Name { get; init; } = string.Empty;

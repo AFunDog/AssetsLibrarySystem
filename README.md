@@ -11,8 +11,7 @@
 
 也就是说，素材库、目录、元数据和工作流由本地 .NET 侧承担；Python 后端不再包含素材管理功能，但会提供检索与索引重建能力。
 当前桌面端会把素材描述结果集中保存到本地 SQLite，并通过后端检索接口完成向量召回和重排序。
-素材身份现在不再由路径决定，而是由稳定的 `asset_uid` 决定；路径只作为 `current_path` 保存。
-每个素材文件旁边会生成同名 `.uid` 文件，数据库集中维护 `asset_uid / content_hash / current_path` 以及历史位置。
+数据库内部使用数值 `libraries.id` 和 `assets.id` 建立外键关系。`asset_uid` 仅保留在 `assets` 表中，用于兼容素材文件旁的同名 `.uid` 文件；路径只作为 `current_path` 保存。
 桌面端现在同时支持托盘常驻模式，主窗口可以隐藏到托盘，快捷键 `Ctrl+Shift+Space` 可弹出极简快速检索窗口。
 桌面端启动后会主动预热向量模型和重排序模型，减少第一次检索等待。
 
@@ -113,11 +112,11 @@ dotnet build AssetsLibrarySystem.sln
 
 ## 一次性数据库迁移
 
-升级到独立 `id` 主键与多 embedding 模型向量结构时，先关闭桌面端和控制台，再执行：
+升级到数据库素材库、数值外键与多 embedding 模型向量结构时，先关闭桌面端和控制台，再执行：
 
 ```powershell
 python scripts/migrate_to_surrogate_ids_and_multi_model_vectors.py --dry-run
 python scripts/migrate_to_surrogate_ids_and_multi_model_vectors.py
 ```
 
-脚本会在修改前创建带 UTC 时间戳的 `.bak` 备份。可通过 `--db <path>` 指定数据库文件。
+脚本会把旧 `libraries.json` 中的素材库信息迁入数据库，并在修改前创建带 UTC 时间戳的 `.bak` 备份。可通过 `--db <path>` 指定数据库文件；旧 JSON 不在数据库同目录时，可通过 `--libraries-json <path>` 指定。

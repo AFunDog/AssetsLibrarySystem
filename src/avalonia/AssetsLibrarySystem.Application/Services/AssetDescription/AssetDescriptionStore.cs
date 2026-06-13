@@ -40,18 +40,18 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             command.CommandText = """
             INSERT INTO asset_descriptions (
                 asset_id,
-                asset_name,
-                asset_type,
-                asset_path,
-                description,
-                backend_endpoint,
-                mode,
-                generated_at,
-                token_usage_json,
-                prompt,
-                system_prompt,
-                content_hash,
-                metadata_status
+                d.asset_name,
+                d.asset_type,
+                d.asset_path,
+                d.description,
+                d.backend_endpoint,
+                d.mode,
+                d.generated_at,
+                d.token_usage_json,
+                d.prompt,
+                d.system_prompt,
+                d.content_hash,
+                d.metadata_status
             )
             VALUES (
                 $asset_id,
@@ -83,7 +83,7 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 metadata_status = excluded.metadata_status;
             """;
 
-            AddParameter(command, "$asset_id", document.AssetUid);
+            AddParameter(command, "$asset_id", document.AssetId);
             AddParameter(command, "$asset_name", document.AssetName);
             AddParameter(command, "$asset_type", document.AssetType);
             AddParameter(command, "$asset_path", document.CurrentPath);
@@ -103,28 +103,30 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         }, ct);
     }
 
-    public async Task<AssetDescriptionDocument?> TryGetAsync(string assetId, CancellationToken ct = default)
+    public async Task<AssetDescriptionDocument?> TryGetAsync(long assetId, CancellationToken ct = default)
     {
         await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT
-                asset_id,
-                asset_name,
-                asset_type,
-                asset_path,
-                description,
-                backend_endpoint,
-                mode,
-                generated_at,
-                token_usage_json,
-                prompt,
-                system_prompt,
-                content_hash,
-                metadata_status
-            FROM asset_descriptions
-            WHERE asset_id = $asset_id
+                d.asset_id,
+                a.asset_uid,
+                d.asset_name,
+                d.asset_type,
+                d.asset_path,
+                d.description,
+                d.backend_endpoint,
+                d.mode,
+                d.generated_at,
+                d.token_usage_json,
+                d.prompt,
+                d.system_prompt,
+                d.content_hash,
+                d.metadata_status
+            FROM asset_descriptions AS d
+            INNER JOIN assets AS a ON a.id = d.asset_id
+            WHERE d.asset_id = $asset_id
             LIMIT 1;
             """;
         AddParameter(command, "$asset_id", assetId);
@@ -145,7 +147,8 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT
-                asset_id,
+                d.asset_id,
+                a.asset_uid,
                 asset_name,
                 asset_type,
                 asset_path,
@@ -158,26 +161,13 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 system_prompt,
                 content_hash,
                 metadata_status
-            FROM asset_descriptions
-            WHERE asset_id = $asset_uid
-               OR asset_path = $current_path
-               OR (
-                    $content_hash <> ''
-                    AND content_hash IS NOT NULL
-                    AND content_hash = $content_hash
-               )
-            ORDER BY
-                CASE
-                    WHEN asset_id = $asset_uid THEN 0
-                    WHEN asset_path = $current_path THEN 1
-                    ELSE 2
-                END,
-                generated_at DESC
+            FROM asset_descriptions AS d
+            INNER JOIN assets AS a ON a.id = d.asset_id
+            WHERE d.asset_id = $asset_id
+            ORDER BY d.generated_at DESC
             LIMIT 1;
             """;
-        AddParameter(command, "$asset_uid", asset.AssetUid);
-        AddParameter(command, "$current_path", asset.CurrentPath);
-        AddParameter(command, "$content_hash", asset.ContentHash ?? string.Empty);
+        AddParameter(command, "$asset_id", asset.DatabaseId);
 
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
@@ -188,7 +178,7 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         return ReadDocument(reader);
     }
 
-    public async Task<bool> DeleteAsync(string assetId, CancellationToken ct = default)
+    public async Task<bool> DeleteAsync(long assetId, CancellationToken ct = default)
     {
         await AssetDatabase.EnsureSchemaAsync(ct);
         return await WriteQueue.EnqueueAsync(async token =>
@@ -215,19 +205,20 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
     private static AssetDescriptionDocument ReadDocument(SqliteDataReader reader)
     {
         return new AssetDescriptionDocument(
-            reader.GetString(0),
+            reader.GetInt64(0),
             reader.GetString(1),
             reader.GetString(2),
             reader.GetString(3),
             reader.GetString(4),
             reader.GetString(5),
             reader.GetString(6),
-            DateTimeOffset.Parse(reader.GetString(7)),
-            DeserializeTokenUsage(reader.IsDBNull(8) ? null : reader.GetString(8)),
-            reader.IsDBNull(9) ? null : reader.GetString(9),
+            reader.GetString(7),
+            DateTimeOffset.Parse(reader.GetString(8)),
+            DeserializeTokenUsage(reader.IsDBNull(9) ? null : reader.GetString(9)),
             reader.IsDBNull(10) ? null : reader.GetString(10),
             reader.IsDBNull(11) ? null : reader.GetString(11),
-            reader.IsDBNull(12) ? "ready" : reader.GetString(12));
+            reader.IsDBNull(12) ? null : reader.GetString(12),
+            reader.IsDBNull(13) ? "ready" : reader.GetString(13));
     }
 
     private static void AddParameter(SqliteCommand command, string name, object? value)
@@ -257,7 +248,7 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO asset_metadata (
-                asset_uid,
+                asset_id,
                 tags_json,
                 metadata_status,
                 vector_state,
@@ -265,14 +256,14 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 updated_at
             )
             VALUES (
-                $asset_uid,
+                $asset_id,
                 '[]',
                 'described',
                 'pending',
                 $created_at,
                 $updated_at
             )
-            ON CONFLICT(asset_uid) DO UPDATE SET
+            ON CONFLICT(asset_id) DO UPDATE SET
                 metadata_status = excluded.metadata_status,
                 vector_state = CASE
                     WHEN asset_metadata.vector_state = 'indexed'
@@ -283,7 +274,7 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 updated_at = excluded.updated_at;
             """;
 
-        AddParameter(command, "$asset_uid", document.AssetUid);
+        AddParameter(command, "$asset_id", document.AssetId);
         AddParameter(command, "$created_at", document.GeneratedAt.ToString("O"));
         AddParameter(command, "$updated_at", document.GeneratedAt.ToString("O"));
         await command.ExecuteNonQueryAsync(ct);
@@ -291,7 +282,7 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
 
     private static async Task ResetAssetMetadataAsync(
         SqliteConnection connection,
-        string assetId,
+        long assetId,
         CancellationToken ct)
     {
         await using var command = connection.CreateCommand();
@@ -299,10 +290,10 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             UPDATE asset_metadata
             SET metadata_status = 'pending',
                 updated_at = $updated_at
-            WHERE asset_uid = $asset_uid;
+            WHERE asset_id = $asset_id;
             """;
 
-        AddParameter(command, "$asset_uid", assetId);
+        AddParameter(command, "$asset_id", assetId);
         AddParameter(command, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }

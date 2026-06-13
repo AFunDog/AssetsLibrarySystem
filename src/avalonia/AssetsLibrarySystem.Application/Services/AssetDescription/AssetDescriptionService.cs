@@ -60,6 +60,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             ?? throw new InvalidOperationException("后端返回空响应。");
 
         var document = new AssetDescriptionDocument(
+            AssetId: asset.DatabaseId,
             AssetUid: asset.AssetUid,
             AssetName: asset.Name,
             AssetType: asset.AssetType,

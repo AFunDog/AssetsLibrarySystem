@@ -6,7 +6,6 @@ using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
-using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Application.UseCases.AssetOperations;
 
@@ -16,20 +15,20 @@ public sealed class VectorizeDescriptionsUseCase
     private IAssetDescriptionVectorStore VectorStore { get; }
     private IAssetTextVectorizationService TextVectorizationService { get; }
     private IAssetSearchService AssetSearchService { get; }
-    private SearchModelOptions SearchModels { get; }
+    private ISearchModelOptionsProvider SearchModelOptionsProvider { get; }
 
     public VectorizeDescriptionsUseCase(
         IAssetDescriptionStore descriptionStore,
         IAssetDescriptionVectorStore vectorStore,
         IAssetTextVectorizationService textVectorizationService,
         IAssetSearchService assetSearchService,
-        IConfiguration configuration)
+        ISearchModelOptionsProvider searchModelOptionsProvider)
     {
         DescriptionStore = descriptionStore;
         VectorStore = vectorStore;
         TextVectorizationService = textVectorizationService;
         AssetSearchService = assetSearchService;
-        SearchModels = SearchModelOptions.FromConfiguration(configuration);
+        SearchModelOptionsProvider = searchModelOptionsProvider;
     }
 
     public async Task<VectorizeDescriptionsResult> ExecuteAsync(
@@ -41,6 +40,7 @@ public sealed class VectorizeDescriptionsUseCase
         var successCount = 0;
         var skipCount = 0;
         var failureCount = 0;
+        var searchModels = SearchModelOptionsProvider.Current;
 
         foreach (var asset in assets)
         {
@@ -55,11 +55,11 @@ public sealed class VectorizeDescriptionsUseCase
             }
 
             var needsVectorization = await VectorStore.NeedsVectorizationAsync(
-                asset.Id, SearchModels.EmbeddingModel, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
+                asset.DatabaseId, searchModels.EmbeddingModel, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
             if (!needsVectorization)
             {
                 // 向量已是最新，同步 vector_state 为 'indexed' 以保持 UI 一致
-                await VectorStore.MarkAsIndexedAsync(asset.Id, ct).ConfigureAwait(false);
+                await VectorStore.MarkAsIndexedAsync(asset.DatabaseId, ct).ConfigureAwait(false);
                 skipCount++;
                 await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "向量已是最新"), ct).ConfigureAwait(false);
                 continue;
@@ -68,9 +68,9 @@ public sealed class VectorizeDescriptionsUseCase
             try
             {
                 var vectorDocuments = await TextVectorizationService
-                    .VectorizeAsync(description, backendBaseUrl, SearchModels.EmbeddingProvider, SearchModels.EmbeddingModel, ct)
+                    .VectorizeAsync(description, backendBaseUrl, searchModels.EmbeddingProvider, searchModels.EmbeddingModel, ct)
                     .ConfigureAwait(false);
-                await VectorStore.ReplaceForAssetAsync(asset.Id, SearchModels.EmbeddingModel, vectorDocuments, ct).ConfigureAwait(false);
+                await VectorStore.ReplaceForAssetAsync(asset.DatabaseId, searchModels.EmbeddingModel, vectorDocuments, ct).ConfigureAwait(false);
                 successCount++;
                 await ReportAsync(progress, VectorizeDescriptionProgress.Completed(asset, vectorDocuments), ct).ConfigureAwait(false);
             }

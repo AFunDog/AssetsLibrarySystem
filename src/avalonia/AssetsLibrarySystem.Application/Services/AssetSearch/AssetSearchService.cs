@@ -13,7 +13,6 @@ using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Serilog;
-using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Application.Services.AssetSearch;
 
@@ -22,8 +21,7 @@ public sealed class AssetSearchService : IAssetSearchService
     private const int ExactSearchThreshold = 5000;
     private HttpClient Http { get; } = new();
     private IAssetDatabase AssetDatabase { get; }
-    private LocalHnswSearchIndexManager IndexManager { get; }
-    private SearchModelOptions SearchModels { get; }
+    private ISearchModelOptionsProvider SearchModelOptionsProvider { get; }
     private JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
@@ -32,11 +30,10 @@ public sealed class AssetSearchService : IAssetSearchService
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    public AssetSearchService(IAssetDatabase assetDatabase, IConfiguration configuration)
+    public AssetSearchService(IAssetDatabase assetDatabase, ISearchModelOptionsProvider searchModelOptionsProvider)
     {
         AssetDatabase = assetDatabase;
-        SearchModels = SearchModelOptions.FromConfiguration(configuration);
-        IndexManager = new LocalHnswSearchIndexManager(SearchModels.EmbeddingModel);
+        SearchModelOptionsProvider = searchModelOptionsProvider;
     }
 
     public async Task<AssetSearchResponseDocument> SearchAsync(
@@ -50,18 +47,19 @@ public sealed class AssetSearchService : IAssetSearchService
         var startedAt = DateTimeOffset.UtcNow;
         var normalizedQuery = query.Trim();
         var normalizedAssetFormat = NormalizeAssetFormat(normalizedQuery, assetFormat);
+        var searchModels = SearchModelOptionsProvider.Current;
         if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
             throw new InvalidOperationException("搜索词不能为空。");
         }
 
-        var records = await LoadVectorRecordsAsync(SearchModels.EmbeddingModel, ct).ConfigureAwait(false);
+        var records = await LoadVectorRecordsAsync(searchModels.EmbeddingModel, ct).ConfigureAwait(false);
         if (records.Count == 0)
         {
             throw new InvalidOperationException("当前没有可检索的素材描述。");
         }
 
-        var queryVectorResponse = await IndexTextAsync(backendBaseUrl, normalizedQuery, ct).ConfigureAwait(false);
+        var queryVectorResponse = await IndexTextAsync(backendBaseUrl, normalizedQuery, searchModels, ct).ConfigureAwait(false);
         var queryVector = JsonSerializer.Deserialize<float[]>(queryVectorResponse.Vector.GetRawText(), JsonOptions) ?? [];
         if (queryVector.Length == 0)
         {
@@ -77,11 +75,12 @@ public sealed class AssetSearchService : IAssetSearchService
         }
 
         var indexRecords = filteredRecords;
+        var indexManager = new LocalHnswSearchIndexManager(searchModels.EmbeddingModel);
         var state = BuildIndexState(indexRecords);
         var useExactSearch = indexRecords.Count <= ExactSearchThreshold;
         if (!useExactSearch)
         {
-            IndexManager.EnsureCurrent(
+            indexManager.EnsureCurrent(
                 indexRecords.Select(record => record.Vector).ToArray(),
                 indexRecords.Select(record => BuildVectorKey(record)).ToArray(),
                 state);
@@ -101,7 +100,7 @@ public sealed class AssetSearchService : IAssetSearchService
 
         IReadOnlyList<(int Index, float Similarity)> searchResults = useExactSearch
             ? SearchExact(indexRecords, queryVector, expandedCandidateTopK)
-            : IndexManager.Search(queryVector, expandedCandidateTopK);
+            : indexManager.Search(queryVector, expandedCandidateTopK);
         var vectorCandidates = new List<VectorCandidateRecord>(searchResults.Count);
         foreach (var (index, similarity) in searchResults)
         {
@@ -136,6 +135,7 @@ public sealed class AssetSearchService : IAssetSearchService
             normalizedQuery,
             rerankCandidates,
             rerankCandidates.Count,
+            searchModels,
             ct).ConfigureAwait(false);
         var rerankScoreMap = rerankResponse.Results
             .Where(item => !string.IsNullOrWhiteSpace(item.CandidateId))
@@ -199,14 +199,16 @@ public sealed class AssetSearchService : IAssetSearchService
     public async Task<AssetReindexResponseDocument> ReindexAsync(
         CancellationToken ct = default)
     {
-        var records = await LoadVectorRecordsAsync(SearchModels.EmbeddingModel, ct).ConfigureAwait(false);
+        var searchModels = SearchModelOptionsProvider.Current;
+        var indexManager = new LocalHnswSearchIndexManager(searchModels.EmbeddingModel);
+        var records = await LoadVectorRecordsAsync(searchModels.EmbeddingModel, ct).ConfigureAwait(false);
         if (records.Count == 0)
         {
             throw new InvalidOperationException("当前没有可用于本地检索的向量数据。");
         }
 
         var state = BuildIndexState(records);
-        IndexManager.Rebuild(
+        indexManager.Rebuild(
             records.Select(record => record.Vector).ToArray(),
             records.Select(record => BuildVectorKey(record)).ToArray(),
             state);
@@ -228,8 +230,8 @@ public sealed class AssetSearchService : IAssetSearchService
             DocumentCount: records.Count,
             VectorDim: vectorDim,
             DatabasePath: AssetDatabase.DatabasePath,
-            IndexPath: IndexManager.IndexPath,
-            MetadataPath: IndexManager.MetadataPath,
+            IndexPath: indexManager.IndexPath,
+            MetadataPath: indexManager.MetadataPath,
             EmbeddingModels: embeddingModels);
     }
 
@@ -309,12 +311,16 @@ public sealed class AssetSearchService : IAssetSearchService
             RemainingLoadedModels: backendResponse.RemainingLoadedModels.ToArray());
     }
 
-    private async Task<SearchIndexResponse> IndexTextAsync(string backendBaseUrl, string text, CancellationToken ct)
+    private async Task<SearchIndexResponse> IndexTextAsync(
+        string backendBaseUrl,
+        string text,
+        SearchModelOptions searchModels,
+        CancellationToken ct)
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/index";
         var request = new SearchIndexRequest(
-            Provider: SearchModels.EmbeddingProvider,
-            Model: SearchModels.EmbeddingModel,
+            Provider: searchModels.EmbeddingProvider,
+            Model: searchModels.EmbeddingModel,
             AssetId: "__query__",
             AssetName: "__query__",
             AssetFormat: "文本",
@@ -343,13 +349,14 @@ public sealed class AssetSearchService : IAssetSearchService
         string query,
         IReadOnlyList<VectorCandidateRecord> candidates,
         int rerankTopK,
+        SearchModelOptions searchModels,
         CancellationToken ct)
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/query";
         var requestedTopK = Math.Min(rerankTopK, Math.Min(candidates.Count, 50));
         var request = new SearchQueryRequest(
-            Provider: SearchModels.RerankProvider,
-            Model: SearchModels.RerankModel,
+            Provider: searchModels.RerankProvider,
+            Model: searchModels.RerankModel,
             Query: query,
             Candidates: candidates.Select(candidate => new SearchQueryCandidate(
                 CandidateId: candidate.CandidateId,
@@ -387,6 +394,7 @@ public sealed class AssetSearchService : IAssetSearchService
         command.CommandText = """
             SELECT
                 v.asset_id,
+                a.asset_uid,
                 COALESCE(NULLIF(TRIM(v.angle_type), ''), '全面') AS angle_type,
                 COALESCE(a.asset_name, d.asset_name, '') AS asset_name,
                 COALESCE(a.asset_type, d.asset_type, '') AS asset_type,
@@ -400,8 +408,8 @@ public sealed class AssetSearchService : IAssetSearchService
                 v.vector_blob
             FROM asset_description_vectors AS v
             LEFT JOIN asset_descriptions AS d ON d.asset_id = v.asset_id
-            LEFT JOIN asset_metadata AS m ON m.asset_uid = v.asset_id
-            LEFT JOIN assets AS a ON a.asset_uid = v.asset_id
+            LEFT JOIN asset_metadata AS m ON m.asset_id = v.asset_id
+            LEFT JOIN assets AS a ON a.id = v.asset_id
             WHERE v.embedding_model = $embedding_model
             ORDER BY v.asset_id, v.angle_type;
             """;
@@ -411,21 +419,21 @@ public sealed class AssetSearchService : IAssetSearchService
         var records = new List<LocalVectorRecord>();
         while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
-            var rawDescription = reader.IsDBNull(5) ? string.Empty : reader.GetString(5);
-            var angleType = reader.GetString(1);
+            var rawDescription = reader.IsDBNull(6) ? string.Empty : reader.GetString(6);
+            var angleType = reader.GetString(2);
             records.Add(new LocalVectorRecord(
-                AssetUid: reader.GetString(0),
+                AssetUid: reader.GetString(1),
                 AngleType: angleType,
-                AssetName: reader.GetString(2),
-                AssetType: reader.GetString(3),
-                AssetPath: reader.GetString(4),
+                AssetName: reader.GetString(3),
+                AssetType: reader.GetString(4),
+                AssetPath: reader.GetString(5),
                 PrimaryDescription: StructuredDescriptionHelper.ExtractPrimaryText(rawDescription),
                 SegmentText: StructuredDescriptionHelper.ExtractTextByAngle(rawDescription, angleType),
-                Tags: DeserializeTags(reader.IsDBNull(6) ? null : reader.GetString(6)),
-                GeneratedAt: reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7)),
-                VectorizedAt: reader.IsDBNull(8) ? DateTimeOffset.MinValue : DateTimeOffset.Parse(reader.GetString(8)),
-                EmbeddingModel: reader.GetString(9),
-                Vector: DeserializeVector(reader.GetFieldValue<byte[]>(11), reader.GetInt32(10))));
+                Tags: DeserializeTags(reader.IsDBNull(7) ? null : reader.GetString(7)),
+                GeneratedAt: reader.IsDBNull(8) ? null : DateTimeOffset.Parse(reader.GetString(8)),
+                VectorizedAt: reader.IsDBNull(9) ? DateTimeOffset.MinValue : DateTimeOffset.Parse(reader.GetString(9)),
+                EmbeddingModel: reader.GetString(10),
+                Vector: DeserializeVector(reader.GetFieldValue<byte[]>(12), reader.GetInt32(11))));
         }
 
         return records;

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using AssetsLibrarySystem.Application.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
@@ -64,6 +65,56 @@ public sealed class UserSettingsService : IUserSettingsService
         }
     }
 
+    public string EmbeddingProvider
+    {
+        get => field;
+        set
+        {
+            value = NormalizeProvider(value);
+            if (field == value) return;
+            field = value;
+            SaveIfReady();
+        }
+    } = "dashscope";
+
+    public string EmbeddingModel
+    {
+        get => field;
+        set
+        {
+            value = NormalizeModel(value, EmbeddingProvider == "local" ? "Qwen/Qwen3-Embedding-0.6B" : "text-embedding-v4");
+            if (field == value) return;
+            field = value;
+            SaveIfReady();
+        }
+    } = "text-embedding-v4";
+
+    public string RerankProvider
+    {
+        get => field;
+        set
+        {
+            value = NormalizeProvider(value);
+            if (field == value) return;
+            field = value;
+            SaveIfReady();
+        }
+    } = "dashscope";
+
+    public string RerankModel
+    {
+        get => field;
+        set
+        {
+            value = NormalizeModel(value, RerankProvider == "local" ? "Qwen/Qwen3-Reranker-0.6B" : "qwen3-rerank");
+            if (field == value) return;
+            field = value;
+            SaveIfReady();
+        }
+    } = "qwen3-rerank";
+
+    public SearchModelOptions Current => new(EmbeddingProvider, EmbeddingModel, RerankProvider, RerankModel);
+
     private static string CreateFallbackSettingsPath()
     {
         return Path.Combine(AppContext.BaseDirectory, "data", "user-settings.json");
@@ -100,6 +151,10 @@ public sealed class UserSettingsService : IUserSettingsService
 
             AutoWarmupEmbeddingModel = snapshot.AutoWarmupEmbeddingModel;
             AutoWarmupRerankModel = snapshot.AutoWarmupRerankModel;
+            EmbeddingProvider = snapshot.EmbeddingProvider;
+            EmbeddingModel = snapshot.EmbeddingModel;
+            RerankProvider = snapshot.RerankProvider;
+            RerankModel = snapshot.RerankModel;
             Log.Debug(
                 "用户设置已加载: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}",
                 SettingsPath,
@@ -132,6 +187,10 @@ public sealed class UserSettingsService : IUserSettingsService
             {
                 AutoWarmupEmbeddingModel = AutoWarmupEmbeddingModel,
                 AutoWarmupRerankModel = AutoWarmupRerankModel,
+                EmbeddingProvider = EmbeddingProvider,
+                EmbeddingModel = EmbeddingModel,
+                RerankProvider = RerankProvider,
+                RerankModel = RerankModel,
             };
 
             var json = JsonSerializer.Serialize(snapshot, JsonOptions);
@@ -153,5 +212,19 @@ public sealed class UserSettingsService : IUserSettingsService
         public bool AutoWarmupEmbeddingModel { get; set; }
 
         public bool AutoWarmupRerankModel { get; set; }
+
+        public string EmbeddingProvider { get; set; } = "dashscope";
+
+        public string EmbeddingModel { get; set; } = "text-embedding-v4";
+
+        public string RerankProvider { get; set; } = "dashscope";
+
+        public string RerankModel { get; set; } = "qwen3-rerank";
     }
+
+    private static string NormalizeProvider(string? value) =>
+        string.Equals(value?.Trim(), "local", StringComparison.OrdinalIgnoreCase) ? "local" : "dashscope";
+
+    private static string NormalizeModel(string? value, string fallback) =>
+        string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
 }

@@ -182,14 +182,8 @@ public sealed class ConsoleCommandRunner
 
         if (Directory.Exists(targetPath))
         {
-            var pseudoLibrary = new LibraryWorkspace(
-                id: $"path:{Path.GetFullPath(targetPath)}",
-                name: Path.GetFileName(Path.GetFullPath(targetPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
-                rootPath: Path.GetFullPath(targetPath),
-                summary: "单目录扫描",
-                syncMode: "已扫描",
-                assetCount: 0);
-            var assets = await LibraryService.ScanLibraryAsync(pseudoLibrary);
+            var registeredLibrary = await LibraryService.AddLibraryAsync(targetPath);
+            var assets = await LibraryService.ScanLibraryAsync(registeredLibrary);
             return await PrintScanResultAsync(targetPath, assets);
         }
 
@@ -381,13 +375,13 @@ public sealed class ConsoleCommandRunner
             var assets = await LibraryService.ScanLibraryAsync(library);
             foreach (var asset in assets)
             {
-                var description = await DescriptionStore.TryGetAsync(asset.Id);
+                var description = await DescriptionStore.TryGetAsync(asset.DatabaseId);
                 if (description is null)
                 {
                     continue;
                 }
 
-                if ((await VectorStore.ListByAssetIdAsync(asset.Id)).Count > 0)
+                if ((await VectorStore.ListByAssetIdAsync(asset.DatabaseId)).Count > 0)
                 {
                     continue;
                 }
@@ -511,7 +505,7 @@ public sealed class ConsoleCommandRunner
     {
         var libraries = await LibraryService.GetLibrariesAsync();
         return libraries.FirstOrDefault(library =>
-            string.Equals(library.Id, key, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(library.Id.ToString(), key, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(library.Name, key, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(library.RootPath, key, StringComparison.OrdinalIgnoreCase));
     }
@@ -728,7 +722,7 @@ public sealed class ConsoleCommandRunner
 
         foreach (var asset in assets)
         {
-            var description = await DescriptionStore.TryGetAsync(asset.Id);
+            var description = await DescriptionStore.TryGetAsync(asset.DatabaseId);
             var descriptionState = description is null ? "未描述" : $"已描述({description.Mode})";
             Console.WriteLine($"- {asset.RelativePath} | {asset.AssetType} | {asset.Stage} | {asset.AiState} | {descriptionState}");
         }

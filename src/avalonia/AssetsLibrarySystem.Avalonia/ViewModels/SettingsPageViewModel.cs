@@ -44,6 +44,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         IsLoadingSettings = true;
         AutoWarmupEmbeddingModel = UserSettingsService.AutoWarmupEmbeddingModel;
         AutoWarmupRerankModel = UserSettingsService.AutoWarmupRerankModel;
+        EmbeddingProvider = UserSettingsService.EmbeddingProvider;
+        EmbeddingModel = UserSettingsService.EmbeddingModel;
+        RerankProvider = UserSettingsService.RerankProvider;
+        RerankModel = UserSettingsService.RerankModel;
         IsLoadingSettings = false;
 
         SubmitPromptCommand = new RelayCommand(SubmitPrompt);
@@ -63,6 +67,20 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool AutoWarmupRerankModel { get; set; }
+
+    [ObservableProperty]
+    public partial string EmbeddingProvider { get; set; }
+
+    [ObservableProperty]
+    public partial string EmbeddingModel { get; set; }
+
+    [ObservableProperty]
+    public partial string RerankProvider { get; set; }
+
+    [ObservableProperty]
+    public partial string RerankModel { get; set; }
+
+    public string[] ProviderOptions { get; } = ["dashscope", "local"];
 
     [ObservableProperty]
     public partial string SettingsStatusMessage { get; set; }
@@ -105,6 +123,25 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         SettingsStatusMessage = value
             ? "已启用 rerank 自动预热，下次启动生效。"
             : "已关闭 rerank 自动预热，下次启动生效。";
+    }
+
+    partial void OnEmbeddingProviderChanged(string value) => SaveSearchModelSettings();
+    partial void OnEmbeddingModelChanged(string value) => SaveSearchModelSettings();
+    partial void OnRerankProviderChanged(string value) => SaveSearchModelSettings();
+    partial void OnRerankModelChanged(string value) => SaveSearchModelSettings();
+
+    private void SaveSearchModelSettings()
+    {
+        if (IsLoadingSettings)
+        {
+            return;
+        }
+
+        UserSettingsService.EmbeddingProvider = EmbeddingProvider;
+        UserSettingsService.EmbeddingModel = EmbeddingModel;
+        UserSettingsService.RerankProvider = RerankProvider;
+        UserSettingsService.RerankModel = RerankModel;
+        SettingsStatusMessage = "搜索模型设置已保存，后续向量化与检索立即使用新设置。";
     }
 
     private void SubmitPrompt()

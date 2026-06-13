@@ -92,7 +92,7 @@
                                     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                FontWeight="SemiBold"
                                                LetterSpacing="1.2"
-                                               Text="本地搜索模型" />
+                                               Text="搜索模型" />
                                     <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                                FontWeight="SemiBold"
                                                Text="{Binding SearchModelStatusTitle}" />
@@ -118,6 +118,23 @@
                                 <TextBlock TextWrapping="Wrap"
                                            Text="{Binding SearchModelStatusDetail}" />
                             </Border>
+
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+                                <TextBlock VerticalAlignment="Center" Text="向量来源" />
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding ProviderOptions}"
+                                          SelectedItem="{Binding EmbeddingProvider, Mode=TwoWay}" />
+                                <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="向量模型" />
+                                <TextBox Grid.Row="1" Grid.Column="1"
+                                         Text="{Binding EmbeddingModel, Mode=TwoWay}" />
+                                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="重排序来源" />
+                                <ComboBox Grid.Row="2" Grid.Column="1"
+                                          ItemsSource="{Binding ProviderOptions}"
+                                          SelectedItem="{Binding RerankProvider, Mode=TwoWay}" />
+                                <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="重排序模型" />
+                                <TextBox Grid.Row="3" Grid.Column="1"
+                                         Text="{Binding RerankModel, Mode=TwoWay}" />
+                            </Grid>
 
                             <StackPanel Spacing="4">
                                 <CheckBox Content="下次启动自动预热 embedding 模型"

@@ -109,10 +109,20 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
     {
         await using var command = connection.CreateCommand();
         command.CommandText = """
+            CREATE TABLE IF NOT EXISTS libraries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                root_path TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_libraries_root_path
+                ON libraries(root_path);
+
             CREATE TABLE IF NOT EXISTS assets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 asset_uid TEXT NOT NULL,
-                library_id TEXT NOT NULL,
+                library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
                 asset_name TEXT NOT NULL,
                 asset_type TEXT NOT NULL,
                 current_path TEXT NOT NULL,
@@ -137,19 +147,19 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 
             CREATE TABLE IF NOT EXISTS asset_metadata (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                asset_uid TEXT NOT NULL,
+                asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
                 tags_json TEXT NOT NULL DEFAULT '[]',
                 metadata_status TEXT NOT NULL,
                 vector_state TEXT NOT NULL DEFAULT 'pending',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
-            CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_metadata_asset_uid
-                ON asset_metadata(asset_uid);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_metadata_asset_id
+                ON asset_metadata(asset_id);
 
             CREATE TABLE IF NOT EXISTS asset_descriptions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                asset_id TEXT NOT NULL,
+                asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
                 asset_name TEXT NOT NULL,
                 asset_type TEXT NOT NULL,
                 asset_path TEXT NOT NULL,
@@ -168,7 +178,7 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 
             CREATE TABLE IF NOT EXISTS asset_description_vectors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                asset_id TEXT NOT NULL,
+                asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
                 angle_type TEXT NOT NULL DEFAULT '全面',
                 embedding_model TEXT NOT NULL,
                 vector_dim INTEGER NOT NULL,

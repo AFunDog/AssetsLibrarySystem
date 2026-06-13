@@ -17,3 +17,13 @@ public sealed record SearchModelOptions(
             configuration["SearchModels:RerankModel"] ?? "qwen3-rerank");
     }
 }
+
+public interface ISearchModelOptionsProvider
+{
+    SearchModelOptions Current { get; }
+}
+
+public sealed class ConfigurationSearchModelOptionsProvider(IConfiguration configuration) : ISearchModelOptionsProvider
+{
+    public SearchModelOptions Current => SearchModelOptions.FromConfiguration(configuration);
+}

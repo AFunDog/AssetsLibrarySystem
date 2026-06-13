@@ -26,8 +26,8 @@ public sealed class DeleteAssetDescriptionUseCase
         ManagedAssetRecord asset,
         CancellationToken ct = default)
     {
-        var descriptionDeleted = await DescriptionStore.DeleteAsync(asset.AssetUid, ct).ConfigureAwait(false);
-        var vectorDeleted = await VectorStore.DeleteAsync(asset.AssetUid, ct).ConfigureAwait(false);
+        var descriptionDeleted = await DescriptionStore.DeleteAsync(asset.DatabaseId, ct).ConfigureAwait(false);
+        var vectorDeleted = await VectorStore.DeleteAsync(asset.DatabaseId, ct).ConfigureAwait(false);
         if (descriptionDeleted || vectorDeleted)
         {
             await AssetSearchService.ReindexAsync(ct).ConfigureAwait(false);

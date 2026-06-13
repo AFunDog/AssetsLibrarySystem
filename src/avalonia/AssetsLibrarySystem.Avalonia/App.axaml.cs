@@ -155,6 +155,7 @@ public partial class App : global::Avalonia.Application
             .SingleInstance();
         builder.RegisterType<UserSettingsService>()
             .As<IUserSettingsService>()
+            .As<ISearchModelOptionsProvider>()
             .SingleInstance();
         builder.RegisterType<BackendSessionService>()
             .AsSelf()

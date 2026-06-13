@@ -10,18 +10,18 @@ public interface IAssetDescriptionVectorStore
 {
     string DatabasePath { get; }
 
-    Task ReplaceForAssetAsync(string assetId, string embeddingModel, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default);
+    Task ReplaceForAssetAsync(long assetId, string embeddingModel, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default);
 
-    Task<IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetIdAsync(string assetId, CancellationToken ct = default);
+    Task<IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetIdAsync(long assetId, CancellationToken ct = default);
 
-    Task<bool> DeleteAsync(string assetId, CancellationToken ct = default);
+    Task<bool> DeleteAsync(long assetId, CancellationToken ct = default);
 
     Task<bool> NeedsVectorizationAsync(
-        string assetId,
+        long assetId,
         string embeddingModel,
         string? descriptionContentHash = null,
         DateTimeOffset? descriptionGeneratedAt = null,
         CancellationToken ct = default);
 
-    Task MarkAsIndexedAsync(string assetId, CancellationToken ct = default);
+    Task MarkAsIndexedAsync(long assetId, CancellationToken ct = default);
 }

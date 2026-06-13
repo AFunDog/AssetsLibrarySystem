@@ -1,4 +1,5 @@
 using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Application.UseCases.AssetOperations;
@@ -53,7 +54,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             [asset.AssetUid] = [vectorDocument],
         });
         var assetSearchService = new FakeAssetSearchService();
-        var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService, CreateConfiguration());
+        var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService, CreateSearchModelOptionsProvider());
 
         var result = await useCase.ExecuteAsync([asset], "http://local-backend");
 
@@ -80,7 +81,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
         }, needsVectorizationResult: false);
         var vectorizationService = new FakeTextVectorizationService();
         var assetSearchService = new FakeAssetSearchService();
-        var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService, CreateConfiguration());
+        var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService, CreateSearchModelOptionsProvider());
 
         var result = await useCase.ExecuteAsync([asset], "http://local-backend");
 
@@ -95,6 +96,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
     {
         return new ManagedAssetRecord
         {
+            DatabaseId = 1,
             AssetUid = "asset-001",
             Name = "sample.mp3",
             AssetType = "音乐",
@@ -104,9 +106,9 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
         };
     }
 
-    private static IConfiguration CreateConfiguration()
+    private static ISearchModelOptionsProvider CreateSearchModelOptionsProvider()
     {
-        return new ConfigurationBuilder()
+        var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["SearchModels:EmbeddingProvider"] = "local",
@@ -115,11 +117,13 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
                 ["SearchModels:RerankModel"] = "rerank-test",
             })
             .Build();
+        return new FakeSearchModelOptionsProvider(SearchModelOptions.FromConfiguration(configuration));
     }
 
     private static AssetDescriptionDocument CreateDescription(ManagedAssetRecord asset)
     {
         return new AssetDescriptionDocument(
+            AssetId: asset.DatabaseId,
             AssetUid: asset.AssetUid,
             AssetName: asset.Name,
             AssetType: asset.AssetType,
@@ -138,6 +142,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
     private static AssetDescriptionVectorDocument CreateVectorDocument(ManagedAssetRecord asset)
     {
         return new AssetDescriptionVectorDocument(
+            AssetId: asset.DatabaseId,
             AssetUid: asset.AssetUid,
             AngleType: AssetDescriptionVectorDocument.DefaultAngleType,
             EmbeddingModel: "bge-test",
@@ -167,9 +172,9 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             throw new NotSupportedException();
         }
 
-        public Task<AssetDescriptionDocument?> TryGetAsync(string assetId, CancellationToken ct = default)
+        public Task<AssetDescriptionDocument?> TryGetAsync(long assetId, CancellationToken ct = default)
         {
-            return Task.FromResult(DescriptionByAssetId.GetValueOrDefault(assetId));
+            return Task.FromResult(DescriptionByAssetId.Values.FirstOrDefault());
         }
 
         public Task<AssetDescriptionDocument?> TryGetForAssetAsync(ManagedAssetRecord asset, CancellationToken ct = default)
@@ -177,7 +182,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             return Task.FromResult(DescriptionByAssetId.GetValueOrDefault(asset.AssetUid));
         }
 
-        public Task<bool> DeleteAsync(string assetId, CancellationToken ct = default)
+        public Task<bool> DeleteAsync(long assetId, CancellationToken ct = default)
         {
             return Task.FromResult(DeleteResult);
         }
@@ -214,26 +219,26 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
         }
 
         public string DatabasePath => "test.db";
-        public List<(string AssetId, IReadOnlyList<AssetDescriptionVectorDocument> Documents)> ReplaceCalls { get; } = [];
+        public List<(long AssetId, IReadOnlyList<AssetDescriptionVectorDocument> Documents)> ReplaceCalls { get; } = [];
 
-        public Task ReplaceForAssetAsync(string assetId, string embeddingModel, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default)
+        public Task ReplaceForAssetAsync(long assetId, string embeddingModel, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default)
         {
             ReplaceCalls.Add((assetId, documents));
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetIdAsync(string assetId, CancellationToken ct = default)
+        public Task<IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetIdAsync(long assetId, CancellationToken ct = default)
         {
-            return Task.FromResult(ListByAssetId.GetValueOrDefault(assetId) ?? (IReadOnlyList<AssetDescriptionVectorDocument>)[]);
+            return Task.FromResult(ListByAssetId.Values.FirstOrDefault() ?? (IReadOnlyList<AssetDescriptionVectorDocument>)[]);
         }
 
-        public Task<bool> DeleteAsync(string assetId, CancellationToken ct = default)
+        public Task<bool> DeleteAsync(long assetId, CancellationToken ct = default)
         {
             return Task.FromResult(DeleteResult);
         }
 
         public Task<bool> NeedsVectorizationAsync(
-            string assetId,
+            long assetId,
             string embeddingModel,
             string? descriptionContentHash = null,
             DateTimeOffset? descriptionGeneratedAt = null,
@@ -242,11 +247,13 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             return Task.FromResult(NeedsVectorizationResult);
         }
 
-        public Task MarkAsIndexedAsync(string assetId, CancellationToken ct = default)
+        public Task MarkAsIndexedAsync(long assetId, CancellationToken ct = default)
         {
             return Task.CompletedTask;
         }
     }
+
+    private sealed record FakeSearchModelOptionsProvider(SearchModelOptions Current) : ISearchModelOptionsProvider;
 
     private sealed class FakeTextVectorizationService : IAssetTextVectorizationService
     {

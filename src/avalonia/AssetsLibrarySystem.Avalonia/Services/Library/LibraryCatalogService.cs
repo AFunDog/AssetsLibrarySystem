@@ -220,7 +220,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
 
     public void SelectLibrary(LibraryWorkspace? library)
     {
-        Log.Information("用户操作: 选择素材库，libraryId={LibraryId}, libraryName={LibraryName}", library?.Id ?? "none", library?.Name ?? "none");
+        Log.Information("用户操作: 选择素材库，libraryId={LibraryId}, libraryName={LibraryName}", library?.Id.ToString() ?? "none", library?.Name ?? "none");
 
         if (library is null)
         {
