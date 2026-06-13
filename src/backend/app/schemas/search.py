@@ -8,10 +8,16 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.model import AssetFormat
 
+EmbeddingDimensions = Literal[2048, 1024, 512]
+
 
 class SearchIndexRequest(BaseModel):
     provider: Literal["local", "dashscope"] = "local"
     model: str = Field(default="Qwen/Qwen3-Embedding-0.6B", min_length=1)
+    embedding_dimensions: EmbeddingDimensions | None = Field(
+        default=None,
+        description="DashScope embedding 输出维度；本地模型忽略该字段",
+    )
     asset_id: str = Field(min_length=1, description="素材唯一标识")
     asset_name: str = Field(min_length=1, description="素材名称")
     asset_format: AssetFormat = Field(description="素材类型")
@@ -98,7 +104,7 @@ class SearchModelCloseResponse(BaseModel):
     cuda_cache_cleared: bool = Field(description="是否清理了 CUDA 缓存")
     remaining_loaded_models: list[Literal["embedding", "rerank"]] = Field(
         default_factory=list,
-        description="关闭后仍然驻留的本地模型",
+        description="关闭后仍然驻留的模型",
     )
 
 
