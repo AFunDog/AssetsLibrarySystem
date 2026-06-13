@@ -27,6 +27,7 @@
 ```text
 docs/
   architecture.md          # 方案说明与演进路线
+scripts/                   # 一次性数据库迁移等 Python 脚本
 src/
   avalonia/
     AssetsLibrarySystem.Application/ # 共享服务、模型、本地存储与后端启动器

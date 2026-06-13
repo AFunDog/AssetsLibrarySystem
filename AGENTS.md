@@ -18,12 +18,14 @@
 
 - `src/backend`：Python FastAPI 后端骨架
 - `src/frontend`：Vue 3 + TypeScript 前端骨架
+- `scripts/`：一次性数据库迁移等 Python 脚本
 - `docs/architecture.md`：系统方案与演进规划
 
 ## Implementation Rules
 
 - 优先保持分层清晰，再考虑功能完整
 - 当前允许使用 `TODO`、占位实现、假数据说明，但要明确边界
+- 一次性数据库迁移等 Python 脚本统一放在 `scripts/` 下
 - 搜索/RAG 相关设计需要对齐 `D:\GitRepository\RenderTest\test2.py` 的“召回 + 精排 + 索引持久化”思路
 - 后续新增真实能力时，优先沿着 `domain -> application -> infrastructure -> api` 的方向扩展
 
