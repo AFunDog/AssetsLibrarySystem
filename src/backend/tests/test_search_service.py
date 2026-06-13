@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import Mock
 
 import numpy as np
 
@@ -104,6 +105,8 @@ class SearchServiceTestCase(unittest.TestCase):
 
         response = service.vectorize(
             SearchIndexRequest(
+                provider="local",
+                model="fake-embed",
                 asset_id="asset-1",
                 asset_name="shock.png",
                 asset_format="图片",
@@ -123,6 +126,8 @@ class SearchServiceTestCase(unittest.TestCase):
 
         response = service.rerank(
             SearchQueryRequest(
+                provider="local",
+                model="fake-rerank",
                 query="惊吓 后退",
                 candidates=[
                     SearchQueryCandidate(
@@ -151,6 +156,49 @@ class SearchServiceTestCase(unittest.TestCase):
         self.assertGreater(response.results[0].rerank_score, response.results[1].rerank_score)
         self.assertIsNone(response.results[0].vector_distance)
         self.assertEqual(response.results[0].combined_score, response.results[0].rerank_score)
+
+    def test_index_routes_dashscope_model_from_request(self) -> None:
+        service = SearchService(model_bundle=FakeModelBundle())
+        service._dashscope_vectorize = Mock(return_value=np.asarray([0.1, 0.2], dtype=np.float32))
+
+        response = service.vectorize(
+            SearchIndexRequest(
+                provider="dashscope",
+                model="text-embedding-v4",
+                asset_id="asset-1",
+                asset_name="sample.txt",
+                asset_format="文本",
+                asset_path=r"D:\Data\sample.txt",
+                description="测试描述",
+            )
+        )
+
+        service._dashscope_vectorize.assert_called_once_with("text-embedding-v4", "测试描述")
+        self.assertEqual(response.embedding_model, "text-embedding-v4")
+
+    def test_query_routes_dashscope_model_from_request(self) -> None:
+        service = SearchService(model_bundle=FakeModelBundle())
+        service._dashscope_rerank = Mock(return_value=[0.8])
+
+        response = service.rerank(
+            SearchQueryRequest(
+                provider="dashscope",
+                model="qwen3-rerank",
+                query="测试",
+                candidates=[
+                    SearchQueryCandidate(
+                        asset_id="asset-1",
+                        asset_name="sample.txt",
+                        asset_format="文本",
+                        asset_path=r"D:\Data\sample.txt",
+                        description="测试描述",
+                    )
+                ],
+            )
+        )
+
+        service._dashscope_rerank.assert_called_once_with("qwen3-rerank", "测试", ["测试描述"])
+        self.assertEqual(response.rerank_model, "qwen3-rerank")
 
     def test_close_model_releases_single_cached_model(self) -> None:
         bundle = FakeModelBundle()

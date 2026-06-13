@@ -7,5 +7,10 @@ namespace AssetsLibrarySystem.Application.Services.AssetDescription;
 
 public interface IAssetTextVectorizationService
 {
-    Task<IReadOnlyList<AssetDescriptionVectorDocument>> VectorizeAsync(AssetDescriptionDocument document, string backendBaseUrl, CancellationToken ct = default);
+    Task<IReadOnlyList<AssetDescriptionVectorDocument>> VectorizeAsync(
+        AssetDescriptionDocument document,
+        string backendBaseUrl,
+        string provider,
+        string model,
+        CancellationToken ct = default);
 }

@@ -26,6 +26,13 @@ internal sealed class LocalHnswSearchIndexManager
         MetadataPath = SharedDataPathHelper.GetDataFilePath(MetadataFileName);
     }
 
+    public LocalHnswSearchIndexManager(string embeddingModel)
+    {
+        var suffix = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(embeddingModel)))[..12].ToLowerInvariant();
+        IndexPath = SharedDataPathHelper.GetDataFilePath($"asset_search_vectors.{suffix}.hnsw");
+        MetadataPath = SharedDataPathHelper.GetDataFilePath($"asset_search_vectors.{suffix}.meta.json");
+    }
+
     internal LocalHnswSearchIndexManager(string indexPath, string metadataPath)
     {
         IndexPath = indexPath;

@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
+using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Application.UseCases.AssetOperations;
 
@@ -14,17 +16,20 @@ public sealed class VectorizeDescriptionsUseCase
     private IAssetDescriptionVectorStore VectorStore { get; }
     private IAssetTextVectorizationService TextVectorizationService { get; }
     private IAssetSearchService AssetSearchService { get; }
+    private SearchModelOptions SearchModels { get; }
 
     public VectorizeDescriptionsUseCase(
         IAssetDescriptionStore descriptionStore,
         IAssetDescriptionVectorStore vectorStore,
         IAssetTextVectorizationService textVectorizationService,
-        IAssetSearchService assetSearchService)
+        IAssetSearchService assetSearchService,
+        IConfiguration configuration)
     {
         DescriptionStore = descriptionStore;
         VectorStore = vectorStore;
         TextVectorizationService = textVectorizationService;
         AssetSearchService = assetSearchService;
+        SearchModels = SearchModelOptions.FromConfiguration(configuration);
     }
 
     public async Task<VectorizeDescriptionsResult> ExecuteAsync(
@@ -50,7 +55,7 @@ public sealed class VectorizeDescriptionsUseCase
             }
 
             var needsVectorization = await VectorStore.NeedsVectorizationAsync(
-                asset.Id, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
+                asset.Id, SearchModels.EmbeddingModel, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
             if (!needsVectorization)
             {
                 // 向量已是最新，同步 vector_state 为 'indexed' 以保持 UI 一致
@@ -63,9 +68,9 @@ public sealed class VectorizeDescriptionsUseCase
             try
             {
                 var vectorDocuments = await TextVectorizationService
-                    .VectorizeAsync(description, backendBaseUrl, ct)
+                    .VectorizeAsync(description, backendBaseUrl, SearchModels.EmbeddingProvider, SearchModels.EmbeddingModel, ct)
                     .ConfigureAwait(false);
-                await VectorStore.ReplaceForAssetAsync(asset.Id, vectorDocuments, ct).ConfigureAwait(false);
+                await VectorStore.ReplaceForAssetAsync(asset.Id, SearchModels.EmbeddingModel, vectorDocuments, ct).ConfigureAwait(false);
                 successCount++;
                 await ReportAsync(progress, VectorizeDescriptionProgress.Completed(asset, vectorDocuments), ct).ConfigureAwait(false);
             }

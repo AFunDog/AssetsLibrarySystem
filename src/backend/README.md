@@ -64,10 +64,10 @@
 
 `configs/providers.yaml` 也已经按素材类型分组，分别为 `文本`、`图片`、`视频`、`音频` 配置独立模型。后端会优先读取与 `asset_format` 同名的槽位，再按兼容顺序回退到 `llm_gateway`、`asset_describer` 或第一个可用槽位。
 
-`POST /api/v1/search/index` 只负责把传入文本转换成向量，不会写入数据库。调用方拿到向量后，可以自己写入 Avalonia 侧管理的 SQLite。向量化与重排序默认使用本地小模型：
+`POST /api/v1/search/index` 只负责把传入文本转换成向量，不会写入数据库。请求需携带 `provider` 与 `model`，可选择 `local` 或 `dashscope`。桌面端默认使用：
 
-- embedding：`Qwen/Qwen3-Embedding-0.6B`
-- rerank：`Qwen/Qwen3-Reranker-0.6B`
+- embedding：`dashscope / text-embedding-v4`
+- rerank：`dashscope / qwen3-rerank`
 
 如果需要改模型名或 HuggingFace 缓存目录，可以分别设置：
 
@@ -92,7 +92,7 @@
 - `ALS_IMAGE_JPEG_QUALITY`
 - `ALS_VIDEO_CRF`
 
-`POST /api/v1/search/query` 只对调用方传入的候选文本做本地 rerank，不负责数据库读取或写入。当前桌面端会先在 C# 本地完成向量召回和多角度聚合，再把候选文本发给这个接口做重排序。
+`POST /api/v1/search/query` 只对调用方传入的候选文本做 rerank，不负责数据库读取或写入。`provider` 与 `model` 同样由调用方显式指定。
 
 当前推荐架构下，`asset_descriptions.db`、HNSW 索引文件和向量召回都由 Avalonia/C# 本地维护；Python 后端保持为纯模型网关，只负责 embedding、rerank 和模型状态控制。
 

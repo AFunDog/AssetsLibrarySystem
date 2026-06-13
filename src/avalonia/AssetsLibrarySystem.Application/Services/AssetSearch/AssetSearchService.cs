@@ -9,9 +9,11 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Serilog;
+using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Application.Services.AssetSearch;
 
@@ -20,7 +22,8 @@ public sealed class AssetSearchService : IAssetSearchService
     private const int ExactSearchThreshold = 5000;
     private HttpClient Http { get; } = new();
     private IAssetDatabase AssetDatabase { get; }
-    private LocalHnswSearchIndexManager IndexManager { get; } = new();
+    private LocalHnswSearchIndexManager IndexManager { get; }
+    private SearchModelOptions SearchModels { get; }
     private JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
@@ -29,9 +32,11 @@ public sealed class AssetSearchService : IAssetSearchService
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    public AssetSearchService(IAssetDatabase assetDatabase)
+    public AssetSearchService(IAssetDatabase assetDatabase, IConfiguration configuration)
     {
         AssetDatabase = assetDatabase;
+        SearchModels = SearchModelOptions.FromConfiguration(configuration);
+        IndexManager = new LocalHnswSearchIndexManager(SearchModels.EmbeddingModel);
     }
 
     public async Task<AssetSearchResponseDocument> SearchAsync(
@@ -50,7 +55,7 @@ public sealed class AssetSearchService : IAssetSearchService
             throw new InvalidOperationException("搜索词不能为空。");
         }
 
-        var records = await LoadVectorRecordsAsync(ct).ConfigureAwait(false);
+        var records = await LoadVectorRecordsAsync(SearchModels.EmbeddingModel, ct).ConfigureAwait(false);
         if (records.Count == 0)
         {
             throw new InvalidOperationException("当前没有可检索的素材描述。");
@@ -194,7 +199,7 @@ public sealed class AssetSearchService : IAssetSearchService
     public async Task<AssetReindexResponseDocument> ReindexAsync(
         CancellationToken ct = default)
     {
-        var records = await LoadVectorRecordsAsync(ct).ConfigureAwait(false);
+        var records = await LoadVectorRecordsAsync(SearchModels.EmbeddingModel, ct).ConfigureAwait(false);
         if (records.Count == 0)
         {
             throw new InvalidOperationException("当前没有可用于本地检索的向量数据。");
@@ -308,6 +313,8 @@ public sealed class AssetSearchService : IAssetSearchService
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/index";
         var request = new SearchIndexRequest(
+            Provider: SearchModels.EmbeddingProvider,
+            Model: SearchModels.EmbeddingModel,
             AssetId: "__query__",
             AssetName: "__query__",
             AssetFormat: "文本",
@@ -341,6 +348,8 @@ public sealed class AssetSearchService : IAssetSearchService
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/query";
         var requestedTopK = Math.Min(rerankTopK, Math.Min(candidates.Count, 50));
         var request = new SearchQueryRequest(
+            Provider: SearchModels.RerankProvider,
+            Model: SearchModels.RerankModel,
             Query: query,
             Candidates: candidates.Select(candidate => new SearchQueryCandidate(
                 CandidateId: candidate.CandidateId,
@@ -369,7 +378,7 @@ public sealed class AssetSearchService : IAssetSearchService
             ?? throw new InvalidOperationException("后端返回空重排序响应。");
     }
 
-    private async Task<List<LocalVectorRecord>> LoadVectorRecordsAsync(CancellationToken ct)
+    private async Task<List<LocalVectorRecord>> LoadVectorRecordsAsync(string embeddingModel, CancellationToken ct)
     {
         await AssetDatabase.EnsureSchemaAsync(ct).ConfigureAwait(false);
         await using var connection = await AssetDatabase.OpenConnectionAsync(ct).ConfigureAwait(false);
@@ -393,8 +402,10 @@ public sealed class AssetSearchService : IAssetSearchService
             LEFT JOIN asset_descriptions AS d ON d.asset_id = v.asset_id
             LEFT JOIN asset_metadata AS m ON m.asset_uid = v.asset_id
             LEFT JOIN assets AS a ON a.asset_uid = v.asset_id
+            WHERE v.embedding_model = $embedding_model
             ORDER BY v.asset_id, v.angle_type;
             """;
+        command.Parameters.AddWithValue("$embedding_model", embeddingModel);
 
         await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
         var records = new List<LocalVectorRecord>();
@@ -645,6 +656,8 @@ public sealed class AssetSearchService : IAssetSearchService
     }
 
     private sealed record SearchIndexRequest(
+        string Provider,
+        string Model,
         string AssetId,
         string AssetName,
         string AssetFormat,
@@ -663,6 +676,8 @@ public sealed class AssetSearchService : IAssetSearchService
         string EmbeddingModel);
 
     private sealed record SearchQueryRequest(
+        string Provider,
+        string Model,
         string Query,
         SearchQueryCandidate[] Candidates,
         int FinalTopK);

@@ -110,3 +110,14 @@ Avalonia 桌面端：
 cd src/avalonia
 dotnet build AssetsLibrarySystem.sln
 ```
+
+## 一次性数据库迁移
+
+升级到独立 `id` 主键与多 embedding 模型向量结构时，先关闭桌面端和控制台，再执行：
+
+```powershell
+python scripts/migrate_to_surrogate_ids_and_multi_model_vectors.py --dry-run
+python scripts/migrate_to_surrogate_ids_and_multi_model_vectors.py
+```
+
+脚本会在修改前创建带 UTC 时间戳的 `.bak` 备份。可通过 `--db <path>` 指定数据库文件。

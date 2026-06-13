@@ -3,6 +3,7 @@ using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Application.UseCases.AssetOperations;
 using Xunit;
+using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Application.Tests;
 
@@ -52,7 +53,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             [asset.AssetUid] = [vectorDocument],
         });
         var assetSearchService = new FakeAssetSearchService();
-        var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService);
+        var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService, CreateConfiguration());
 
         var result = await useCase.ExecuteAsync([asset], "http://local-backend");
 
@@ -79,7 +80,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
         }, needsVectorizationResult: false);
         var vectorizationService = new FakeTextVectorizationService();
         var assetSearchService = new FakeAssetSearchService();
-        var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService);
+        var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService, CreateConfiguration());
 
         var result = await useCase.ExecuteAsync([asset], "http://local-backend");
 
@@ -101,6 +102,19 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             RelativePath = @"music\sample.mp3",
             LibraryName = "默认素材库",
         };
+    }
+
+    private static IConfiguration CreateConfiguration()
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SearchModels:EmbeddingProvider"] = "local",
+                ["SearchModels:EmbeddingModel"] = "bge-test",
+                ["SearchModels:RerankProvider"] = "local",
+                ["SearchModels:RerankModel"] = "rerank-test",
+            })
+            .Build();
     }
 
     private static AssetDescriptionDocument CreateDescription(ManagedAssetRecord asset)
@@ -202,7 +216,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
         public string DatabasePath => "test.db";
         public List<(string AssetId, IReadOnlyList<AssetDescriptionVectorDocument> Documents)> ReplaceCalls { get; } = [];
 
-        public Task ReplaceForAssetAsync(string assetId, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default)
+        public Task ReplaceForAssetAsync(string assetId, string embeddingModel, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default)
         {
             ReplaceCalls.Add((assetId, documents));
             return Task.CompletedTask;
@@ -220,6 +234,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
 
         public Task<bool> NeedsVectorizationAsync(
             string assetId,
+            string embeddingModel,
             string? descriptionContentHash = null,
             DateTimeOffset? descriptionGeneratedAt = null,
             CancellationToken ct = default)
@@ -242,7 +257,12 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             ResultsByAssetId = resultsByAssetId ?? new Dictionary<string, IReadOnlyList<AssetDescriptionVectorDocument>>();
         }
 
-        public Task<IReadOnlyList<AssetDescriptionVectorDocument>> VectorizeAsync(AssetDescriptionDocument document, string backendBaseUrl, CancellationToken ct = default)
+        public Task<IReadOnlyList<AssetDescriptionVectorDocument>> VectorizeAsync(
+            AssetDescriptionDocument document,
+            string backendBaseUrl,
+            string provider,
+            string model,
+            CancellationToken ct = default)
         {
             if (ResultsByAssetId.TryGetValue(document.AssetUid, out var documents))
             {

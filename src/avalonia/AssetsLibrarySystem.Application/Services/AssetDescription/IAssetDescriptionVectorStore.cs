@@ -10,7 +10,7 @@ public interface IAssetDescriptionVectorStore
 {
     string DatabasePath { get; }
 
-    Task ReplaceForAssetAsync(string assetId, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default);
+    Task ReplaceForAssetAsync(string assetId, string embeddingModel, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default);
 
     Task<IReadOnlyList<AssetDescriptionVectorDocument>> ListByAssetIdAsync(string assetId, CancellationToken ct = default);
 
@@ -18,6 +18,7 @@ public interface IAssetDescriptionVectorStore
 
     Task<bool> NeedsVectorizationAsync(
         string assetId,
+        string embeddingModel,
         string? descriptionContentHash = null,
         DateTimeOffset? descriptionGeneratedAt = null,
         CancellationToken ct = default);

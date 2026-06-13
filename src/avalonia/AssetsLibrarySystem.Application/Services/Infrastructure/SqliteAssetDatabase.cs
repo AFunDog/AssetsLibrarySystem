@@ -110,7 +110,8 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
         await using var command = connection.CreateCommand();
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS assets (
-                asset_uid TEXT PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_uid TEXT NOT NULL,
                 library_id TEXT NOT NULL,
                 asset_name TEXT NOT NULL,
                 asset_type TEXT NOT NULL,
@@ -131,18 +132,24 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 
             CREATE INDEX IF NOT EXISTS ix_assets_current_path
                 ON assets(current_path);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_asset_uid
+                ON assets(asset_uid);
 
             CREATE TABLE IF NOT EXISTS asset_metadata (
-                asset_uid TEXT PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_uid TEXT NOT NULL,
                 tags_json TEXT NOT NULL DEFAULT '[]',
                 metadata_status TEXT NOT NULL,
                 vector_state TEXT NOT NULL DEFAULT 'pending',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_metadata_asset_uid
+                ON asset_metadata(asset_uid);
 
             CREATE TABLE IF NOT EXISTS asset_descriptions (
-                asset_id TEXT PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id TEXT NOT NULL,
                 asset_name TEXT NOT NULL,
                 asset_type TEXT NOT NULL,
                 asset_path TEXT NOT NULL,
@@ -156,17 +163,23 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
                 content_hash TEXT NULL,
                 metadata_status TEXT NOT NULL DEFAULT 'ready'
             );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_descriptions_asset_id
+                ON asset_descriptions(asset_id);
 
             CREATE TABLE IF NOT EXISTS asset_description_vectors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 asset_id TEXT NOT NULL,
                 angle_type TEXT NOT NULL DEFAULT '全面',
                 embedding_model TEXT NOT NULL,
                 vector_dim INTEGER NOT NULL,
                 vector_blob BLOB NOT NULL,
                 vectorized_at TEXT NOT NULL,
-                content_hash TEXT NULL,
-                PRIMARY KEY (asset_id, angle_type)
+                content_hash TEXT NULL
             );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_description_vectors_identity
+                ON asset_description_vectors(asset_id, angle_type, embedding_model);
+            CREATE INDEX IF NOT EXISTS ix_asset_description_vectors_embedding_model
+                ON asset_description_vectors(embedding_model);
             """;
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
 

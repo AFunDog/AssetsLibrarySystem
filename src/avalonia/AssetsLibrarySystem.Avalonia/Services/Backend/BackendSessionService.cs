@@ -2,6 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
@@ -10,6 +11,7 @@ using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Avalonia.Services.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Serilog;
+using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Avalonia.Services.Backend;
 
@@ -20,9 +22,10 @@ public sealed partial class BackendSessionService : ObservableObject
     private IBackgroundTaskService? BackgroundTaskService { get; }
     private IUserSettingsService UserSettings { get; }
     private ActivityFeedService ActivityFeedService { get; }
+    private SearchModelOptions SearchModels { get; }
 
     public BackendSessionService()
-        : this(null, null, null, new ActivityFeedService(), new UserSettingsService())
+        : this(null, null, null, new ActivityFeedService(), new UserSettingsService(), null)
     {
     }
 
@@ -31,13 +34,17 @@ public sealed partial class BackendSessionService : ObservableObject
         IAssetSearchService? assetSearchService,
         IBackgroundTaskService? backgroundTaskService,
         ActivityFeedService activityFeedService,
-        IUserSettingsService userSettingsService)
+        IUserSettingsService userSettingsService,
+        IConfiguration? configuration)
     {
         BackendLauncher = backendLauncher;
         AssetSearchService = assetSearchService;
         BackgroundTaskService = backgroundTaskService;
         ActivityFeedService = activityFeedService;
         UserSettings = userSettingsService;
+        SearchModels = configuration is null
+            ? new SearchModelOptions("dashscope", "text-embedding-v4", "dashscope", "qwen3-rerank")
+            : SearchModelOptions.FromConfiguration(configuration);
         AiCapabilities = [];
 
         BackendStatusTitle = "Python 模型服务待连接";
@@ -138,8 +145,8 @@ public sealed partial class BackendSessionService : ObservableObject
 
             if (AssetSearchService is not null)
             {
-                var shouldWarmEmbedding = UserSettings.AutoWarmupEmbeddingModel;
-                var shouldWarmRerank = UserSettings.AutoWarmupRerankModel;
+                var shouldWarmEmbedding = SearchModels.EmbeddingProvider == "local" && UserSettings.AutoWarmupEmbeddingModel;
+                var shouldWarmRerank = SearchModels.RerankProvider == "local" && UserSettings.AutoWarmupRerankModel;
 
                 if (shouldWarmEmbedding || shouldWarmRerank)
                 {
@@ -214,11 +221,11 @@ public sealed partial class BackendSessionService : ObservableObject
                 else
                 {
                     BackendStatusStage = "模型已连接 [1/2]";
-                    BackendStatusDetail = "已连接到 Python 模型服务，未启用本地搜索模型自动预热。";
-                    SearchModelStatusTitle = "本地搜索模型自动预热已关闭";
-                    SearchModelStatusStage = "等待手动触发 [0/2]";
-                    SearchModelStatusDetail = "可在设置页勾选 embedding / rerank 自动预热，下次启动生效。";
-                    Log.Information("本地搜索模型自动预热已关闭，跳过 warmup。");
+                    BackendStatusDetail = $"已连接到 Python 模型服务，检索使用 {SearchModels.EmbeddingProvider} / {SearchModels.RerankProvider}。";
+                    SearchModelStatusTitle = "远程搜索模型";
+                    SearchModelStatusStage = "按请求调用";
+                    SearchModelStatusDetail = $"embedding: {SearchModels.EmbeddingModel} · rerank: {SearchModels.RerankModel}";
+                    Log.Information("检索使用远程模型，跳过本地 warmup。");
                     CompleteTask(taskId, "模型已连接", BackendStatusDetail);
                 }
             }

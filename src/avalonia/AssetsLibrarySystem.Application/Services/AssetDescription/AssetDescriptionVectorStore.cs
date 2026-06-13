@@ -21,7 +21,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 
     public string DatabasePath => AssetDatabase.DatabasePath;
 
-    public async Task ReplaceForAssetAsync(string assetId, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default)
+    public async Task ReplaceForAssetAsync(string assetId, string embeddingModel, IReadOnlyList<AssetDescriptionVectorDocument> documents, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(documents);
 
@@ -31,7 +31,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             await using var connection = await AssetDatabase.OpenConnectionAsync(token);
             await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(token).ConfigureAwait(false);
 
-            await DeleteVectorsAsync(connection, transaction, assetId, token).ConfigureAwait(false);
+            await DeleteVectorsAsync(connection, transaction, assetId, embeddingModel, token).ConfigureAwait(false);
 
             AssetDescriptionVectorDocument? lastDocument = null;
             foreach (var document in documents)
@@ -113,6 +113,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
 
     public async Task<bool> NeedsVectorizationAsync(
         string assetId,
+        string embeddingModel,
         string? descriptionContentHash = null,
         DateTimeOffset? descriptionGeneratedAt = null,
         CancellationToken ct = default)
@@ -125,10 +126,12 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             SELECT content_hash, vectorized_at
             FROM asset_description_vectors
             WHERE asset_id = $asset_id
+              AND embedding_model = $embedding_model
             ORDER BY vectorized_at DESC
             LIMIT 1;
             """;
         AddParameter(command, "$asset_id", assetId);
+        AddParameter(command, "$embedding_model", embeddingModel);
 
         await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
         if (!await reader.ReadAsync(ct).ConfigureAwait(false))
@@ -210,8 +213,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 $vectorized_at,
                 $content_hash
             )
-            ON CONFLICT(asset_id, angle_type) DO UPDATE SET
-                embedding_model = excluded.embedding_model,
+            ON CONFLICT(asset_id, angle_type, embedding_model) DO UPDATE SET
                 vector_dim = excluded.vector_dim,
                 vector_blob = excluded.vector_blob,
                 vectorized_at = excluded.vectorized_at,
@@ -236,15 +238,18 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         SqliteConnection connection,
         SqliteTransaction transaction,
         string assetId,
+        string embeddingModel,
         CancellationToken ct)
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
             DELETE FROM asset_description_vectors
-            WHERE asset_id = $asset_id;
+            WHERE asset_id = $asset_id
+              AND embedding_model = $embedding_model;
             """;
         AddParameter(command, "$asset_id", assetId);
+        AddParameter(command, "$embedding_model", embeddingModel);
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 

@@ -10,6 +10,8 @@ from app.schemas.model import AssetFormat
 
 
 class SearchIndexRequest(BaseModel):
+    provider: Literal["local", "dashscope"] = "local"
+    model: str = Field(default="Qwen/Qwen3-Embedding-0.6B", min_length=1)
     asset_id: str = Field(min_length=1, description="素材唯一标识")
     asset_name: str = Field(min_length=1, description="素材名称")
     asset_format: AssetFormat = Field(description="素材类型")
@@ -37,6 +39,8 @@ class SearchIndexResponse(BaseModel):
 
 
 class SearchQueryRequest(BaseModel):
+    provider: Literal["local", "dashscope"] = "local"
+    model: str = Field(default="Qwen/Qwen3-Reranker-0.6B", min_length=1)
     query: str = Field(min_length=1, description="用户查询文本")
     candidates: list["SearchQueryCandidate"] = Field(min_length=1, description="待重排序候选集")
     final_top_k: int = Field(default=5, ge=1, le=50)

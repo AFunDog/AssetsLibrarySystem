@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from http import HTTPStatus
 
 from app.core.config import get_settings
+from app.core.provider_config import ProviderConfigManager
 from app.infrastructure.search.search_model_bundle import (
     DEFAULT_EMBED_MODEL_NAME,
     DEFAULT_RERANK_MODEL_NAME,
@@ -29,6 +31,13 @@ class SearchService:
     ) -> None:
         settings = get_settings()
         cache_folder = _resolve_search_cache_dir(settings.search_cache_dir, settings.data_root)
+        self._dashscope_api_key = settings.dashscope_api_key
+        if not self._dashscope_api_key:
+            try:
+                providers_path = Path(__file__).resolve().parents[3] / "configs/providers.yaml"
+                self._dashscope_api_key = ProviderConfigManager(providers_path).get("文本").api_key
+            except (FileNotFoundError, KeyError, ValueError):
+                self._dashscope_api_key = ""
 
         self._model_bundle = model_bundle or LocalSearchModelBundle(
             SearchModelConfig(
@@ -39,7 +48,11 @@ class SearchService:
         )
 
     def vectorize(self, payload: SearchIndexRequest) -> SearchIndexResponse:
-        vector = self._model_bundle.encode_documents([payload.description])[0]
+        if payload.provider == "dashscope":
+            vector = self._dashscope_vectorize(payload.model, payload.description)
+        else:
+            self._require_local_model(payload.model, self._model_bundle.embedding_model_name)
+            vector = self._model_bundle.encode_documents([payload.description])[0]
         return SearchIndexResponse(
             asset_id=payload.asset_id,
             asset_name=payload.asset_name,
@@ -48,7 +61,7 @@ class SearchService:
             description=payload.description,
             vector=[float(item) for item in vector.tolist()],
             vector_dim=int(vector.shape[0]),
-            embedding_model=self._model_bundle.embedding_model_name,
+            embedding_model=payload.model,
         )
 
     def warmup_embedding_model(self) -> SearchWarmupResponse:
@@ -105,7 +118,11 @@ class SearchService:
     def rerank(self, payload: SearchQueryRequest) -> SearchQueryResponse:
         candidates = payload.candidates
         descriptions = [candidate.description for candidate in candidates]
-        rerank_scores = self._model_bundle.rerank(payload.query, descriptions)
+        if payload.provider == "dashscope":
+            rerank_scores = self._dashscope_rerank(payload.model, payload.query, descriptions)
+        else:
+            self._require_local_model(payload.model, self._model_bundle.rerank_model_name)
+            rerank_scores = self._model_bundle.rerank(payload.query, descriptions)
 
         ranked_items = []
         for candidate, rerank_score in zip(candidates, rerank_scores, strict=True):
@@ -131,9 +148,45 @@ class SearchService:
         return SearchQueryResponse(
             query=payload.query,
             final_top_k=min(payload.final_top_k, len(ranked_items)),
-            rerank_model=self._model_bundle.rerank_model_name,
+            rerank_model=payload.model,
             results=ranked_items[: payload.final_top_k],
         )
+
+    @staticmethod
+    def _require_local_model(requested_model: str, configured_model: str) -> None:
+        if requested_model != configured_model:
+            raise ValueError(f"本地模型未加载：{requested_model}，当前配置为：{configured_model}")
+
+    def _dashscope_vectorize(self, model: str, text: str):
+        import dashscope
+        import numpy as np
+
+        response = dashscope.TextEmbedding.call(api_key=self._dashscope_api_key or None, model=model, input=text)
+        if response.status_code != HTTPStatus.OK:
+            raise RuntimeError(f"DashScope 向量化失败：{response}")
+        embeddings = response.output["embeddings"]
+        if not embeddings:
+            raise RuntimeError("DashScope 返回空向量。")
+        return np.asarray(embeddings[0]["embedding"], dtype=np.float32)
+
+    def _dashscope_rerank(self, model: str, query: str, documents: list[str]) -> list[float]:
+        import dashscope
+
+        response = dashscope.TextReRank.call(
+            api_key=self._dashscope_api_key or None,
+            model=model,
+            query=query,
+            documents=documents,
+            top_n=len(documents),
+            return_documents=False,
+        )
+        if response.status_code != HTTPStatus.OK:
+            raise RuntimeError(f"DashScope 重排序失败：{response}")
+        results = response.output["results"]
+        scores = [0.0] * len(documents)
+        for result in results:
+            scores[int(result["index"])] = float(result["relevance_score"])
+        return scores
 
 
 def _resolve_search_cache_dir(search_cache_dir: str | None, data_root: str | None) -> str | None:

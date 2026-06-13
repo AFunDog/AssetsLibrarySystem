@@ -27,6 +27,8 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
     public async Task<IReadOnlyList<AssetDescriptionVectorDocument>> VectorizeAsync(
         AssetDescriptionDocument document,
         string backendBaseUrl,
+        string provider,
+        string model,
         CancellationToken ct = default)
     {
         var segments = StructuredDescriptionHelper.ExtractSegments(document.Description);
@@ -39,6 +41,8 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
             }
 
             var request = new SearchIndexRequest(
+                Provider: provider,
+                Model: model,
                 AssetId: document.AssetUid,
                 AssetName: document.AssetName,
                 AssetType: document.AssetType,
@@ -82,6 +86,8 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
     }
 
     private sealed record SearchIndexRequest(
+        string Provider,
+        string Model,
         string AssetId,
         string AssetName,
         string AssetType,
