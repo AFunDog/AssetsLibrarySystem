@@ -6,29 +6,35 @@ using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
+using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 
 namespace AssetsLibrarySystem.Application.UseCases.AssetOperations;
 
 public sealed class VectorizeDescriptionsUseCase
 {
+    private const string TaskTitle = "素材向量化";
+
     private IAssetDescriptionStore DescriptionStore { get; }
     private IAssetDescriptionVectorStore VectorStore { get; }
     private IAssetTextVectorizationService TextVectorizationService { get; }
     private IAssetSearchService AssetSearchService { get; }
     private ISearchModelOptionsProvider SearchModelOptionsProvider { get; }
+    private IBackgroundTaskService BackgroundTaskService { get; }
 
     public VectorizeDescriptionsUseCase(
         IAssetDescriptionStore descriptionStore,
         IAssetDescriptionVectorStore vectorStore,
         IAssetTextVectorizationService textVectorizationService,
         IAssetSearchService assetSearchService,
-        ISearchModelOptionsProvider searchModelOptionsProvider)
+        ISearchModelOptionsProvider searchModelOptionsProvider,
+        IBackgroundTaskService backgroundTaskService)
     {
         DescriptionStore = descriptionStore;
         VectorStore = vectorStore;
         TextVectorizationService = textVectorizationService;
         AssetSearchService = assetSearchService;
         SearchModelOptionsProvider = searchModelOptionsProvider;
+        BackgroundTaskService = backgroundTaskService;
     }
 
     public async Task<VectorizeDescriptionsResult> ExecuteAsync(
@@ -42,59 +48,89 @@ public sealed class VectorizeDescriptionsUseCase
         var failureCount = 0;
         var searchModels = SearchModelOptionsProvider.Current;
         var embeddingModelKey = searchModels.EmbeddingModelKey;
+        var taskId = BackgroundTaskService.BeginTask(
+            TaskTitle,
+            $"正在准备向量化：共 {assets.Count} 个素材",
+            $"模型：{embeddingModelKey}");
 
-        foreach (var asset in assets)
+        try
         {
-            ct.ThrowIfCancellationRequested();
+            for (var index = 0; index < assets.Count; index++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var asset = assets[index];
+                BackgroundTaskService.UpdateTask(
+                    taskId,
+                    $"正在向量化 {index + 1}/{assets.Count}：{asset.Name}",
+                    asset.LocalPath);
 
-            var description = await DescriptionStore.TryGetForAssetAsync(asset, ct).ConfigureAwait(false);
-            if (description is null)
-            {
-                skipCount++;
-                await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "尚未生成描述"), ct).ConfigureAwait(false);
-                continue;
+                var description = await DescriptionStore.TryGetForAssetAsync(asset, ct).ConfigureAwait(false);
+                if (description is null)
+                {
+                    skipCount++;
+                    await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "尚未生成描述"), ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                var needsVectorization = await VectorStore.NeedsVectorizationAsync(
+                    asset.DatabaseId, embeddingModelKey, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
+                if (!needsVectorization)
+                {
+                    // 向量已是最新，同步 vector_state 为 'indexed' 以保持 UI 一致
+                    await VectorStore.MarkAsIndexedAsync(asset.DatabaseId, ct).ConfigureAwait(false);
+                    skipCount++;
+                    await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "向量已是最新"), ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                try
+                {
+                    var vectorDocuments = await TextVectorizationService
+                        .VectorizeAsync(
+                            description,
+                            backendBaseUrl,
+                            searchModels.EmbeddingProvider,
+                            searchModels.EmbeddingModel,
+                            searchModels.EmbeddingDimensions,
+                            embeddingModelKey,
+                            ct)
+                        .ConfigureAwait(false);
+                    await VectorStore.ReplaceForAssetAsync(asset.DatabaseId, embeddingModelKey, vectorDocuments, ct).ConfigureAwait(false);
+                    successCount++;
+                    await ReportAsync(progress, VectorizeDescriptionProgress.Completed(asset, vectorDocuments), ct).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    failureCount++;
+                    await ReportAsync(progress, VectorizeDescriptionProgress.Failed(asset, ex), ct).ConfigureAwait(false);
+                }
             }
 
-            var needsVectorization = await VectorStore.NeedsVectorizationAsync(
-                asset.DatabaseId, embeddingModelKey, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
-            if (!needsVectorization)
+            if (successCount > 0)
             {
-                // 向量已是最新，同步 vector_state 为 'indexed' 以保持 UI 一致
-                await VectorStore.MarkAsIndexedAsync(asset.DatabaseId, ct).ConfigureAwait(false);
-                skipCount++;
-                await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "向量已是最新"), ct).ConfigureAwait(false);
-                continue;
+                BackgroundTaskService.UpdateTask(
+                    taskId,
+                    "正在刷新本地向量索引",
+                    $"新增或更新 {successCount} 个素材向量");
+                await AssetSearchService.ReindexAsync(ct).ConfigureAwait(false);
             }
 
-            try
-            {
-                var vectorDocuments = await TextVectorizationService
-                    .VectorizeAsync(
-                        description,
-                        backendBaseUrl,
-                        searchModels.EmbeddingProvider,
-                        searchModels.EmbeddingModel,
-                        searchModels.EmbeddingDimensions,
-                        embeddingModelKey,
-                        ct)
-                    .ConfigureAwait(false);
-                await VectorStore.ReplaceForAssetAsync(asset.DatabaseId, embeddingModelKey, vectorDocuments, ct).ConfigureAwait(false);
-                successCount++;
-                await ReportAsync(progress, VectorizeDescriptionProgress.Completed(asset, vectorDocuments), ct).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                failureCount++;
-                await ReportAsync(progress, VectorizeDescriptionProgress.Failed(asset, ex), ct).ConfigureAwait(false);
-            }
+            BackgroundTaskService.CompleteTask(
+                taskId,
+                "素材向量化完成",
+                $"成功 {successCount}，跳过 {skipCount}，失败 {failureCount}");
+            return new VectorizeDescriptionsResult(successCount, skipCount, failureCount);
         }
-
-        if (successCount > 0)
+        catch (OperationCanceledException)
         {
-            await AssetSearchService.ReindexAsync(ct).ConfigureAwait(false);
+            BackgroundTaskService.FailTask(taskId, "任务已取消", "素材向量化取消");
+            throw;
         }
-
-        return new VectorizeDescriptionsResult(successCount, skipCount, failureCount);
+        catch (Exception ex)
+        {
+            BackgroundTaskService.FailTask(taskId, ex.Message, "素材向量化失败");
+            throw;
+        }
     }
 
     private static Task ReportAsync(
