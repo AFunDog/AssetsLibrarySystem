@@ -1,14 +1,8 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Application.Infrastructure;
-using AssetsLibrarySystem.Application.Services.AssetDescription;
-using AssetsLibrarySystem.Application.Services.AssetLibrary;
-using AssetsLibrarySystem.Application.Services.AssetSearch;
-using AssetsLibrarySystem.Application.Services.BackendLauncher;
-using AssetsLibrarySystem.Application.Services.BackgroundTasks;
-using AssetsLibrarySystem.Application.Services.Infrastructure;
-using AssetsLibrarySystem.Application.UseCases.AssetOperations;
+using AssetsLibrarySystem.Application.DependencyInjection;
+using AssetsLibrarySystem.ConsoleHost.DependencyInjection;
 using Autofac;
 using Microsoft.Extensions.Configuration;
 using Serilog;
@@ -27,63 +21,12 @@ internal static class Program
             builder.RegisterInstance(ApplicationConfigurationFactory.CreateConfiguration())
                 .As<IConfiguration>()
                 .SingleInstance();
-            builder.RegisterType<ConfigurationSearchModelOptionsProvider>()
-                .As<ISearchModelOptionsProvider>()
-                .SingleInstance();
-            builder.RegisterType<DatabaseWriteQueue>()
-                .As<IDatabaseWriteQueue>()
-                .SingleInstance();
-            builder.RegisterType<SqliteAssetDatabase>()
-                .As<IAssetDatabase>()
-                .SingleInstance();
-            builder.RegisterType<AssetLibraryService>()
-                .As<IAssetLibraryService>()
-                .SingleInstance();
-            builder.RegisterType<AssetDescriptionStore>()
-                .As<IAssetDescriptionStore>()
-                .SingleInstance();
-            builder.RegisterType<AssetDescriptionVectorStore>()
-                .As<IAssetDescriptionVectorStore>()
-                .SingleInstance();
-            builder.RegisterType<AssetDescriptionService>()
-                .As<IAssetDescriptionService>()
-                .SingleInstance();
-            builder.RegisterType<AssetTextVectorizationService>()
-                .As<IAssetTextVectorizationService>()
-                .SingleInstance();
-            builder.RegisterType<AssetSearchService>()
-                .As<IAssetSearchService>()
-                .SingleInstance();
-            builder.RegisterType<BackendLauncherService>()
-                .As<IBackendLauncher>()
-                .SingleInstance();
-            builder.RegisterType<BackgroundTaskService>()
-                .As<IBackgroundTaskService>()
-                .SingleInstance();
-            builder.RegisterType<DescribeAssetsUseCase>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<VectorizeDescriptionsUseCase>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<DeleteAssetDescriptionUseCase>()
-                .AsSelf()
-                .SingleInstance();
-            builder.RegisterType<RebuildSearchIndexUseCase>()
-                .AsSelf()
-                .SingleInstance();
+            builder.RegisterModule<ApplicationModule>();
+            builder.RegisterModule<ConsoleHostModule>();
+
             var container = builder.Build();
             using var scope = container;
-
-            var runner = new ConsoleCommandRunner(
-                scope.Resolve<IAssetLibraryService>(),
-                scope.Resolve<IAssetDescriptionStore>(),
-                scope.Resolve<IAssetDescriptionVectorStore>(),
-                scope.Resolve<IAssetSearchService>(),
-                scope.Resolve<IBackendLauncher>(),
-                scope.Resolve<DescribeAssetsUseCase>(),
-                scope.Resolve<VectorizeDescriptionsUseCase>(),
-                scope.Resolve<RebuildSearchIndexUseCase>());
+            var runner = scope.Resolve<ConsoleCommandRunner>();
 
             return await runner.RunAsync(args);
         }
