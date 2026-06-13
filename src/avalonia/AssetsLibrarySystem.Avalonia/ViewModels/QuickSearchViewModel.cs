@@ -15,6 +15,9 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 public partial class QuickSearchViewModel : ObservableObject
 {
+    private const string AllAssetFormat = "全部";
+    private const string SmartAssetFormat = "智能类型";
+
     private IAssetSearchService? AssetSearchService { get; }
     private IBackendLauncher? BackendLauncher { get; }
 
@@ -28,10 +31,11 @@ public partial class QuickSearchViewModel : ObservableObject
         BackendLauncher = backendLauncher;
         AssetSearchService = assetSearchService;
         SearchResults = new ObservableCollection<AssetSearchDocument>();
-        SearchAssetFormats = ["全部", "文本", "图片", "视频", "音频"];
+        SearchAssetFormats = [AllAssetFormat, SmartAssetFormat, "文本", "图片", "视频", "音频"];
         SearchStatus = "输入素材描述并按回车检索，点击卡片可定位到素材文件。";
+        SearchMetricsSummary = "参数：候选 20，Top-K 5；类型：全部。";
         SearchQuery = string.Empty;
-        SearchAssetFormat = "全部";
+        SearchAssetFormat = AllAssetFormat;
         Log.Debug("QuickSearchViewModel 已创建，backendLauncherRegistered={HasBackendLauncher}, searchServiceRegistered={HasSearchService}", BackendLauncher is not null, AssetSearchService is not null);
     }
 
@@ -47,13 +51,16 @@ public partial class QuickSearchViewModel : ObservableObject
     [ObservableProperty]
     public partial string SearchStatus { get; set; }
 
+    [ObservableProperty]
+    public partial string SearchMetricsSummary { get; set; }
+
     [RelayCommand]
     private async Task ExecuteSearchAsync()
     {
         Log.Information(
             "用户在快速检索窗发起搜索: queryLength={QueryLength}, assetFormat={AssetFormat}",
             SearchQuery?.Length ?? 0,
-            string.IsNullOrWhiteSpace(SearchAssetFormat) ? "全部" : SearchAssetFormat);
+            string.IsNullOrWhiteSpace(SearchAssetFormat) ? AllAssetFormat : SearchAssetFormat);
 
         if (AssetSearchService is null)
         {
@@ -79,15 +86,18 @@ public partial class QuickSearchViewModel : ObservableObject
                 Log.Information("快速检索前后端启动完成，baseUrl={BaseUrl}", BackendLauncher.BaseUrl);
             }
 
+            const int candidateTopK = 20;
+            const int finalTopK = 5;
             SearchStatus = "正在检索...";
-            Log.Information("开始调用后端检索接口。");
+            SearchMetricsSummary = $"参数：候选 {candidateTopK}，Top-K {finalTopK}；类型：{SearchAssetFormat}。";
+            Log.Information("开始调用后端检索接口。candidateTopK={CandidateTopK}, finalTopK={FinalTopK}, assetFormat={AssetFormat}", candidateTopK, finalTopK, SearchAssetFormat);
 
             var response = await AssetSearchService.SearchAsync(
                 BackendLauncher?.BaseUrl ?? "http://127.0.0.1:8000",
                 SearchQuery,
-                20,
-                5,
-                SearchAssetFormat == "全部" ? null : SearchAssetFormat);
+                candidateTopK,
+                finalTopK,
+                ToServiceAssetFormat(SearchAssetFormat));
 
             SearchResults.Clear();
             foreach (var item in response.Results)
@@ -98,15 +108,25 @@ public partial class QuickSearchViewModel : ObservableObject
             SearchStatus = response.Results.Length == 0
                 ? "没有找到匹配的素材。"
                 : $"已返回 {response.Results.Length} 条素材。";
+            SearchMetricsSummary = BuildSearchMetricsSummary(response);
             Log.Information(
-                "快速检索完成: resultCount={ResultCount}, queryLength={QueryLength}, assetFormat={AssetFormat}",
+                "快速检索完成: resultCount={ResultCount}, queryLength={QueryLength}, assetFormatMode={AssetFormatMode}, resolvedAssetFormat={ResolvedAssetFormat}, candidateTopK={CandidateTopK}, expandedCandidateTopK={ExpandedCandidateTopK}, finalTopK={FinalTopK}, vectorCandidates={VectorCandidates}, rerankCandidates={RerankCandidates}, elapsedMs={ElapsedMs}, tokenUsage={TokenUsage}",
                 response.Results.Length,
                 SearchQuery.Length,
-                string.IsNullOrWhiteSpace(SearchAssetFormat) ? "全部" : SearchAssetFormat);
+                response.AssetFormatMode,
+                response.AssetFormat ?? "(all)",
+                response.CandidateTopK,
+                response.ExpandedCandidateTopK,
+                response.FinalTopK,
+                response.VectorCandidateCount,
+                response.RerankCandidateCount,
+                response.ElapsedMs,
+                response.TotalTokenUsage);
         }
         catch (System.Exception ex)
         {
             SearchStatus = $"检索失败：{ex.Message}";
+            SearchMetricsSummary = $"参数：候选 20，Top-K 5；类型：{SearchAssetFormat}。";
             Log.Error(ex, "快速检索失败。");
         }
     }
@@ -150,4 +170,30 @@ public partial class QuickSearchViewModel : ObservableObject
             Log.Error(ex, "资源管理器定位失败: assetName={AssetName}", result.AssetName);
         }
     }
+
+    private static string? ToServiceAssetFormat(string? selectedAssetFormat)
+    {
+        return string.IsNullOrWhiteSpace(selectedAssetFormat) || selectedAssetFormat == AllAssetFormat
+            ? null
+            : selectedAssetFormat;
+    }
+
+    private static string BuildSearchMetricsSummary(AssetSearchResponseDocument response)
+    {
+        var tokenText = response.TotalTokenUsage is null
+            ? "token 未返回"
+            : $"token {response.TotalTokenUsage}";
+        var filterText = response.AssetFormat is null ? "全部" : response.AssetFormat;
+        return $"参数：候选 {response.CandidateTopK}，扩展候选 {response.ExpandedCandidateTopK}，Top-K {response.FinalTopK}；" +
+               $"类型：{FormatAssetFormatMode(response.AssetFormatMode)} / {filterText}；" +
+               $"召回 {response.VectorCandidateCount}，重排 {response.RerankCandidateCount}，返回 {response.ReturnedCount}；" +
+               $"耗时 {response.ElapsedMs:0} ms，{tokenText}。";
+    }
+
+    private static string FormatAssetFormatMode(string mode) => mode switch
+    {
+        "smart" => "智能类型",
+        "explicit" => "手动类型",
+        _ => "全部",
+    };
 }

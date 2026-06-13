@@ -16,20 +16,20 @@ class SearchIndexRequest(BaseModel):
     model: str = Field(default="Qwen/Qwen3-Embedding-0.6B", min_length=1)
     embedding_dimensions: EmbeddingDimensions | None = Field(
         default=None,
-        description="DashScope embedding 输出维度；本地模型忽略该字段",
+        description="DashScope embedding output dimensions; ignored by local models",
     )
-    asset_id: str = Field(min_length=1, description="素材唯一标识")
-    asset_name: str = Field(min_length=1, description="素材名称")
-    asset_format: AssetFormat = Field(description="素材类型")
-    asset_path: str = Field(min_length=1, description="素材绝对路径")
-    description: str = Field(min_length=1, description="可检索的素材描述")
-    generated_at: datetime | None = Field(default=None, description="描述生成时间")
+    asset_id: str = Field(min_length=1, description="Asset id")
+    asset_name: str = Field(min_length=1, description="Asset name")
+    asset_format: AssetFormat = Field(description="Asset type")
+    asset_path: str = Field(min_length=1, description="Absolute asset path")
+    description: str = Field(min_length=1, description="Searchable asset description")
+    generated_at: datetime | None = Field(default=None, description="Description generation time")
 
     @field_validator("asset_path")
     @classmethod
     def validate_asset_path(cls, value: str) -> str:
         if not Path(value).is_absolute():
-            raise ValueError("asset_path 必须是绝对路径")
+            raise ValueError("asset_path must be absolute")
         return value
 
 
@@ -42,13 +42,14 @@ class SearchIndexResponse(BaseModel):
     vector: list[float]
     vector_dim: int = Field(ge=1)
     embedding_model: str
+    token_usage: int | None = None
 
 
 class SearchQueryRequest(BaseModel):
     provider: Literal["local", "dashscope"] = "local"
     model: str = Field(default="Qwen/Qwen3-Reranker-0.6B", min_length=1)
-    query: str = Field(min_length=1, description="用户查询文本")
-    candidates: list["SearchQueryCandidate"] = Field(min_length=1, description="待重排序候选集")
+    query: str = Field(min_length=1, description="User query")
+    candidates: list["SearchQueryCandidate"] = Field(min_length=1, description="Candidates to rerank")
     final_top_k: int = Field(default=5, ge=1, le=50)
 
     @field_validator("query")
@@ -56,7 +57,7 @@ class SearchQueryRequest(BaseModel):
     def validate_query(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
-            raise ValueError("query 不能为空")
+            raise ValueError("query cannot be empty")
         return normalized
 
 
@@ -83,6 +84,7 @@ class SearchQueryResponse(BaseModel):
     final_top_k: int
     rerank_model: str
     results: list[SearchQueryResultItem]
+    token_usage: int | None = None
 
 
 class SearchWarmupResponse(BaseModel):
@@ -93,32 +95,26 @@ class SearchWarmupResponse(BaseModel):
 
 
 class SearchModelCloseRequest(BaseModel):
-    model_kind: Literal["embedding", "rerank"] = Field(description="要释放的本地模型类型")
+    model_kind: Literal["embedding", "rerank"] = Field(description="Model kind to release")
 
 
 class SearchModelCloseResponse(BaseModel):
     model_kind: Literal["embedding", "rerank"]
     model_name: str
     device: str
-    closed: bool = Field(description="本次是否释放了已加载模型")
-    cuda_cache_cleared: bool = Field(description="是否清理了 CUDA 缓存")
-    remaining_loaded_models: list[Literal["embedding", "rerank"]] = Field(
-        default_factory=list,
-        description="关闭后仍然驻留的模型",
-    )
+    closed: bool = Field(description="Whether a loaded model was released")
+    cuda_cache_cleared: bool = Field(description="Whether CUDA cache was cleared")
+    remaining_loaded_models: list[Literal["embedding", "rerank"]] = Field(default_factory=list)
 
 
 class SearchModelStatusResponse(BaseModel):
     embedding_model_name: str
     rerank_model_name: str
     device: str
-    loaded_model_kinds: list[Literal["embedding", "rerank"]] = Field(
-        default_factory=list,
-        description="当前已经驻留在进程中的本地模型类型",
-    )
-    embedding_loaded: bool = Field(description="embedding 模型是否已驻留")
-    rerank_loaded: bool = Field(description="rerank 模型是否已驻留")
-    loaded_count: int = Field(ge=0, description="当前已驻留模型数量")
+    loaded_model_kinds: list[Literal["embedding", "rerank"]] = Field(default_factory=list)
+    embedding_loaded: bool
+    rerank_loaded: bool
+    loaded_count: int = Field(ge=0)
 
 
 SearchQueryRequest.model_rebuild()

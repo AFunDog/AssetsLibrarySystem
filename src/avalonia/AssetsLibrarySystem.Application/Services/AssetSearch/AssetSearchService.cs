@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -8,10 +9,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
-using Microsoft.Data.Sqlite;
 using Serilog;
 
 namespace AssetsLibrarySystem.Application.Services.AssetSearch;
@@ -19,6 +19,7 @@ namespace AssetsLibrarySystem.Application.Services.AssetSearch;
 public sealed class AssetSearchService : IAssetSearchService
 {
     private const int ExactSearchThreshold = 5000;
+    private const string SmartAssetFormat = "智能类型";
     private HttpClient Http { get; } = new();
     private IAssetDatabase AssetDatabase { get; }
     private ISearchModelOptionsProvider SearchModelOptionsProvider { get; }
@@ -44,9 +45,10 @@ public sealed class AssetSearchService : IAssetSearchService
         string? assetFormat = null,
         CancellationToken ct = default)
     {
-        var startedAt = DateTimeOffset.UtcNow;
+        var stopwatch = Stopwatch.StartNew();
         var normalizedQuery = query.Trim();
         var normalizedAssetFormat = NormalizeAssetFormat(normalizedQuery, assetFormat);
+        var assetFormatMode = ResolveAssetFormatMode(assetFormat);
         var searchModels = SearchModelOptionsProvider.Current;
         var embeddingModelKey = searchModels.EmbeddingModelKey;
         if (string.IsNullOrWhiteSpace(normalizedQuery))
@@ -90,14 +92,19 @@ public sealed class AssetSearchService : IAssetSearchService
         var expandedCandidateTopK = Math.Min(
             indexRecords.Count,
             Math.Max(candidateTopK * 8, Math.Max(candidateTopK, 50)));
+        var searchStrategy = useExactSearch ? "ExactCosine" : "Hnsw";
 
         Log.Information(
-            "素材搜索过滤: query={Query}, assetFormat={AssetFormat}, totalRecords={TotalRecords}, searchRecords={SearchRecords}, searchStrategy={SearchStrategy}",
+            "素材搜索过滤: query={Query}, assetFormatMode={AssetFormatMode}, assetFormat={AssetFormat}, totalRecords={TotalRecords}, searchRecords={SearchRecords}, candidateTopK={CandidateTopK}, expandedCandidateTopK={ExpandedCandidateTopK}, finalTopK={FinalTopK}, searchStrategy={SearchStrategy}",
             normalizedQuery,
+            assetFormatMode,
             normalizedAssetFormat ?? "(all)",
             records.Count,
             indexRecords.Count,
-            useExactSearch ? "ExactCosine" : "Hnsw");
+            candidateTopK,
+            expandedCandidateTopK,
+            finalTopK,
+            searchStrategy);
 
         IReadOnlyList<(int Index, float Similarity)> searchResults = useExactSearch
             ? SearchExact(indexRecords, queryVector, expandedCandidateTopK)
@@ -177,28 +184,50 @@ public sealed class AssetSearchService : IAssetSearchService
         var aggregatedResults = AggregateCandidates(scoredCandidates, candidateTopK)
             .Take(finalTopK)
             .ToArray();
+        stopwatch.Stop();
 
+        var totalTokenUsage = SumTokenUsage(queryVectorResponse.TokenUsage, rerankResponse.TokenUsage);
         Log.Information(
-            "素材搜索完成: elapsedMs={ElapsedMs}, localCandidates={LocalCandidates}, returned={ReturnedCount}, embeddingModel={EmbeddingModel}, rerankModel={RerankModel}, searchStrategy={SearchStrategy}",
-            (DateTimeOffset.UtcNow - startedAt).TotalMilliseconds,
+            "素材搜索完成: elapsedMs={ElapsedMs}, tokenUsage={TokenUsage}, embeddingTokenUsage={EmbeddingTokenUsage}, rerankTokenUsage={RerankTokenUsage}, candidateTopK={CandidateTopK}, expandedCandidateTopK={ExpandedCandidateTopK}, finalTopK={FinalTopK}, localCandidates={LocalCandidates}, rerankCandidates={RerankCandidates}, returned={ReturnedCount}, assetFormatMode={AssetFormatMode}, assetFormat={AssetFormat}, embeddingModel={EmbeddingModel}, rerankModel={RerankModel}, searchStrategy={SearchStrategy}",
+            stopwatch.Elapsed.TotalMilliseconds,
+            totalTokenUsage,
+            queryVectorResponse.TokenUsage,
+            rerankResponse.TokenUsage,
+            candidateTopK,
+            expandedCandidateTopK,
+            finalTopK,
             vectorCandidates.Count,
+            rerankCandidates.Count,
             aggregatedResults.Length,
+            assetFormatMode,
+            normalizedAssetFormat ?? "(all)",
             queryVectorResponse.EmbeddingModel,
             rerankResponse.RerankModel,
-            useExactSearch ? "ExactCosine" : "Hnsw");
+            searchStrategy);
 
         return new AssetSearchResponseDocument(
             Query: normalizedQuery,
-            CandidateTopK: Math.Min(candidateTopK, aggregatedResults.Length),
-            FinalTopK: Math.Min(finalTopK, aggregatedResults.Length),
+            CandidateTopK: candidateTopK,
+            FinalTopK: finalTopK,
             AssetFormat: normalizedAssetFormat,
+            AssetFormatMode: assetFormatMode,
             EmbeddingModel: queryVectorResponse.EmbeddingModel,
             RerankModel: rerankResponse.RerankModel,
+            SearchStrategy: searchStrategy,
+            TotalVectorRecordCount: records.Count,
+            FilteredVectorRecordCount: indexRecords.Count,
+            ExpandedCandidateTopK: expandedCandidateTopK,
+            VectorCandidateCount: vectorCandidates.Count,
+            RerankCandidateCount: rerankCandidates.Count,
+            ReturnedCount: aggregatedResults.Length,
+            ElapsedMs: stopwatch.Elapsed.TotalMilliseconds,
+            EmbeddingTokenUsage: queryVectorResponse.TokenUsage,
+            RerankTokenUsage: rerankResponse.TokenUsage,
+            TotalTokenUsage: totalTokenUsage,
             Results: aggregatedResults);
     }
 
-    public async Task<AssetReindexResponseDocument> ReindexAsync(
-        CancellationToken ct = default)
+    public async Task<AssetReindexResponseDocument> ReindexAsync(CancellationToken ct = default)
     {
         var searchModels = SearchModelOptionsProvider.Current;
         var embeddingModelKey = searchModels.EmbeddingModelKey;
@@ -237,23 +266,17 @@ public sealed class AssetSearchService : IAssetSearchService
             EmbeddingModels: embeddingModels);
     }
 
-    public async Task<AssetSearchWarmupDocument> WarmupEmbeddingAsync(
-        string backendBaseUrl,
-        CancellationToken ct = default)
+    public async Task<AssetSearchWarmupDocument> WarmupEmbeddingAsync(string backendBaseUrl, CancellationToken ct = default)
     {
         return await WarmupAsync(backendBaseUrl, "embedding", ct).ConfigureAwait(false);
     }
 
-    public async Task<AssetSearchWarmupDocument> WarmupRerankAsync(
-        string backendBaseUrl,
-        CancellationToken ct = default)
+    public async Task<AssetSearchWarmupDocument> WarmupRerankAsync(string backendBaseUrl, CancellationToken ct = default)
     {
         return await WarmupAsync(backendBaseUrl, "rerank", ct).ConfigureAwait(false);
     }
 
-    public async Task<AssetSearchModelStatusDocument> GetModelStatusAsync(
-        string backendBaseUrl,
-        CancellationToken ct = default)
+    public async Task<AssetSearchModelStatusDocument> GetModelStatusAsync(string backendBaseUrl, CancellationToken ct = default)
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/models/status";
         Log.Debug("查询模型状态: endpoint={Endpoint}", endpoint);
@@ -282,10 +305,7 @@ public sealed class AssetSearchService : IAssetSearchService
             LoadedCount: backendResponse.LoadedCount);
     }
 
-    public async Task<AssetSearchModelCloseDocument> CloseModelAsync(
-        string backendBaseUrl,
-        string modelKind,
-        CancellationToken ct = default)
+    public async Task<AssetSearchModelCloseDocument> CloseModelAsync(string backendBaseUrl, string modelKind, CancellationToken ct = default)
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/models/close";
         var request = new SearchModelCloseRequest(modelKind);
@@ -442,10 +462,7 @@ public sealed class AssetSearchService : IAssetSearchService
         return records;
     }
 
-    private async Task<AssetSearchWarmupDocument> WarmupAsync(
-        string backendBaseUrl,
-        string modelKind,
-        CancellationToken ct)
+    private async Task<AssetSearchWarmupDocument> WarmupAsync(string backendBaseUrl, string modelKind, CancellationToken ct)
     {
         var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/warmup/{modelKind}";
         using var content = new StringContent("{}", Encoding.UTF8, "application/json");
@@ -468,9 +485,15 @@ public sealed class AssetSearchService : IAssetSearchService
 
     private static string? NormalizeAssetFormat(string query, string? explicitAssetFormat)
     {
-        if (!string.IsNullOrWhiteSpace(explicitAssetFormat))
+        var mode = ResolveAssetFormatMode(explicitAssetFormat);
+        if (mode == "all")
         {
-            return explicitAssetFormat.Trim();
+            return null;
+        }
+
+        if (mode == "explicit")
+        {
+            return explicitAssetFormat!.Trim();
         }
 
         if (ContainsAny(query, "图片", "图像", "照片", "插画", "壁纸", "立绘", "截图"))
@@ -496,9 +519,26 @@ public sealed class AssetSearchService : IAssetSearchService
         return null;
     }
 
+    private static string ResolveAssetFormatMode(string? explicitAssetFormat)
+    {
+        if (string.IsNullOrWhiteSpace(explicitAssetFormat) || string.Equals(explicitAssetFormat.Trim(), "全部", StringComparison.Ordinal))
+        {
+            return "all";
+        }
+
+        return string.Equals(explicitAssetFormat.Trim(), SmartAssetFormat, StringComparison.Ordinal)
+            ? "smart"
+            : "explicit";
+    }
+
     private static bool ContainsAny(string text, params string[] keywords)
     {
         return keywords.Any(keyword => text.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static int? SumTokenUsage(int? left, int? right)
+    {
+        return left is null && right is null ? null : (left ?? 0) + (right ?? 0);
     }
 
     private static float[] DeserializeVector(byte[] bytes, int expectedDim)
@@ -685,7 +725,8 @@ public sealed class AssetSearchService : IAssetSearchService
         string Description,
         JsonElement Vector,
         int VectorDim,
-        string EmbeddingModel);
+        string EmbeddingModel,
+        int? TokenUsage);
 
     private sealed record SearchQueryRequest(
         string Provider,
@@ -708,7 +749,8 @@ public sealed class AssetSearchService : IAssetSearchService
         string Query,
         int FinalTopK,
         string RerankModel,
-        SearchQueryResult[] Results);
+        SearchQueryResult[] Results,
+        int? TokenUsage);
 
     private sealed record SearchQueryResult(
         string? CandidateId,
@@ -729,8 +771,7 @@ public sealed class AssetSearchService : IAssetSearchService
         bool RerankLoaded,
         int LoadedCount);
 
-    private sealed record SearchModelCloseRequest(
-        string ModelKind);
+    private sealed record SearchModelCloseRequest(string ModelKind);
 
     private sealed record SearchModelCloseResponse(
         string ModelKind,

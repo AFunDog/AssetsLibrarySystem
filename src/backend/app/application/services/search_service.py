@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from http import HTTPStatus
+from typing import Any
 
 from app.core.config import get_settings
 from app.core.provider_config import ProviderConfigManager
@@ -48,8 +49,9 @@ class SearchService:
         )
 
     def vectorize(self, payload: SearchIndexRequest) -> SearchIndexResponse:
+        token_usage: int | None = None
         if payload.provider == "dashscope":
-            vector = self._dashscope_vectorize(payload.model, payload.description, payload.embedding_dimensions)
+            vector, token_usage = self._dashscope_vectorize(payload.model, payload.description, payload.embedding_dimensions)
             embedding_model = _format_dashscope_embedding_model(payload.model, payload.embedding_dimensions)
         else:
             self._require_local_model(payload.model, self._model_bundle.embedding_model_name)
@@ -64,6 +66,7 @@ class SearchService:
             vector=[float(item) for item in vector.tolist()],
             vector_dim=int(vector.shape[0]),
             embedding_model=embedding_model,
+            token_usage=token_usage,
         )
 
     def warmup_embedding_model(self) -> SearchWarmupResponse:
@@ -120,8 +123,9 @@ class SearchService:
     def rerank(self, payload: SearchQueryRequest) -> SearchQueryResponse:
         candidates = payload.candidates
         descriptions = [candidate.description for candidate in candidates]
+        token_usage: int | None = None
         if payload.provider == "dashscope":
-            rerank_scores = self._dashscope_rerank(payload.model, payload.query, descriptions)
+            rerank_scores, token_usage = self._dashscope_rerank(payload.model, payload.query, descriptions)
         else:
             self._require_local_model(payload.model, self._model_bundle.rerank_model_name)
             rerank_scores = self._model_bundle.rerank(payload.query, descriptions)
@@ -152,6 +156,7 @@ class SearchService:
             final_top_k=min(payload.final_top_k, len(ranked_items)),
             rerank_model=payload.model,
             results=ranked_items[: payload.final_top_k],
+            token_usage=token_usage,
         )
 
     @staticmethod
@@ -177,9 +182,10 @@ class SearchService:
         embeddings = response.output["embeddings"]
         if not embeddings:
             raise RuntimeError("DashScope 返回空向量。")
-        return np.asarray(embeddings[0]["embedding"], dtype=np.float32)
+        token_usage = _extract_token_usage(response)
+        return np.asarray(embeddings[0]["embedding"], dtype=np.float32), token_usage
 
-    def _dashscope_rerank(self, model: str, query: str, documents: list[str]) -> list[float]:
+    def _dashscope_rerank(self, model: str, query: str, documents: list[str]) -> tuple[list[float], int | None]:
         import dashscope
 
         response = dashscope.TextReRank.call(
@@ -196,13 +202,41 @@ class SearchService:
         scores = [0.0] * len(documents)
         for result in results:
             scores[int(result["index"])] = float(result["relevance_score"])
-        return scores
+        return scores, _extract_token_usage(response)
 
 
 def _format_dashscope_embedding_model(model: str, embedding_dimensions: int | None) -> str:
     if embedding_dimensions is None:
         return model
     return f"{model}@{embedding_dimensions}d"
+
+
+def _extract_token_usage(response: Any) -> int | None:
+    usage = getattr(response, "usage", None)
+    if usage is None and isinstance(response, dict):
+        usage = response.get("usage")
+    if usage is None:
+        try:
+            usage = response["usage"]
+        except (KeyError, TypeError):
+            return None
+
+    if isinstance(usage, dict):
+        for key in ("total_tokens", "input_tokens", "tokens"):
+            value = usage.get(key)
+            if isinstance(value, int):
+                return value
+            if isinstance(value, str) and value.isdigit():
+                return int(value)
+        return None
+
+    total_tokens = getattr(usage, "total_tokens", None)
+    if isinstance(total_tokens, int):
+        return total_tokens
+    input_tokens = getattr(usage, "input_tokens", None)
+    if isinstance(input_tokens, int):
+        return input_tokens
+    return None
 
 
 def _resolve_search_cache_dir(search_cache_dir: str | None, data_root: str | None) -> str | None:
