@@ -29,6 +29,10 @@ public sealed class UserSettingsService : IUserSettingsService
     private ProviderEmbeddingSettings _localEmbedding = new(DefaultLocalEmbeddingModel, 1024);
     private ProviderRerankSettings _dashScopeRerank = new(DefaultDashScopeRerankModel);
     private ProviderRerankSettings _localRerank = new(DefaultLocalRerankModel);
+    private int _searchCandidateTopK = 20;
+    private int _searchExpandedCandidateTopK = 160;
+    private int _searchRerankTopK = 50;
+    private int _searchFinalTopK = 5;
 
     private bool IsLoading { get; set; } = true;
 
@@ -164,6 +168,82 @@ public sealed class UserSettingsService : IUserSettingsService
         }
     }
 
+    public int SearchCandidateTopK
+    {
+        get => _searchCandidateTopK;
+        set
+        {
+            value = NormalizePositive(value, 20, 1, 500);
+            if (_searchCandidateTopK == value)
+            {
+                return;
+            }
+
+            _searchCandidateTopK = value;
+            if (_searchExpandedCandidateTopK < _searchCandidateTopK)
+            {
+                _searchExpandedCandidateTopK = _searchCandidateTopK;
+            }
+
+            if (_searchFinalTopK > _searchCandidateTopK)
+            {
+                _searchFinalTopK = _searchCandidateTopK;
+            }
+
+            SaveIfReady();
+        }
+    }
+
+    public int SearchExpandedCandidateTopK
+    {
+        get => _searchExpandedCandidateTopK;
+        set
+        {
+            value = NormalizePositive(value, 160, 1, 5000);
+            value = Math.Max(value, SearchCandidateTopK);
+            if (_searchExpandedCandidateTopK == value)
+            {
+                return;
+            }
+
+            _searchExpandedCandidateTopK = value;
+            SaveIfReady();
+        }
+    }
+
+    public int SearchRerankTopK
+    {
+        get => _searchRerankTopK;
+        set
+        {
+            value = NormalizePositive(value, 50, 1, 1000);
+            if (_searchRerankTopK == value)
+            {
+                return;
+            }
+
+            _searchRerankTopK = value;
+            SaveIfReady();
+        }
+    }
+
+    public int SearchFinalTopK
+    {
+        get => _searchFinalTopK;
+        set
+        {
+            value = NormalizePositive(value, 5, 1, 100);
+            value = Math.Min(value, SearchCandidateTopK);
+            if (_searchFinalTopK == value)
+            {
+                return;
+            }
+
+            _searchFinalTopK = value;
+            SaveIfReady();
+        }
+    }
+
     public SearchModelOptions Current => new(EmbeddingProvider, EmbeddingModel, EmbeddingDimensions, RerankProvider, RerankModel);
 
     private ProviderEmbeddingSettings CurrentEmbeddingSettings =>
@@ -229,11 +309,15 @@ public sealed class UserSettingsService : IUserSettingsService
                 DefaultLocalRerankModel,
                 snapshot.RerankProvider == LocalProvider ? snapshot.RerankModel : null);
 
+            SearchCandidateTopK = snapshot.SearchCandidateTopK;
+            SearchExpandedCandidateTopK = snapshot.SearchExpandedCandidateTopK;
+            SearchRerankTopK = snapshot.SearchRerankTopK;
+            SearchFinalTopK = snapshot.SearchFinalTopK;
             EmbeddingProvider = snapshot.EmbeddingProvider;
             RerankProvider = snapshot.RerankProvider;
 
             Log.Debug(
-                "用户设置已加载: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}",
+                "用户设置已加载: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}",
                 SettingsPath,
                 AutoWarmupEmbeddingModel,
                 AutoWarmupRerankModel,
@@ -241,7 +325,11 @@ public sealed class UserSettingsService : IUserSettingsService
                 EmbeddingModel,
                 EmbeddingDimensions,
                 RerankProvider,
-                RerankModel);
+                RerankModel,
+                SearchCandidateTopK,
+                SearchExpandedCandidateTopK,
+                SearchRerankTopK,
+                SearchFinalTopK);
         }
         catch (Exception ex)
         {
@@ -278,12 +366,16 @@ public sealed class UserSettingsService : IUserSettingsService
                 LocalEmbedding = _localEmbedding.Clone(),
                 DashScopeRerank = _dashScopeRerank.Clone(),
                 LocalRerank = _localRerank.Clone(),
+                SearchCandidateTopK = SearchCandidateTopK,
+                SearchExpandedCandidateTopK = SearchExpandedCandidateTopK,
+                SearchRerankTopK = SearchRerankTopK,
+                SearchFinalTopK = SearchFinalTopK,
             };
 
             var json = JsonSerializer.Serialize(snapshot, JsonOptions);
             File.WriteAllText(SettingsPath, json);
             Log.Information(
-                "用户设置已保存: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}",
+                "用户设置已保存: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}",
                 SettingsPath,
                 AutoWarmupEmbeddingModel,
                 AutoWarmupRerankModel,
@@ -291,7 +383,11 @@ public sealed class UserSettingsService : IUserSettingsService
                 EmbeddingModel,
                 EmbeddingDimensions,
                 RerankProvider,
-                RerankModel);
+                RerankModel,
+                SearchCandidateTopK,
+                SearchExpandedCandidateTopK,
+                SearchRerankTopK,
+                SearchFinalTopK);
         }
         catch (Exception ex)
         {
@@ -322,6 +418,14 @@ public sealed class UserSettingsService : IUserSettingsService
         public ProviderRerankSettings? DashScopeRerank { get; set; }
 
         public ProviderRerankSettings? LocalRerank { get; set; }
+
+        public int SearchCandidateTopK { get; set; } = 20;
+
+        public int SearchExpandedCandidateTopK { get; set; } = 160;
+
+        public int SearchRerankTopK { get; set; } = 50;
+
+        public int SearchFinalTopK { get; set; } = 5;
     }
 
     private sealed class ProviderEmbeddingSettings
@@ -376,6 +480,16 @@ public sealed class UserSettingsService : IUserSettingsService
         string? legacyModel)
     {
         return new ProviderRerankSettings(NormalizeModel(settings?.Model, NormalizeModel(legacyModel, defaultModel)));
+    }
+
+    private static int NormalizePositive(int value, int fallback, int min, int max)
+    {
+        if (value <= 0)
+        {
+            return fallback;
+        }
+
+        return Math.Clamp(value, min, max);
     }
 
     private static string NormalizeProvider(string? value) =>
