@@ -48,12 +48,13 @@ public sealed class AssetSearchService : IAssetSearchService
         var normalizedQuery = query.Trim();
         var normalizedAssetFormat = NormalizeAssetFormat(normalizedQuery, assetFormat);
         var searchModels = SearchModelOptionsProvider.Current;
+        var embeddingModelKey = searchModels.EmbeddingModelKey;
         if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
             throw new InvalidOperationException("搜索词不能为空。");
         }
 
-        var records = await LoadVectorRecordsAsync(searchModels.EmbeddingModel, ct).ConfigureAwait(false);
+        var records = await LoadVectorRecordsAsync(embeddingModelKey, ct).ConfigureAwait(false);
         if (records.Count == 0)
         {
             throw new InvalidOperationException("当前没有可检索的素材描述。");
@@ -75,7 +76,7 @@ public sealed class AssetSearchService : IAssetSearchService
         }
 
         var indexRecords = filteredRecords;
-        var indexManager = new LocalHnswSearchIndexManager(searchModels.EmbeddingModel);
+        var indexManager = new LocalHnswSearchIndexManager(embeddingModelKey);
         var state = BuildIndexState(indexRecords);
         var useExactSearch = indexRecords.Count <= ExactSearchThreshold;
         if (!useExactSearch)
@@ -200,8 +201,9 @@ public sealed class AssetSearchService : IAssetSearchService
         CancellationToken ct = default)
     {
         var searchModels = SearchModelOptionsProvider.Current;
-        var indexManager = new LocalHnswSearchIndexManager(searchModels.EmbeddingModel);
-        var records = await LoadVectorRecordsAsync(searchModels.EmbeddingModel, ct).ConfigureAwait(false);
+        var embeddingModelKey = searchModels.EmbeddingModelKey;
+        var indexManager = new LocalHnswSearchIndexManager(embeddingModelKey);
+        var records = await LoadVectorRecordsAsync(embeddingModelKey, ct).ConfigureAwait(false);
         if (records.Count == 0)
         {
             throw new InvalidOperationException("当前没有可用于本地检索的向量数据。");
@@ -321,6 +323,7 @@ public sealed class AssetSearchService : IAssetSearchService
         var request = new SearchIndexRequest(
             Provider: searchModels.EmbeddingProvider,
             Model: searchModels.EmbeddingModel,
+            EmbeddingDimensions: searchModels.IsDashScopeEmbeddingProvider ? searchModels.EmbeddingDimensions : null,
             AssetId: "__query__",
             AssetName: "__query__",
             AssetFormat: "文本",
@@ -666,6 +669,7 @@ public sealed class AssetSearchService : IAssetSearchService
     private sealed record SearchIndexRequest(
         string Provider,
         string Model,
+        int? EmbeddingDimensions,
         string AssetId,
         string AssetName,
         string AssetFormat,
