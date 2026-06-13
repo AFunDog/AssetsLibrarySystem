@@ -41,6 +41,7 @@ public sealed class VectorizeDescriptionsUseCase
         var skipCount = 0;
         var failureCount = 0;
         var searchModels = SearchModelOptionsProvider.Current;
+        var embeddingModelKey = searchModels.EmbeddingModelKey;
 
         foreach (var asset in assets)
         {
@@ -55,7 +56,7 @@ public sealed class VectorizeDescriptionsUseCase
             }
 
             var needsVectorization = await VectorStore.NeedsVectorizationAsync(
-                asset.DatabaseId, searchModels.EmbeddingModel, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
+                asset.DatabaseId, embeddingModelKey, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
             if (!needsVectorization)
             {
                 // 向量已是最新，同步 vector_state 为 'indexed' 以保持 UI 一致
@@ -68,9 +69,16 @@ public sealed class VectorizeDescriptionsUseCase
             try
             {
                 var vectorDocuments = await TextVectorizationService
-                    .VectorizeAsync(description, backendBaseUrl, searchModels.EmbeddingProvider, searchModels.EmbeddingModel, ct)
+                    .VectorizeAsync(
+                        description,
+                        backendBaseUrl,
+                        searchModels.EmbeddingProvider,
+                        searchModels.EmbeddingModel,
+                        searchModels.EmbeddingDimensions,
+                        embeddingModelKey,
+                        ct)
                     .ConfigureAwait(false);
-                await VectorStore.ReplaceForAssetAsync(asset.DatabaseId, searchModels.EmbeddingModel, vectorDocuments, ct).ConfigureAwait(false);
+                await VectorStore.ReplaceForAssetAsync(asset.DatabaseId, embeddingModelKey, vectorDocuments, ct).ConfigureAwait(false);
                 successCount++;
                 await ReportAsync(progress, VectorizeDescriptionProgress.Completed(asset, vectorDocuments), ct).ConfigureAwait(false);
             }
