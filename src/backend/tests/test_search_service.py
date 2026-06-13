@@ -173,8 +173,29 @@ class SearchServiceTestCase(unittest.TestCase):
             )
         )
 
-        service._dashscope_vectorize.assert_called_once_with("text-embedding-v4", "测试描述")
+        service._dashscope_vectorize.assert_called_once_with("text-embedding-v4", "测试描述", None)
         self.assertEqual(response.embedding_model, "text-embedding-v4")
+
+    def test_index_routes_dashscope_embedding_dimensions_from_request(self) -> None:
+        service = SearchService(model_bundle=FakeModelBundle())
+        service._dashscope_vectorize = Mock(return_value=np.asarray([0.1, 0.2, 0.3], dtype=np.float32))
+
+        response = service.vectorize(
+            SearchIndexRequest(
+                provider="dashscope",
+                model="text-embedding-v4",
+                embedding_dimensions=1024,
+                asset_id="asset-1",
+                asset_name="sample.txt",
+                asset_format="文本",
+                asset_path=r"D:\Data\sample.txt",
+                description="测试描述",
+            )
+        )
+
+        service._dashscope_vectorize.assert_called_once_with("text-embedding-v4", "测试描述", 1024)
+        self.assertEqual(response.embedding_model, "text-embedding-v4@1024d")
+        self.assertEqual(response.vector_dim, 3)
 
     def test_query_routes_dashscope_model_from_request(self) -> None:
         service = SearchService(model_bundle=FakeModelBundle())
