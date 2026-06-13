@@ -25,18 +25,6 @@
                                    TextWrapping="Wrap"
                                    Text="这里集中管理后端连接、本地搜索模型和发送给模型网关的提示词草稿。" />
                     </StackPanel>
-
-                    <!-- <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"> -->
-                    <!--     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
-                    <!--                FontWeight="SemiBold" -->
-                    <!--                LetterSpacing="1.2" -->
-                    <!--                Text="后端状态" /> -->
-                    <!--     <TextBlock Foreground="{DynamicResource AppTextBrush}" -->
-                    <!--                FontWeight="SemiBold" -->
-                    <!--                Text="{Binding BackendStatusTitle}" /> -->
-                    <!--     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}" -->
-                    <!--                Text="{Binding BackendStatusDetail}" /> -->
-                    <!-- </StackPanel> -->
                 </Grid>
             </Border>
 
@@ -140,6 +128,40 @@
                                          Text="{Binding RerankModel, Mode=TwoWay}" />
                             </Grid>
 
+                            <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="8">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                               FontWeight="SemiBold"
+                                               Text="检索参数" />
+                                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+                                        <TextBlock VerticalAlignment="Center" Text="候选" />
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding SearchCandidateTopKOptions}"
+                                                  SelectedItem="{Binding SearchCandidateTopK, Mode=TwoWay}" />
+                                        <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="扩展候选" />
+                                        <ComboBox Grid.Row="1" Grid.Column="1"
+                                                  ItemsSource="{Binding SearchExpandedCandidateTopKOptions}"
+                                                  SelectedItem="{Binding SearchExpandedCandidateTopK, Mode=TwoWay}" />
+                                        <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="重排" />
+                                        <ComboBox Grid.Row="2" Grid.Column="1"
+                                                  ItemsSource="{Binding SearchRerankTopKOptions}"
+                                                  SelectedItem="{Binding SearchRerankTopK, Mode=TwoWay}" />
+                                        <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="Top-K" />
+                                        <ComboBox Grid.Row="3" Grid.Column="1"
+                                                  ItemsSource="{Binding SearchFinalTopKOptions}"
+                                                  SelectedItem="{Binding SearchFinalTopK, Mode=TwoWay}" />
+                                    </Grid>
+                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               FontSize="12"
+                                               Text="扩展候选控制向量召回数量，重排控制送入 reranker 的候选数量；数值越大通常越慢、token 越多。"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
                             <StackPanel Spacing="4">
                                 <CheckBox Content="下次启动自动预热 embedding 模型"
                                           IsChecked="{Binding AutoWarmupEmbeddingModel, Mode=TwoWay}" />
@@ -229,8 +251,7 @@
                                 <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                            FontWeight="SemiBold"
                                            Text="当前可用接口" />
-                                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                              >
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <ItemsControl ItemsSource="{Binding AiCapabilities}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -280,8 +301,7 @@
                                 <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                            FontWeight="SemiBold"
                                            Text="活动纪要" />
-                                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                              >
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <ItemsControl ItemsSource="{Binding ActivityFeed}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
