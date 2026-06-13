@@ -12,6 +12,8 @@ public interface IUserSettingsService : ISearchModelOptionsProvider
 
     string EmbeddingModel { get; set; }
 
+    int EmbeddingDimensions { get; set; }
+
     string RerankProvider { get; set; }
 
     string RerankModel { get; set; }
