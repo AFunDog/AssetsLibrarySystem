@@ -46,6 +46,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         AutoWarmupRerankModel = UserSettingsService.AutoWarmupRerankModel;
         EmbeddingProvider = UserSettingsService.EmbeddingProvider;
         EmbeddingModel = UserSettingsService.EmbeddingModel;
+        EmbeddingDimensions = UserSettingsService.EmbeddingDimensions;
         RerankProvider = UserSettingsService.RerankProvider;
         RerankModel = UserSettingsService.RerankModel;
         IsLoadingSettings = false;
@@ -75,12 +76,17 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public partial string EmbeddingModel { get; set; }
 
     [ObservableProperty]
+    public partial int EmbeddingDimensions { get; set; }
+
+    [ObservableProperty]
     public partial string RerankProvider { get; set; }
 
     [ObservableProperty]
     public partial string RerankModel { get; set; }
 
     public string[] ProviderOptions { get; } = ["dashscope", "local"];
+
+    public int[] EmbeddingDimensionOptions { get; } = [2048, 1024, 512];
 
     [ObservableProperty]
     public partial string SettingsStatusMessage { get; set; }
@@ -127,6 +133,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     partial void OnEmbeddingProviderChanged(string value) => SaveSearchModelSettings();
     partial void OnEmbeddingModelChanged(string value) => SaveSearchModelSettings();
+    partial void OnEmbeddingDimensionsChanged(int value) => SaveSearchModelSettings();
     partial void OnRerankProviderChanged(string value) => SaveSearchModelSettings();
     partial void OnRerankModelChanged(string value) => SaveSearchModelSettings();
 
@@ -139,6 +146,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
         UserSettingsService.EmbeddingProvider = EmbeddingProvider;
         UserSettingsService.EmbeddingModel = EmbeddingModel;
+        UserSettingsService.EmbeddingDimensions = EmbeddingDimensions;
         UserSettingsService.RerankProvider = RerankProvider;
         UserSettingsService.RerankModel = RerankModel;
         SettingsStatusMessage = "搜索模型设置已保存，后续向量化与检索立即使用新设置。";
