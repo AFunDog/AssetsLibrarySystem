@@ -127,13 +127,51 @@ public interface IAssetSearchBackendClient
         CancellationToken ct = default);
 }
 
+public interface IQueryEmbeddingClient
+{
+    Task<QueryEmbeddingResult> EmbedQueryAsync(
+        string backendBaseUrl,
+        string text,
+        SearchModelOptions searchModels,
+        CancellationToken ct = default);
+}
+
+public interface IRerankClient
+{
+    Task<RerankResult> RerankAsync(
+        string backendBaseUrl,
+        string query,
+        IReadOnlyList<VectorCandidateRecord> candidates,
+        int rerankTopK,
+        SearchModelOptions searchModels,
+        CancellationToken ct = default);
+}
+
+public interface ISearchModelManagementClient
+{
+    Task<AssetSearchWarmupDocument> WarmupAsync(
+        string backendBaseUrl,
+        string modelKind,
+        CancellationToken ct = default);
+
+    Task<AssetSearchModelStatusDocument> GetModelStatusAsync(
+        string backendBaseUrl,
+        CancellationToken ct = default);
+
+    Task<AssetSearchModelCloseDocument> CloseModelAsync(
+        string backendBaseUrl,
+        string modelKind,
+        CancellationToken ct = default);
+}
+
 public interface IVectorCandidateRetriever
 {
-    VectorRetrievalResult Retrieve(
+    Task<VectorRetrievalResult> RetrieveAsync(
         string embeddingModelKey,
         IReadOnlyList<LocalVectorRecord> records,
         float[] queryVector,
-        int expandedCandidateTopK);
+        int expandedCandidateTopK,
+        CancellationToken ct = default);
 }
 
 public interface IScoreFusionService
@@ -574,114 +612,6 @@ public sealed class AssetSearchBackendClient : IAssetSearchBackendClient
         bool Closed,
         bool CudaCacheCleared,
         string[] RemainingLoadedModels);
-}
-
-public sealed class VectorCandidateRetriever : IVectorCandidateRetriever
-{
-    private const int ExactSearchThreshold = 5000;
-
-    public VectorRetrievalResult Retrieve(
-        string embeddingModelKey,
-        IReadOnlyList<LocalVectorRecord> records,
-        float[] queryVector,
-        int expandedCandidateTopK)
-    {
-        var effectiveExpandedCandidateTopK = Math.Min(records.Count, expandedCandidateTopK);
-        var useExactSearch = records.Count <= ExactSearchThreshold;
-        var searchStrategy = useExactSearch ? "ExactCosine" : "Hnsw";
-
-        IReadOnlyList<(int Index, float Similarity)> searchResults;
-        if (useExactSearch)
-        {
-            searchResults = SearchExact(records, queryVector, effectiveExpandedCandidateTopK);
-        }
-        else
-        {
-            var indexManager = new LocalHnswSearchIndexManager(embeddingModelKey);
-            indexManager.EnsureCurrent(
-                records.Select(record => record.Vector).ToArray(),
-                records.Select(BuildVectorKey).ToArray(),
-                BuildIndexState(records));
-            searchResults = indexManager.Search(queryVector, effectiveExpandedCandidateTopK);
-        }
-
-        var candidates = new List<VectorCandidateRecord>(searchResults.Count);
-        foreach (var (index, similarity) in searchResults)
-        {
-            if (index < 0 || index >= records.Count)
-            {
-                continue;
-            }
-
-            var record = records[index];
-            candidates.Add(new VectorCandidateRecord(
-                CandidateId: $"{record.AssetUid}::{record.AngleType}",
-                Record: record,
-                EmbeddingSimilarity: similarity,
-                VectorDistance: Math.Max(0f, 1f - similarity)));
-
-            if (candidates.Count >= effectiveExpandedCandidateTopK)
-            {
-                break;
-            }
-        }
-
-        return new VectorRetrievalResult(candidates, searchStrategy, effectiveExpandedCandidateTopK);
-    }
-
-    private static IReadOnlyList<(int Index, float Similarity)> SearchExact(
-        IReadOnlyList<LocalVectorRecord> records,
-        float[] queryVector,
-        int topK)
-    {
-        if (records.Count == 0 || topK <= 0)
-        {
-            return [];
-        }
-
-        return records
-            .Select((record, index) => (Index: index, Similarity: CosineSimilarity(queryVector, record.Vector)))
-            .OrderByDescending(item => item.Similarity)
-            .Take(topK)
-            .ToArray();
-    }
-
-    private static float CosineSimilarity(float[] left, float[] right)
-    {
-        if (left.Length != right.Length)
-        {
-            throw new InvalidOperationException($"查询向量维度不匹配，期望 {right.Length}，实际 {left.Length}。");
-        }
-
-        var dot = 0f;
-        var leftNorm = 0f;
-        var rightNorm = 0f;
-        for (var index = 0; index < left.Length; index++)
-        {
-            dot += left[index] * right[index];
-            leftNorm += left[index] * left[index];
-            rightNorm += right[index] * right[index];
-        }
-
-        if (leftNorm <= float.Epsilon || rightNorm <= float.Epsilon)
-        {
-            return 0f;
-        }
-
-        var denominator = MathF.Sqrt(leftNorm) * MathF.Sqrt(rightNorm);
-        return denominator <= float.Epsilon ? 0f : dot / denominator;
-    }
-
-    private static LocalVectorIndexState BuildIndexState(IReadOnlyList<LocalVectorRecord> records)
-    {
-        var latestUpdatedAt = records
-            .Select(record => record.VectorizedAt.ToString("O"))
-            .OrderBy(value => value, StringComparer.Ordinal)
-            .LastOrDefault() ?? string.Empty;
-        return new LocalVectorIndexState(records.Count, latestUpdatedAt);
-    }
-
-    private static string BuildVectorKey(LocalVectorRecord record) => $"{record.AssetUid}::{record.AngleType}";
 }
 
 public sealed class ScoreFusionService : IScoreFusionService

@@ -89,8 +89,32 @@ public sealed class AssetSearchModule : Module
             .As<IAssetSearchBackendClient>()
             .SingleInstance();
 
-        builder.RegisterType<VectorCandidateRetriever>()
+        builder.RegisterType<QueryEmbeddingClient>()
+            .As<IQueryEmbeddingClient>()
+            .SingleInstance();
+
+        builder.RegisterType<RerankClient>()
+            .As<IRerankClient>()
+            .SingleInstance();
+
+        builder.RegisterType<SearchModelManagementClient>()
+            .As<ISearchModelManagementClient>()
+            .SingleInstance();
+
+        builder.RegisterType<ExactVectorRetriever>()
+            .AsSelf()
+            .SingleInstance();
+
+        builder.RegisterType<HnswVectorRetriever>()
+            .AsSelf()
+            .SingleInstance();
+
+        builder.RegisterType<VectorRetrieverSelector>()
             .As<IVectorCandidateRetriever>()
+            .SingleInstance();
+
+        builder.RegisterType<RerankCandidateSelector>()
+            .As<IRerankCandidateSelector>()
             .SingleInstance();
 
         builder.RegisterType<ScoreFusionService>()
@@ -99,6 +123,10 @@ public sealed class AssetSearchModule : Module
 
         builder.RegisterType<SearchResultAggregator>()
             .As<ISearchResultAggregator>()
+            .SingleInstance();
+
+        builder.RegisterType<AssetSearchPipeline>()
+            .As<IAssetSearchPipeline>()
             .SingleInstance();
 
         builder.RegisterType<AssetSearchService>()
