@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.DependencyInjection;
+using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.ConsoleHost.DependencyInjection;
 using Autofac;
 using Microsoft.Extensions.Configuration;
