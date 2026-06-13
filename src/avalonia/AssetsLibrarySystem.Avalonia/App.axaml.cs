@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using AssetsLibrarySystem.Application.DependencyInjection;
+using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Avalonia.DependencyInjection;
 using AssetsLibrarySystem.Avalonia.Services.Shell;
 using AssetsLibrarySystem.Avalonia.ViewModels;
