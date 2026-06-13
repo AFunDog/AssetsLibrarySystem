@@ -131,25 +131,78 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             : "已关闭 rerank 自动预热，下次启动生效。";
     }
 
-    partial void OnEmbeddingProviderChanged(string value) => SaveSearchModelSettings();
-    partial void OnEmbeddingModelChanged(string value) => SaveSearchModelSettings();
-    partial void OnEmbeddingDimensionsChanged(int value) => SaveSearchModelSettings();
-    partial void OnRerankProviderChanged(string value) => SaveSearchModelSettings();
-    partial void OnRerankModelChanged(string value) => SaveSearchModelSettings();
-
-    private void SaveSearchModelSettings()
+    partial void OnEmbeddingProviderChanged(string value)
     {
         if (IsLoadingSettings)
         {
             return;
         }
 
-        UserSettingsService.EmbeddingProvider = EmbeddingProvider;
-        UserSettingsService.EmbeddingModel = EmbeddingModel;
-        UserSettingsService.EmbeddingDimensions = EmbeddingDimensions;
-        UserSettingsService.RerankProvider = RerankProvider;
-        UserSettingsService.RerankModel = RerankModel;
-        SettingsStatusMessage = "搜索模型设置已保存，后续向量化与检索立即使用新设置。";
+        UserSettingsService.EmbeddingProvider = value;
+        RefreshEmbeddingFieldsFromSettings();
+        SettingsStatusMessage = $"已切换 embedding 来源为 {UserSettingsService.EmbeddingProvider}，并恢复该来源上次使用的模型与维度。";
+    }
+
+    partial void OnEmbeddingModelChanged(string value)
+    {
+        if (IsLoadingSettings)
+        {
+            return;
+        }
+
+        UserSettingsService.EmbeddingModel = value;
+        SettingsStatusMessage = "当前 embedding 来源的模型设置已保存，后续向量化与检索立即使用新设置。";
+    }
+
+    partial void OnEmbeddingDimensionsChanged(int value)
+    {
+        if (IsLoadingSettings)
+        {
+            return;
+        }
+
+        UserSettingsService.EmbeddingDimensions = value;
+        SettingsStatusMessage = "当前 embedding 来源的向量维度已保存，后续向量化与检索立即使用新设置。";
+    }
+
+    partial void OnRerankProviderChanged(string value)
+    {
+        if (IsLoadingSettings)
+        {
+            return;
+        }
+
+        UserSettingsService.RerankProvider = value;
+        RefreshRerankFieldsFromSettings();
+        SettingsStatusMessage = $"已切换 rerank 来源为 {UserSettingsService.RerankProvider}，并恢复该来源上次使用的模型。";
+    }
+
+    partial void OnRerankModelChanged(string value)
+    {
+        if (IsLoadingSettings)
+        {
+            return;
+        }
+
+        UserSettingsService.RerankModel = value;
+        SettingsStatusMessage = "当前 rerank 来源的模型设置已保存，后续检索立即使用新设置。";
+    }
+
+    private void RefreshEmbeddingFieldsFromSettings()
+    {
+        IsLoadingSettings = true;
+        EmbeddingProvider = UserSettingsService.EmbeddingProvider;
+        EmbeddingModel = UserSettingsService.EmbeddingModel;
+        EmbeddingDimensions = UserSettingsService.EmbeddingDimensions;
+        IsLoadingSettings = false;
+    }
+
+    private void RefreshRerankFieldsFromSettings()
+    {
+        IsLoadingSettings = true;
+        RerankProvider = UserSettingsService.RerankProvider;
+        RerankModel = UserSettingsService.RerankModel;
+        IsLoadingSettings = false;
     }
 
     private void SubmitPrompt()
