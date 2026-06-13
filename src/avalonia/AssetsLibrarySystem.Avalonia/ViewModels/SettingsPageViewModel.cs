@@ -49,6 +49,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         EmbeddingDimensions = UserSettingsService.EmbeddingDimensions;
         RerankProvider = UserSettingsService.RerankProvider;
         RerankModel = UserSettingsService.RerankModel;
+        SearchCandidateTopK = UserSettingsService.SearchCandidateTopK;
+        SearchExpandedCandidateTopK = UserSettingsService.SearchExpandedCandidateTopK;
+        SearchRerankTopK = UserSettingsService.SearchRerankTopK;
+        SearchFinalTopK = UserSettingsService.SearchFinalTopK;
         IsLoadingSettings = false;
 
         SubmitPromptCommand = new RelayCommand(SubmitPrompt);
@@ -84,9 +88,29 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     [ObservableProperty]
     public partial string RerankModel { get; set; }
 
+    [ObservableProperty]
+    public partial int SearchCandidateTopK { get; set; }
+
+    [ObservableProperty]
+    public partial int SearchExpandedCandidateTopK { get; set; }
+
+    [ObservableProperty]
+    public partial int SearchRerankTopK { get; set; }
+
+    [ObservableProperty]
+    public partial int SearchFinalTopK { get; set; }
+
     public string[] ProviderOptions { get; } = ["dashscope", "local"];
 
     public int[] EmbeddingDimensionOptions { get; } = [2048, 1024, 512];
+
+    public int[] SearchCandidateTopKOptions { get; } = [5, 10, 20, 30, 50, 100];
+
+    public int[] SearchExpandedCandidateTopKOptions { get; } = [20, 50, 100, 160, 250, 500, 1000];
+
+    public int[] SearchRerankTopKOptions { get; } = [5, 10, 20, 30, 50, 100, 200];
+
+    public int[] SearchFinalTopKOptions { get; } = [3, 5, 10, 20, 30, 50];
 
     [ObservableProperty]
     public partial string SettingsStatusMessage { get; set; }
@@ -107,11 +131,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     partial void OnAutoWarmupEmbeddingModelChanged(bool value)
     {
-        if (IsLoadingSettings)
-        {
-            return;
-        }
-
+        if (IsLoadingSettings) return;
         UserSettingsService.AutoWarmupEmbeddingModel = value;
         SettingsStatusMessage = value
             ? "已启用 embedding 自动预热，下次启动生效。"
@@ -120,11 +140,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     partial void OnAutoWarmupRerankModelChanged(bool value)
     {
-        if (IsLoadingSettings)
-        {
-            return;
-        }
-
+        if (IsLoadingSettings) return;
         UserSettingsService.AutoWarmupRerankModel = value;
         SettingsStatusMessage = value
             ? "已启用 rerank 自动预热，下次启动生效。"
@@ -133,11 +149,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     partial void OnEmbeddingProviderChanged(string value)
     {
-        if (IsLoadingSettings)
-        {
-            return;
-        }
-
+        if (IsLoadingSettings) return;
         UserSettingsService.EmbeddingProvider = value;
         RefreshEmbeddingFieldsFromSettings();
         SettingsStatusMessage = $"已切换 embedding 来源为 {UserSettingsService.EmbeddingProvider}，并恢复该来源上次使用的模型与维度。";
@@ -145,33 +157,21 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     partial void OnEmbeddingModelChanged(string value)
     {
-        if (IsLoadingSettings)
-        {
-            return;
-        }
-
+        if (IsLoadingSettings) return;
         UserSettingsService.EmbeddingModel = value;
         SettingsStatusMessage = "当前 embedding 来源的模型设置已保存，后续向量化与检索立即使用新设置。";
     }
 
     partial void OnEmbeddingDimensionsChanged(int value)
     {
-        if (IsLoadingSettings)
-        {
-            return;
-        }
-
+        if (IsLoadingSettings) return;
         UserSettingsService.EmbeddingDimensions = value;
         SettingsStatusMessage = "当前 embedding 来源的向量维度已保存，后续向量化与检索立即使用新设置。";
     }
 
     partial void OnRerankProviderChanged(string value)
     {
-        if (IsLoadingSettings)
-        {
-            return;
-        }
-
+        if (IsLoadingSettings) return;
         UserSettingsService.RerankProvider = value;
         RefreshRerankFieldsFromSettings();
         SettingsStatusMessage = $"已切换 rerank 来源为 {UserSettingsService.RerankProvider}，并恢复该来源上次使用的模型。";
@@ -179,13 +179,41 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     partial void OnRerankModelChanged(string value)
     {
-        if (IsLoadingSettings)
-        {
-            return;
-        }
-
+        if (IsLoadingSettings) return;
         UserSettingsService.RerankModel = value;
         SettingsStatusMessage = "当前 rerank 来源的模型设置已保存，后续检索立即使用新设置。";
+    }
+
+    partial void OnSearchCandidateTopKChanged(int value)
+    {
+        if (IsLoadingSettings) return;
+        UserSettingsService.SearchCandidateTopK = value;
+        RefreshSearchParameterFieldsFromSettings();
+        SettingsStatusMessage = "检索候选数已保存，后续快速检索立即使用新设置。";
+    }
+
+    partial void OnSearchExpandedCandidateTopKChanged(int value)
+    {
+        if (IsLoadingSettings) return;
+        UserSettingsService.SearchExpandedCandidateTopK = value;
+        RefreshSearchParameterFieldsFromSettings();
+        SettingsStatusMessage = "扩展候选数已保存，后续快速检索立即使用新设置。";
+    }
+
+    partial void OnSearchRerankTopKChanged(int value)
+    {
+        if (IsLoadingSettings) return;
+        UserSettingsService.SearchRerankTopK = value;
+        RefreshSearchParameterFieldsFromSettings();
+        SettingsStatusMessage = "重排序候选数已保存，后续快速检索立即使用新设置。";
+    }
+
+    partial void OnSearchFinalTopKChanged(int value)
+    {
+        if (IsLoadingSettings) return;
+        UserSettingsService.SearchFinalTopK = value;
+        RefreshSearchParameterFieldsFromSettings();
+        SettingsStatusMessage = "最终返回 Top-K 已保存，后续快速检索立即使用新设置。";
     }
 
     private void RefreshEmbeddingFieldsFromSettings()
@@ -202,6 +230,16 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         IsLoadingSettings = true;
         RerankProvider = UserSettingsService.RerankProvider;
         RerankModel = UserSettingsService.RerankModel;
+        IsLoadingSettings = false;
+    }
+
+    private void RefreshSearchParameterFieldsFromSettings()
+    {
+        IsLoadingSettings = true;
+        SearchCandidateTopK = UserSettingsService.SearchCandidateTopK;
+        SearchExpandedCandidateTopK = UserSettingsService.SearchExpandedCandidateTopK;
+        SearchRerankTopK = UserSettingsService.SearchRerankTopK;
+        SearchFinalTopK = UserSettingsService.SearchFinalTopK;
         IsLoadingSettings = false;
     }
 
