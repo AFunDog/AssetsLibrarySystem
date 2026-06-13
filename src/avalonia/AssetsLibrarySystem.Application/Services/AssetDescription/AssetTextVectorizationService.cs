@@ -1,28 +1,22 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
-using System.Text;
-using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
-using Serilog;
+using AssetsLibrarySystem.Application.Services.BackendApi;
 
 namespace AssetsLibrarySystem.Application.Services.AssetDescription;
 
 public sealed class AssetTextVectorizationService : IAssetTextVectorizationService
 {
-    private HttpClient Http { get; } = new();
-    private JsonSerializerOptions JsonOptions { get; } = new()
+    private IBackendSearchClient BackendSearchClient { get; }
+
+    public AssetTextVectorizationService(IBackendSearchClient backendSearchClient)
     {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
+        BackendSearchClient = backendSearchClient;
+    }
 
     public async Task<IReadOnlyList<AssetDescriptionVectorDocument>> VectorizeAsync(
         AssetDescriptionDocument document,
@@ -45,7 +39,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
                 continue;
             }
 
-            var request = new SearchIndexRequest(
+            var request = new BackendSearchIndexRequest(
                 Provider: provider,
                 Model: model,
                 EmbeddingDimensions: requestedDimensions,
@@ -56,22 +50,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
                 Description: segment.NormalizedText,
                 GeneratedAt: document.GeneratedAt);
 
-            var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/search/index";
-            using var content = new StringContent(
-                JsonSerializer.Serialize(request, JsonOptions),
-                Encoding.UTF8,
-                "application/json");
-
-            using var response = await Http.PostAsync(endpoint, content, ct);
-            var responseText = await response.Content.ReadAsStringAsync(ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                Log.Warning("素材向量化请求失败: {StatusCode}, body={Body}", (int)response.StatusCode, responseText);
-                throw new InvalidOperationException($"后端向量化失败：{responseText}");
-            }
-
-            var vectorResponse = JsonSerializer.Deserialize<SearchIndexResponse>(responseText, JsonOptions)
-                ?? throw new InvalidOperationException("后端返回空向量响应。");
+            var vectorResponse = await BackendSearchClient.IndexAsync(backendBaseUrl, request, ct).ConfigureAwait(false);
 
             vectorDocuments.Add(new AssetDescriptionVectorDocument(
                 AssetId: document.AssetId,
@@ -79,7 +58,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
                 AngleType: segment.NormalizedAngleType,
                 EmbeddingModel: embeddingModelKey,
                 VectorDim: vectorResponse.VectorDim,
-                Vector: JsonSerializer.Deserialize<float[]>(vectorResponse.Vector.GetRawText(), JsonOptions) ?? [],
+                Vector: JsonSerializer.Deserialize<float[]>(vectorResponse.Vector.GetRawText()) ?? [],
                 VectorizedAt: DateTimeOffset.UtcNow,
                 ContentHash: document.ContentHash));
         }
@@ -91,25 +70,4 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
 
         return vectorDocuments;
     }
-
-    private sealed record SearchIndexRequest(
-        string Provider,
-        string Model,
-        int? EmbeddingDimensions,
-        string AssetId,
-        string AssetName,
-        string AssetFormat,
-        string AssetPath,
-        string Description,
-        DateTimeOffset? GeneratedAt);
-
-    private sealed record SearchIndexResponse(
-        string AssetId,
-        string AssetName,
-        string AssetFormat,
-        string AssetPath,
-        string Description,
-        JsonElement Vector,
-        int VectorDim,
-        string EmbeddingModel);
 }

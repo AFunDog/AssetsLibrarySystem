@@ -1,10 +1,10 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Application.Services.BackendApi;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
@@ -15,12 +15,13 @@ public sealed class BackendLauncherService : IBackendLauncher
     private int StopCompleted;
     private BackendLauncherOptions Options { get; }
     private Process? BackendProcess { get; set; }
-    private HttpClient Http { get; } = new() { Timeout = TimeSpan.FromSeconds(5) };
+    private IBackendHealthClient BackendHealthClient { get; }
     private CancellationTokenSource? HeartbeatCts { get; set; }
 
-    public BackendLauncherService(IConfiguration configuration)
+    public BackendLauncherService(IConfiguration configuration, IBackendHealthClient backendHealthClient)
     {
         Options = BuildOptions(configuration);
+        BackendHealthClient = backendHealthClient;
         BaseUrl = $"http://{Options.Host}:{Options.Port}";
     }
 
@@ -94,12 +95,10 @@ public sealed class BackendLauncherService : IBackendLauncher
     public async ValueTask DisposeAsync()
     {
         await StopAsync();
-        Http.Dispose();
     }
 
     private async Task WaitForHealthAsync(CancellationToken ct)
     {
-        var healthUrl = $"{BaseUrl}/health";
         var deadline = DateTime.UtcNow + Options.StartupTimeout;
 
         while (DateTime.UtcNow < deadline)
@@ -115,12 +114,8 @@ public sealed class BackendLauncherService : IBackendLauncher
 
             try
             {
-                var resp = await Http.GetAsync(healthUrl, ct);
-                if (resp.IsSuccessStatusCode)
+                if (await BackendHealthClient.IsHealthyAsync(BaseUrl, ct).ConfigureAwait(false))
                     return;
-            }
-            catch (HttpRequestException)
-            {
             }
             catch (TaskCanceledException)
             {
@@ -130,9 +125,9 @@ public sealed class BackendLauncherService : IBackendLauncher
             await Task.Delay(Options.HealthCheckInterval, ct);
         }
 
-        Log.Error("后端健康检查超时，url={HealthUrl}, timeoutSeconds={TimeoutSeconds}", healthUrl, Options.StartupTimeout.TotalSeconds);
+        Log.Error("后端健康检查超时，baseUrl={BaseUrl}, timeoutSeconds={TimeoutSeconds}", BaseUrl, Options.StartupTimeout.TotalSeconds);
         throw new TimeoutException(
-            $"后端健康检查超时（{Options.StartupTimeout.TotalSeconds}s），地址: {healthUrl}");
+            $"后端健康检查超时（{Options.StartupTimeout.TotalSeconds}s），地址: {BaseUrl}");
     }
 
     private ProcessStartInfo CreateProcessStartInfo()
@@ -200,12 +195,7 @@ public sealed class BackendLauncherService : IBackendLauncher
             {
                 try
                 {
-                    using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/internal/heartbeat");
-                    using var response = await Http.SendAsync(request, heartbeatCts.Token);
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        Log.Warning("后端心跳请求返回非成功状态码: {StatusCode}", (int)response.StatusCode);
-                    }
+                    await BackendHealthClient.SendHeartbeatAsync(BaseUrl, heartbeatCts.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {

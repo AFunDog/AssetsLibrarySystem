@@ -2,6 +2,7 @@ using System;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetLibrary;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
+using AssetsLibrarySystem.Application.Services.BackendApi;
 using AssetsLibrarySystem.Application.Services.BackendLauncher;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
@@ -17,6 +18,7 @@ public sealed class ApplicationModule : Module
         builder.RegisterModule<AssetLibraryModule>();
         builder.RegisterModule<AssetDescriptionModule>();
         builder.RegisterModule<AssetSearchModule>();
+        builder.RegisterModule<BackendApiModule>();
         builder.RegisterModule<BackendModule>();
         builder.RegisterModule<BackgroundTaskModule>();
         builder.RegisterModule<ApplicationUseCaseModule>();
@@ -33,6 +35,28 @@ public sealed class ApplicationInfrastructureModule : Module
 
         builder.RegisterType<SqliteAssetDatabase>()
             .As<IAssetDatabase>()
+            .SingleInstance();
+    }
+}
+
+public sealed class BackendApiModule : Module
+{
+    protected override void Load(ContainerBuilder builder)
+    {
+        builder.RegisterType<BackendApiTransport>()
+            .As<IBackendApiTransport>()
+            .SingleInstance();
+
+        builder.RegisterType<BackendSearchClient>()
+            .As<IBackendSearchClient>()
+            .SingleInstance();
+
+        builder.RegisterType<BackendModelClient>()
+            .As<IBackendModelClient>()
+            .SingleInstance();
+
+        builder.RegisterType<BackendHealthClient>()
+            .As<IBackendHealthClient>()
             .SingleInstance();
     }
 }
@@ -83,10 +107,6 @@ public sealed class AssetSearchModule : Module
 
         builder.RegisterType<VectorRecordRepository>()
             .As<IVectorRecordRepository>()
-            .SingleInstance();
-
-        builder.RegisterType<AssetSearchBackendClient>()
-            .As<IAssetSearchBackendClient>()
             .SingleInstance();
 
         builder.RegisterType<QueryEmbeddingClient>()

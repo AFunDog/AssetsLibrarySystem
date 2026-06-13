@@ -1,12 +1,8 @@
 using System;
-using System.Net.Http;
-using System.Text;
-using System.Text.Encodings.Web;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Services.BackendApi;
 using Serilog;
 
 namespace AssetsLibrarySystem.Application.Services.AssetDescription;
@@ -14,18 +10,12 @@ namespace AssetsLibrarySystem.Application.Services.AssetDescription;
 public sealed class AssetDescriptionService : IAssetDescriptionService
 {
     private IAssetDescriptionStore Store { get; }
-    private HttpClient Http { get; } = new();
-    private JsonSerializerOptions JsonOptions { get; } = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
+    private IBackendModelClient BackendModelClient { get; }
 
-    public AssetDescriptionService(IAssetDescriptionStore store)
+    public AssetDescriptionService(IAssetDescriptionStore store, IBackendModelClient backendModelClient)
     {
         Store = store;
+        BackendModelClient = backendModelClient;
     }
 
     public async Task<AssetDescriptionDocument> DescribeAsync(
@@ -35,29 +25,14 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         string? systemPrompt,
         CancellationToken ct = default)
     {
-        var request = new AssetDescriptionRequest(
+        var request = new BackendModelGenerateRequest(
             AssetFormat: asset.AssetType,
             AssetPath: asset.LocalPath,
             Prompt: string.IsNullOrWhiteSpace(prompt) ? null : prompt.Trim(),
             SystemPrompt: string.IsNullOrWhiteSpace(systemPrompt) ? null : systemPrompt.Trim(),
             MockResponse: false);
 
-        var endpoint = $"{backendBaseUrl.TrimEnd('/')}/api/v1/model/generate";
-        using var content = new StringContent(
-            JsonSerializer.Serialize(request, JsonOptions),
-            Encoding.UTF8,
-            "application/json");
-
-        using var response = await Http.PostAsync(endpoint, content, ct);
-        var responseText = await response.Content.ReadAsStringAsync(ct);
-        if (!response.IsSuccessStatusCode)
-        {
-            Log.Warning("素材描述请求失败: {StatusCode}, body={Body}", (int)response.StatusCode, responseText);
-            throw new InvalidOperationException($"后端描述失败：{responseText}");
-        }
-
-        var backendResponse = JsonSerializer.Deserialize<AssetDescriptionBackendResponse>(responseText, JsonOptions)
-            ?? throw new InvalidOperationException("后端返回空响应。");
+        var backendResponse = await BackendModelClient.GenerateAsync(backendBaseUrl, request, ct).ConfigureAwait(false);
 
         var document = new AssetDescriptionDocument(
             AssetId: asset.DatabaseId,
@@ -81,23 +56,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         return document;
     }
 
-    private sealed record AssetDescriptionRequest(
-        string AssetFormat,
-        string AssetPath,
-        string? Prompt,
-        string? SystemPrompt,
-        bool MockResponse);
-
-    private sealed record AssetDescriptionBackendResponse(
-        string ProviderSlot,
-        string Provider,
-        string Model,
-        string Mode,
-        string OutputText,
-        string SystemPrompt,
-        AssetDescriptionBackendTokenUsage? TokenUsage);
-
-    private static AssetDescriptionTokenUsage? MapTokenUsage(AssetDescriptionBackendTokenUsage? usage) =>
+    private static AssetDescriptionTokenUsage? MapTokenUsage(BackendTokenUsage? usage) =>
         usage is null ? null : new AssetDescriptionTokenUsage(
             usage.InputTokens,
             usage.OutputTokens,
@@ -108,15 +67,4 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             usage.InputTokensDetails,
             usage.OutputTokensDetails,
             usage.PromptTokensDetails);
-
-    private sealed record AssetDescriptionBackendTokenUsage(
-        int InputTokens,
-        int OutputTokens,
-        int TotalTokens,
-        int? ImageTokens,
-        int? VideoTokens,
-        int? AudioTokens,
-        JsonElement? InputTokensDetails,
-        JsonElement? OutputTokensDetails,
-        JsonElement? PromptTokensDetails);
 }
