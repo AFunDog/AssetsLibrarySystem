@@ -119,7 +119,7 @@
                                            Text="{Binding SearchModelStatusDetail}" />
                             </Border>
 
-                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                 <TextBlock VerticalAlignment="Center" Text="向量来源" />
                                 <ComboBox Grid.Column="1"
                                           ItemsSource="{Binding ProviderOptions}"
@@ -127,12 +127,16 @@
                                 <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="向量模型" />
                                 <TextBox Grid.Row="1" Grid.Column="1"
                                          Text="{Binding EmbeddingModel, Mode=TwoWay}" />
-                                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="重排序来源" />
+                                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="向量维度" />
                                 <ComboBox Grid.Row="2" Grid.Column="1"
+                                          ItemsSource="{Binding EmbeddingDimensionOptions}"
+                                          SelectedItem="{Binding EmbeddingDimensions, Mode=TwoWay}" />
+                                <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="重排序来源" />
+                                <ComboBox Grid.Row="3" Grid.Column="1"
                                           ItemsSource="{Binding ProviderOptions}"
                                           SelectedItem="{Binding RerankProvider, Mode=TwoWay}" />
-                                <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="重排序模型" />
-                                <TextBox Grid.Row="3" Grid.Column="1"
+                                <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="重排序模型" />
+                                <TextBox Grid.Row="4" Grid.Column="1"
                                          Text="{Binding RerankModel, Mode=TwoWay}" />
                             </Grid>
 
@@ -141,6 +145,10 @@
                                           IsChecked="{Binding AutoWarmupEmbeddingModel, Mode=TwoWay}" />
                                 <CheckBox Content="下次启动自动预热 rerank 模型"
                                           IsChecked="{Binding AutoWarmupRerankModel, Mode=TwoWay}" />
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           FontSize="12"
+                                           Text="DashScope 向量维度固定支持 2048 / 1024 / 512；本地 embedding 模型仍使用模型自身输出维度。"
+                                           TextWrapping="Wrap" />
                                 <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                            FontSize="12"
                                            Text="{Binding SettingsStatusMessage}"
@@ -268,48 +276,22 @@
                                 <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                            FontWeight="SemiBold"
                                            LetterSpacing="1.2"
-                                           Text="动态" />
+                                           Text="活动纪要" />
                                 <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                            FontWeight="SemiBold"
-                                           Text="活动纪要" />
-                                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                              >
+                                           Text="设置与后端联动" />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <ItemsControl ItemsSource="{Binding ActivityFeed}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <VirtualizingStackPanel />
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Background="{DynamicResource AppSoftSurfaceBrush}"
-                                                        BorderBrush="{DynamicResource AppBorderBrush}"
-                                                        BorderThickness="1"
-                                                        CornerRadius="4"
-                                                        Padding="8"
-                                                        Margin="0,0,0,4">
-                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                               TextWrapping="Wrap"
-                                                               Text="{Binding .}" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </ScrollViewer>
                             </StackPanel>
                         </Border>
                     </Grid>
-
-                    <Border Grid.Row="2"
-                            Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            Padding="12">
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   TextWrapping="Wrap"
-                                   Text="提示词、接口列表和活动日志保持在同一页，便于在调试时快速确认状态与操作结果。" />
-                    </Border>
                 </Grid>
             </Grid>
         </Grid>
