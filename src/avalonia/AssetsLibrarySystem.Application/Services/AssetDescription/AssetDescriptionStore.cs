@@ -149,18 +149,18 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             SELECT
                 d.asset_id,
                 a.asset_uid,
-                asset_name,
-                asset_type,
-                asset_path,
-                description,
-                backend_endpoint,
-                mode,
-                generated_at,
-                token_usage_json,
-                prompt,
-                system_prompt,
-                content_hash,
-                metadata_status
+                d.asset_name,
+                d.asset_type,
+                d.asset_path,
+                d.description,
+                d.backend_endpoint,
+                d.mode,
+                d.generated_at,
+                d.token_usage_json,
+                d.prompt,
+                d.system_prompt,
+                d.content_hash,
+                d.metadata_status
             FROM asset_descriptions AS d
             INNER JOIN assets AS a ON a.id = d.asset_id
             WHERE d.asset_id = $asset_id

@@ -36,7 +36,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         CancellationToken ct = default)
     {
         var request = new AssetDescriptionRequest(
-            AssetType: asset.AssetType,
+            AssetFormat: asset.AssetType,
             AssetPath: asset.LocalPath,
             Prompt: string.IsNullOrWhiteSpace(prompt) ? null : prompt.Trim(),
             SystemPrompt: string.IsNullOrWhiteSpace(systemPrompt) ? null : systemPrompt.Trim(),
@@ -82,7 +82,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
     }
 
     private sealed record AssetDescriptionRequest(
-        string AssetType,
+        string AssetFormat,
         string AssetPath,
         string? Prompt,
         string? SystemPrompt,

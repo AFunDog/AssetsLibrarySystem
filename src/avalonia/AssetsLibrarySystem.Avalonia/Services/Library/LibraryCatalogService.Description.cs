@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
+using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.Services.Library;
 
@@ -40,6 +41,12 @@ public sealed partial class LibraryCatalogService
         }
         catch (Exception ex)
         {
+            Log.Error(
+                ex,
+                "读取素材描述失败: assetId={AssetId}, assetUid={AssetUid}, assetName={AssetName}",
+                asset.DatabaseId,
+                asset.AssetUid,
+                asset.Name);
             ResetSelectedAssetDescription();
             SelectedAssetDescriptionState = "描述记录读取失败";
             SelectedAssetDescriptionStorePath = AssetDescriptionStore.DatabasePath;
