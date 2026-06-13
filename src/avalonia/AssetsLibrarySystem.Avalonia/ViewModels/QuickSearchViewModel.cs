@@ -7,6 +7,7 @@ using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Application.Services.BackendLauncher;
+using AssetsLibrarySystem.Avalonia.Services.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Serilog;
@@ -20,27 +21,37 @@ public partial class QuickSearchViewModel : ObservableObject
 
     private IAssetSearchService? AssetSearchService { get; }
     private IBackendLauncher? BackendLauncher { get; }
+    private IUserSettingsService? UserSettingsService { get; }
 
     public QuickSearchViewModel()
-        : this(null, null)
+        : this(null, null, null)
     {
     }
 
-    public QuickSearchViewModel(IBackendLauncher? backendLauncher, IAssetSearchService? assetSearchService)
+    public QuickSearchViewModel(
+        IBackendLauncher? backendLauncher,
+        IAssetSearchService? assetSearchService,
+        IUserSettingsService? userSettingsService)
     {
         BackendLauncher = backendLauncher;
         AssetSearchService = assetSearchService;
+        UserSettingsService = userSettingsService;
         SearchResults = new ObservableCollection<AssetSearchDocument>();
         SearchAssetFormats = [AllAssetFormat, SmartAssetFormat, "文本", "图片", "视频", "音频"];
         SearchStatus = "输入素材描述并按回车检索，点击卡片可定位到素材文件。";
-        SearchMetricsSummary = "参数：候选 20，Top-K 5；类型：全部。";
+        SearchMetricsSummary = $"参数：候选 {SearchCandidateTopK}，扩展候选 {SearchExpandedCandidateTopK}，Top-K {SearchFinalTopK}；重排 {SearchRerankTopK}；类型：全部。";
         SearchQuery = string.Empty;
         SearchAssetFormat = AllAssetFormat;
-        Log.Debug("QuickSearchViewModel 已创建，backendLauncherRegistered={HasBackendLauncher}, searchServiceRegistered={HasSearchService}", BackendLauncher is not null, AssetSearchService is not null);
+        Log.Debug("QuickSearchViewModel 已创建，backendLauncherRegistered={HasBackendLauncher}, searchServiceRegistered={HasSearchService}, settingsRegistered={HasSettings}", BackendLauncher is not null, AssetSearchService is not null, UserSettingsService is not null);
     }
 
     public ObservableCollection<AssetSearchDocument> SearchResults { get; }
     public IReadOnlyList<string> SearchAssetFormats { get; }
+
+    private int SearchCandidateTopK => UserSettingsService?.SearchCandidateTopK ?? 20;
+    private int SearchExpandedCandidateTopK => UserSettingsService?.SearchExpandedCandidateTopK ?? 160;
+    private int SearchRerankTopK => UserSettingsService?.SearchRerankTopK ?? 50;
+    private int SearchFinalTopK => UserSettingsService?.SearchFinalTopK ?? 5;
 
     [ObservableProperty]
     public partial string SearchQuery { get; set; }
@@ -57,10 +68,19 @@ public partial class QuickSearchViewModel : ObservableObject
     [RelayCommand]
     private async Task ExecuteSearchAsync()
     {
+        var candidateTopK = SearchCandidateTopK;
+        var expandedCandidateTopK = SearchExpandedCandidateTopK;
+        var rerankTopK = SearchRerankTopK;
+        var finalTopK = SearchFinalTopK;
+
         Log.Information(
-            "用户在快速检索窗发起搜索: queryLength={QueryLength}, assetFormat={AssetFormat}",
+            "用户在快速检索窗发起搜索: queryLength={QueryLength}, assetFormat={AssetFormat}, candidateTopK={CandidateTopK}, expandedCandidateTopK={ExpandedCandidateTopK}, rerankTopK={RerankTopK}, finalTopK={FinalTopK}",
             SearchQuery?.Length ?? 0,
-            string.IsNullOrWhiteSpace(SearchAssetFormat) ? AllAssetFormat : SearchAssetFormat);
+            string.IsNullOrWhiteSpace(SearchAssetFormat) ? AllAssetFormat : SearchAssetFormat,
+            candidateTopK,
+            expandedCandidateTopK,
+            rerankTopK,
+            finalTopK);
 
         if (AssetSearchService is null)
         {
@@ -86,18 +106,24 @@ public partial class QuickSearchViewModel : ObservableObject
                 Log.Information("快速检索前后端启动完成，baseUrl={BaseUrl}", BackendLauncher.BaseUrl);
             }
 
-            const int candidateTopK = 20;
-            const int finalTopK = 5;
             SearchStatus = "正在检索...";
-            SearchMetricsSummary = $"参数：候选 {candidateTopK}，Top-K {finalTopK}；类型：{SearchAssetFormat}。";
-            Log.Information("开始调用后端检索接口。candidateTopK={CandidateTopK}, finalTopK={FinalTopK}, assetFormat={AssetFormat}", candidateTopK, finalTopK, SearchAssetFormat);
+            SearchMetricsSummary = $"参数：候选 {candidateTopK}，扩展候选 {expandedCandidateTopK}，Top-K {finalTopK}；重排 {rerankTopK}；类型：{SearchAssetFormat}。";
+            Log.Information(
+                "开始调用后端检索接口。candidateTopK={CandidateTopK}, expandedCandidateTopK={ExpandedCandidateTopK}, rerankTopK={RerankTopK}, finalTopK={FinalTopK}, assetFormat={AssetFormat}",
+                candidateTopK,
+                expandedCandidateTopK,
+                rerankTopK,
+                finalTopK,
+                SearchAssetFormat);
 
             var response = await AssetSearchService.SearchAsync(
                 BackendLauncher?.BaseUrl ?? "http://127.0.0.1:8000",
                 SearchQuery,
                 candidateTopK,
                 finalTopK,
-                ToServiceAssetFormat(SearchAssetFormat));
+                ToServiceAssetFormat(SearchAssetFormat),
+                expandedCandidateTopK,
+                rerankTopK);
 
             SearchResults.Clear();
             foreach (var item in response.Results)
@@ -126,7 +152,7 @@ public partial class QuickSearchViewModel : ObservableObject
         catch (System.Exception ex)
         {
             SearchStatus = $"检索失败：{ex.Message}";
-            SearchMetricsSummary = $"参数：候选 20，Top-K 5；类型：{SearchAssetFormat}。";
+            SearchMetricsSummary = $"参数：候选 {candidateTopK}，扩展候选 {expandedCandidateTopK}，Top-K {finalTopK}；重排 {rerankTopK}；类型：{SearchAssetFormat}。";
             Log.Error(ex, "快速检索失败。");
         }
     }
