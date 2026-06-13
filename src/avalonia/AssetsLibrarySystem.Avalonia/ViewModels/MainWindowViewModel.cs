@@ -2,7 +2,6 @@ using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
@@ -44,20 +43,23 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OverviewPage = overviewPage;
         LibraryPage = libraryPage;
         SettingsPage = settingsPage;
-        DescriptionTasks = [];
 
         BackgroundTaskService.PropertyChanged += OnBackgroundTaskServicePropertyChanged;
         BackgroundTaskService.Tasks.CollectionChanged += OnBackgroundTasksCollectionChanged;
         BackendSessionService.PropertyChanged += OnBackendSessionPropertyChanged;
 
-        RefreshDescriptionTasks();
+        foreach (var task in BackgroundTaskService.Tasks)
+        {
+            task.PropertyChanged += OnBackgroundTaskPropertyChanged;
+        }
+
+        RefreshBackgroundTaskSummary();
     }
 
     public OverviewPageViewModel OverviewPage { get; }
     public LibraryPageViewModel LibraryPage { get; }
     public SettingsPageViewModel SettingsPage { get; }
     public ObservableCollection<BackgroundTaskEntry> BackgroundTasks => BackgroundTaskService.Tasks;
-    public ObservableCollection<BackgroundTaskEntry> DescriptionTasks { get; }
 
     public string BackendStatusTitle => BackendSessionService.BackendStatusTitle;
     public string BackendStatusStage => BackendSessionService.BackendStatusStage;
@@ -67,10 +69,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public string SearchModelStatusDetail => BackendSessionService.SearchModelStatusDetail;
 
     [ObservableProperty]
-    public partial string LatestDescriptionTaskText { get; set; } = "暂无描述任务";
+    public partial string LatestBackgroundTaskText { get; set; } = "暂无后台任务";
 
     [ObservableProperty]
-    public partial bool HasDescriptionTasks { get; set; }
+    public partial bool HasBackgroundTasks { get; set; }
 
     public async Task InitializeAsync()
     {
@@ -80,7 +82,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void OnBackgroundTaskServicePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        RefreshDescriptionTaskSummary();
+        RefreshBackgroundTaskSummary();
     }
 
     private void OnBackgroundTasksCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -89,7 +91,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             foreach (BackgroundTaskEntry task in e.OldItems)
             {
-                task.PropertyChanged -= OnDescriptionTaskPropertyChanged;
+                task.PropertyChanged -= OnBackgroundTaskPropertyChanged;
             }
         }
 
@@ -97,11 +99,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             foreach (BackgroundTaskEntry task in e.NewItems)
             {
-                task.PropertyChanged += OnDescriptionTaskPropertyChanged;
+                task.PropertyChanged += OnBackgroundTaskPropertyChanged;
             }
         }
 
-        RefreshDescriptionTasks();
+        RefreshBackgroundTaskSummary();
     }
 
     private void OnBackendSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -109,30 +111,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(e.PropertyName);
     }
 
-    private void OnDescriptionTaskPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnBackgroundTaskPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        RefreshDescriptionTaskSummary();
+        RefreshBackgroundTaskSummary();
     }
 
-    private void RefreshDescriptionTasks()
+    private void RefreshBackgroundTaskSummary()
     {
-        DescriptionTasks.Clear();
-        foreach (var task in BackgroundTaskService.Tasks.Where(task =>
-                     string.Equals(task.Title, "素材描述", StringComparison.Ordinal)))
-        {
-            task.PropertyChanged -= OnDescriptionTaskPropertyChanged;
-            task.PropertyChanged += OnDescriptionTaskPropertyChanged;
-            DescriptionTasks.Add(task);
-        }
-
-        RefreshDescriptionTaskSummary();
-    }
-
-    private void RefreshDescriptionTaskSummary()
-    {
-        HasDescriptionTasks = DescriptionTasks.Count > 0;
-        LatestDescriptionTaskText = DescriptionTasks.Count == 0
-            ? "暂无描述任务"
-            : $"{DescriptionTasks[0].StageText} · {DescriptionTasks[0].StatusText}";
+        HasBackgroundTasks = BackgroundTasks.Count > 0;
+        LatestBackgroundTaskText = BackgroundTasks.Count == 0
+            ? "暂无后台任务"
+            : $"{BackgroundTasks[0].Title} · {BackgroundTasks[0].StageText} · {BackgroundTasks[0].StatusText}";
     }
 }
