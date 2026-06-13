@@ -45,7 +45,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
                 Model: model,
                 AssetId: document.AssetUid,
                 AssetName: document.AssetName,
-                AssetType: document.AssetType,
+                AssetFormat: document.AssetType,
                 AssetPath: document.CurrentPath,
                 Description: segment.NormalizedText,
                 GeneratedAt: document.GeneratedAt);
@@ -91,7 +91,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
         string Model,
         string AssetId,
         string AssetName,
-        string AssetType,
+        string AssetFormat,
         string AssetPath,
         string Description,
         DateTimeOffset? GeneratedAt);
