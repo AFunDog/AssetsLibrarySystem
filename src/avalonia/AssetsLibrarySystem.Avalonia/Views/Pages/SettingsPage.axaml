@@ -276,22 +276,48 @@
                                 <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                            FontWeight="SemiBold"
                                            LetterSpacing="1.2"
-                                           Text="活动纪要" />
+                                           Text="动态" />
                                 <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                            FontWeight="SemiBold"
-                                           Text="设置与后端联动" />
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                           Text="活动纪要" />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              >
                                     <ItemsControl ItemsSource="{Binding ActivityFeed}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <VirtualizingStackPanel />
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="8"
+                                                        Margin="0,0,0,4">
+                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               TextWrapping="Wrap"
+                                                               Text="{Binding .}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </ScrollViewer>
                             </StackPanel>
                         </Border>
                     </Grid>
+
+                    <Border Grid.Row="2"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            BorderBrush="{DynamicResource AppBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
+                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="提示词、接口列表和活动日志保持在同一页，便于在调试时快速确认状态与操作结果。" />
+                    </Border>
                 </Grid>
             </Grid>
         </Grid>
