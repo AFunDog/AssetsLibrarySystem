@@ -16,6 +16,7 @@ using Serilog;
 namespace AssetsLibrarySystem.Application.Services.AssetSearch;
 
 public sealed record SearchRetrievalParameters(
+    string Query,
     int CandidateTopK,
     int FinalTopK,
     int ExpandedCandidateTopK,
@@ -42,7 +43,7 @@ public sealed record RerankResult(
 public sealed record VectorRetrievalResult(
     IReadOnlyList<VectorCandidateRecord> Candidates,
     string SearchStrategy,
-    int ExpandedCandidateTopK);
+    int EffectiveExpandedCandidateTopK);
 
 public sealed record LocalVectorRecord(
     string AssetUid,
@@ -75,7 +76,12 @@ public sealed record ScoredVectorCandidateRecord(
 
 public interface ISearchParameterNormalizer
 {
-    SearchRetrievalParameters Normalize(int candidateTopK, int finalTopK, int expandedCandidateTopK, int rerankTopK);
+    SearchRetrievalParameters Normalize(
+        string query,
+        int candidateTopK,
+        int finalTopK,
+        int expandedCandidateTopK,
+        int rerankTopK);
 }
 
 public interface IAssetFormatResolver
@@ -147,13 +153,21 @@ public interface ISearchResultAggregator
 
 public sealed class SearchParameterNormalizer : ISearchParameterNormalizer
 {
-    public SearchRetrievalParameters Normalize(int candidateTopK, int finalTopK, int expandedCandidateTopK, int rerankTopK)
+    public SearchRetrievalParameters Normalize(
+        string query,
+        int candidateTopK,
+        int finalTopK,
+        int expandedCandidateTopK,
+        int rerankTopK)
     {
+        query = string.IsNullOrWhiteSpace(query)
+            ? throw new ArgumentException("检索词不能为空。", nameof(query))
+            : query.Trim();
         candidateTopK = NormalizePositive(candidateTopK, 20, 1, 500);
         finalTopK = Math.Min(NormalizePositive(finalTopK, 5, 1, 100), candidateTopK);
         expandedCandidateTopK = Math.Max(NormalizePositive(expandedCandidateTopK, 160, 1, 5000), candidateTopK);
         rerankTopK = NormalizePositive(rerankTopK, 50, 1, 1000);
-        return new SearchRetrievalParameters(candidateTopK, finalTopK, expandedCandidateTopK, rerankTopK);
+        return new SearchRetrievalParameters(query, candidateTopK, finalTopK, expandedCandidateTopK, rerankTopK);
     }
 
     private static int NormalizePositive(int value, int fallback, int min, int max)

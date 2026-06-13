@@ -2,6 +2,7 @@ using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
+using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Application.UseCases.AssetOperations;
 using Xunit;
 using Microsoft.Extensions.Configuration;
@@ -54,7 +55,13 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             [asset.AssetUid] = [vectorDocument],
         });
         var assetSearchService = new FakeAssetSearchService();
-        var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService, CreateSearchModelOptionsProvider());
+        var useCase = new VectorizeDescriptionsUseCase(
+            descriptionStore,
+            vectorStore,
+            vectorizationService,
+            assetSearchService,
+            CreateSearchModelOptionsProvider(),
+            new BackgroundTaskService());
 
         var result = await useCase.ExecuteAsync([asset], "http://local-backend");
 
@@ -81,7 +88,13 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
         }, needsVectorizationResult: false);
         var vectorizationService = new FakeTextVectorizationService();
         var assetSearchService = new FakeAssetSearchService();
-        var useCase = new VectorizeDescriptionsUseCase(descriptionStore, vectorStore, vectorizationService, assetSearchService, CreateSearchModelOptionsProvider());
+        var useCase = new VectorizeDescriptionsUseCase(
+            descriptionStore,
+            vectorStore,
+            vectorizationService,
+            assetSearchService,
+            CreateSearchModelOptionsProvider(),
+            new BackgroundTaskService());
 
         var result = await useCase.ExecuteAsync([asset], "http://local-backend");
 
@@ -287,7 +300,15 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
     {
         public int ReindexCallCount { get; private set; }
 
-        public Task<AssetSearchResponseDocument> SearchAsync(string backendBaseUrl, string query, int candidateTopK = 20, int finalTopK = 5, string? assetFormat = null, CancellationToken ct = default)
+        public Task<AssetSearchResponseDocument> SearchAsync(
+            string backendBaseUrl,
+            string query,
+            int candidateTopK = 20,
+            int finalTopK = 5,
+            string? assetFormat = null,
+            int expandedCandidateTopK = 160,
+            int rerankTopK = 50,
+            CancellationToken ct = default)
         {
             throw new NotSupportedException();
         }

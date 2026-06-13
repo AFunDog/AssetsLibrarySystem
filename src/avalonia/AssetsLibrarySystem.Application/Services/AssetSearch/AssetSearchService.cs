@@ -115,7 +115,14 @@ public sealed class AssetSearchService : IAssetSearchService
             rerankCandidates.Count,
             searchModels,
             ct).ConfigureAwait(false);
-        var scoredCandidates = ScoreFusionService.Score(rerankCandidates, rerankResponse);
+        var rerankScoreMap = rerankResponse.Results
+            .Where(result => !string.IsNullOrWhiteSpace(result.CandidateId))
+            .GroupBy(result => result.CandidateId!, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Last().RerankScore,
+                StringComparer.Ordinal);
+        var scoredCandidates = ScoreFusionService.Score(rerankCandidates, rerankScoreMap);
         var aggregatedResults = SearchResultAggregator.Aggregate(
             scoredCandidates,
             parameters.CandidateTopK,
