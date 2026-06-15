@@ -147,6 +147,24 @@ class ModelServiceTestCase(unittest.TestCase):
 
         self.assertEqual(prepared, str(source_path.resolve()))
 
+    def test_compress_video_uses_configured_audio_bitrate(self) -> None:
+        service = ModelService()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_path = Path(temp_dir) / "source.mp4"
+            target_path = Path(temp_dir) / "target.mp4"
+
+            with (
+                patch("app.application.services.model_service.shutil.which", return_value="ffmpeg"),
+                patch.object(ModelService, "_run_ffmpeg_or_fallback", return_value=target_path) as run_mock,
+            ):
+                result = service._compress_video(source_path, target_path)
+
+        command = run_mock.call_args.args[0]
+        bitrate_index = command.index("-b:a")
+        self.assertEqual(command[bitrate_index + 1], "128k")
+        self.assertEqual(result, target_path)
+
     def test_call_dashscope_uses_preprocessed_media_path(self) -> None:
         service = ModelService()
         provider = ProviderConfig(provider="dashscope", model="qwen-vl-max", api_key="sk-test")
@@ -185,6 +203,64 @@ class ModelServiceTestCase(unittest.TestCase):
         self.assertEqual(sent_content[1], {"text": "请描述"})
         self.assertEqual(output_text, "ok")
         self.assertIsNone(usage)
+
+    def test_call_dashscope_removes_preprocessed_media_after_success(self) -> None:
+        service = ModelService()
+        provider = ProviderConfig(provider="dashscope", model="qwen-vl-max", api_key="sk-test")
+        fake_response = {"output": {"choices": [{"message": {"content": [{"text": "ok"}]}}]}}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service._temp_dir = Path(temp_dir)
+            prepared_path = service._temp_dir / "cover-prepared.jpg"
+            prepared_path.write_bytes(b"prepared")
+
+            with (
+                patch("app.application.services.model_service.ProviderConfigManager") as manager_cls,
+                patch.object(ModelService, "_prepare_media_asset", return_value=str(prepared_path)),
+                patch.object(ModelService, "_call_multimodal_sync", return_value=fake_response),
+            ):
+                manager_cls.return_value.get.return_value = provider
+                asyncio.run(
+                    service._call_dashscope(
+                        ModelRuntimeContext("图片", "dashscope", "qwen-vl-max", "", "", True),
+                        "system",
+                        "请描述",
+                        "图片",
+                        str(Path(temp_dir) / "cover.png"),
+                        "qwen-vl-max",
+                    )
+                )
+
+            self.assertFalse(prepared_path.exists())
+
+    def test_call_dashscope_removes_preprocessed_media_after_failure(self) -> None:
+        service = ModelService()
+        provider = ProviderConfig(provider="dashscope", model="qwen-vl-max", api_key="sk-test")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service._temp_dir = Path(temp_dir)
+            prepared_path = service._temp_dir / "cover-prepared.jpg"
+            prepared_path.write_bytes(b"prepared")
+
+            with (
+                patch("app.application.services.model_service.ProviderConfigManager") as manager_cls,
+                patch.object(ModelService, "_prepare_media_asset", return_value=str(prepared_path)),
+                patch.object(ModelService, "_call_multimodal_sync", side_effect=RuntimeError("模型调用失败")),
+            ):
+                manager_cls.return_value.get.return_value = provider
+                with self.assertRaisesRegex(RuntimeError, "模型调用失败"):
+                    asyncio.run(
+                        service._call_dashscope(
+                            ModelRuntimeContext("图片", "dashscope", "qwen-vl-max", "", "", True),
+                            "system",
+                            "请描述",
+                            "图片",
+                            str(Path(temp_dir) / "cover.png"),
+                            "qwen-vl-max",
+                        )
+                    )
+
+            self.assertFalse(prepared_path.exists())
 
     def test_call_generation_sync_requests_json_object_response(self) -> None:
         service = ModelService()

@@ -83,6 +83,7 @@
 - 视频：如果系统存在 `ffmpeg`，会压到较小分辨率和码率后再送给模型
 - 音频：直接使用原始文件，不做压缩或转码
 - 如果当前环境缺少所需依赖或压缩失败，图片/视频会自动回退到原始文件，不阻断打标
+- 图片/视频预处理生成的临时文件会在模型调用结束后清理，调用失败时也会清理
 
 相关可选配置：
 
@@ -91,6 +92,7 @@
 - `ALS_IMAGE_MAX_SIDE`
 - `ALS_IMAGE_JPEG_QUALITY`
 - `ALS_VIDEO_CRF`
+- `ALS_VIDEO_AUDIO_BITRATE`
 
 `POST /api/v1/search/query` 只对调用方传入的候选文本做 rerank，不负责数据库读取或写入。`provider` 与 `model` 同样由调用方显式指定。
 

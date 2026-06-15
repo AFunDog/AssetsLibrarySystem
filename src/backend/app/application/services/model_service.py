@@ -66,6 +66,7 @@ class ModelService:
         self._image_max_side = max(256, settings.image_max_side)
         self._image_jpeg_quality = min(max(settings.image_jpeg_quality, 40), 95)
         self._video_crf = min(max(settings.video_crf, 18), 40)
+        self._video_audio_bitrate = settings.video_audio_bitrate.strip() or "128k"
 
     def get_capabilities(self, provider_slot: str = DEFAULT_PROVIDER_SLOT) -> ModelCapabilitiesResponse:
         context = self._resolve_provider_context(provider_slot)
@@ -226,15 +227,18 @@ class ModelService:
             return self._extract_response_text(response), self._extract_token_usage(response)
 
         preprocessed_path = await asyncio.to_thread(self._prepare_media_asset, asset_format, asset_path)
-        multimodal_content = self._build_multimodal_content(asset_format, preprocessed_path, prompt)
-        response = await asyncio.to_thread(
-            self._call_multimodal_sync,
-            provider_config,
-            model_name,
-            system_prompt,
-            multimodal_content,
-        )
-        return self._extract_response_text(response), self._extract_token_usage(response)
+        try:
+            multimodal_content = self._build_multimodal_content(asset_format, preprocessed_path, prompt)
+            response = await asyncio.to_thread(
+                self._call_multimodal_sync,
+                provider_config,
+                model_name,
+                system_prompt,
+                multimodal_content,
+            )
+            return self._extract_response_text(response), self._extract_token_usage(response)
+        finally:
+            await asyncio.to_thread(self._cleanup_preprocessed_asset, asset_path, preprocessed_path)
 
     def _supports_live_call(self, provider: ProviderConfig) -> bool:
         if not provider.api_key:
@@ -500,6 +504,7 @@ class ModelService:
                 converted.save(target_path, **save_kwargs)
                 return target_path
         except Exception:
+            self._remove_file_if_exists(target_path)
             return source_path
 
     def _compress_video(self, source_path: Path, target_path: Path) -> Path:
@@ -522,7 +527,7 @@ class ModelService:
             "-c:a",
             "aac",
             "-b:a",
-            self._audio_bitrate,
+            self._video_audio_bitrate,
             str(target_path),
         ]
         return self._run_ffmpeg_or_fallback(command, source_path, target_path)
@@ -536,11 +541,33 @@ class ModelService:
                 stderr=subprocess.DEVNULL,
             )
         except Exception:
+            self._remove_file_if_exists(target_path)
             return source_path
 
         if not target_path.exists() or target_path.stat().st_size <= 0:
+            self._remove_file_if_exists(target_path)
             return source_path
         return target_path
+
+    def _cleanup_preprocessed_asset(self, source_path: str, prepared_path: str) -> None:
+        source = Path(source_path).resolve()
+        prepared = Path(prepared_path).resolve()
+        if prepared == source:
+            return
+
+        try:
+            prepared.relative_to(self._temp_dir.resolve())
+        except ValueError:
+            return
+
+        self._remove_file_if_exists(prepared)
+
+    @staticmethod
+    def _remove_file_if_exists(path: Path) -> None:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     def _resolve_model_name(self, configured_model: str, asset_format: str) -> str:
         if asset_format == "音频" and "omni" not in configured_model.lower() and "audio" not in configured_model.lower():
