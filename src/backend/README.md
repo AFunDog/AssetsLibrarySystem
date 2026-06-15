@@ -108,7 +108,7 @@
 - `图片`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `image` 项发送
 - `视频`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `video` 项发送，并默认附带 `fps=2`
 - `音频`：后端直接使用原始音频文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `audio` 项发送；如果当前配置模型不是音频兼容模型，会自动回退到 `qwen3-omni-30b-a3b-captioner`
-- 四类素材的描述请求都会显式携带 `response_format={"type":"json_object"}`，按阿里云百炼的结构化输出方式要求模型返回 JSON 字符串；当前代码阶段默认只消费返回 JSON 中的 `全面.text`
+- 四类素材的描述请求都会显式携带 `response_format={"type":"json_object"}`，按阿里云百炼的结构化输出方式要求模型返回 JSON 字符串；结构化描述的解析、存储和多角度向量化由 .NET Application 层负责
 
 ## 本地启动
 

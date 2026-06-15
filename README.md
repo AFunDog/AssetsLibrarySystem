@@ -1,16 +1,16 @@
 # Assets Library System
 
-一个面向文本、图片、视频、音乐素材的管理系统骨架项目。
+一个面向文本、图片、视频、音乐素材的本地素材管理与语义检索系统。
 
 当前阶段已经把职责重新收敛为四部分：
 
 - `Avalonia/.NET` 负责图形界面工作台
 - `Console/.NET` 负责无界面命令行操作
 - `Application/.NET` 负责共享服务、模型和本地存储
-- `Python FastAPI` 负责大模型 HTTP 服务，以及素材检索所需的向量化、召回和重排接口
+- `Python FastAPI` 负责大模型 HTTP 服务，以及素材检索所需的向量化和重排接口
 
-也就是说，素材库、目录、元数据和工作流由本地 .NET 侧承担；Python 后端不再包含素材管理功能，但会提供检索与索引重建能力。
-当前桌面端会把素材描述结果集中保存到本地 SQLite，并通过后端检索接口完成向量召回和重排序。
+也就是说，素材库、目录、元数据、向量召回、索引持久化和工作流由本地 .NET 侧承担；Python 后端不包含素材管理功能，只提供模型生成、向量化和重排序能力。
+当前桌面端会把素材描述和向量集中保存到本地 SQLite，通过本地 exact/HNSW 完成召回，再调用后端进行重排序。
 数据库内部使用数值 `libraries.id` 和 `assets.id` 建立外键关系。`asset_uid` 仅保留在 `assets` 表中，用于兼容素材文件旁的同名 `.uid` 文件；路径只作为 `current_path` 保存。
 桌面端现在同时支持托盘常驻模式，主窗口可以隐藏到托盘，快捷键 `Ctrl+Shift+Space` 可弹出极简快速检索窗口。
 桌面端启动后会主动预热向量模型和重排序模型，减少第一次检索等待。
@@ -25,7 +25,7 @@
 
 ```text
 docs/
-  architecture.md          # 方案说明与演进路线
+  roadmap.md               # 只记录未来计划
 scripts/                   # 一次性数据库迁移等 Python 脚本
 src/
   avalonia/
@@ -63,9 +63,8 @@ README.md
 - Python FastAPI
   - 模型网关健康检查
   - 模型能力清单
-  - 文本提示词转发
-  - 素材向量检索与重排
-  - 素材索引重建
+  - 文本与多模态素材描述生成
+  - 文本向量化与候选集重排
   - 后续统一扩展多模型 HTTP 调用
 
 ## 现有检索入口
@@ -77,11 +76,13 @@ README.md
   - `assets search <query>`
   - `assets reindex`
 
-## 后续建议
+## 文档约定
 
-1. 继续在 .NET 侧补齐围绕 `asset_uid` 的版本处理、冲突处理和任务状态持久化
-2. 继续增强桌面端对 Python 网关的调用与结果展示
-3. 后续补齐更完整的 RAG、上下文拼装与批量索引维护能力
+- 项目整体说明写在本文件。
+- Avalonia、Application 与 Console 说明写在 `src/avalonia/README.md`。
+- Python 模型网关说明写在 `src/backend/README.md`。
+- 智能体开发约束写在各级 `AGENTS.md`、`CLAUDE.md`。
+- `docs/` 只保留尚未落地的未来计划，见 `docs/roadmap.md`。
 
 ## 本地启动方式
 

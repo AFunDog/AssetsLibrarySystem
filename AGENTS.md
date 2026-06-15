@@ -6,20 +6,17 @@
 
 ## Current Stage
 
-当前阶段是架构搭建期：
+当前已经具备素材扫描、SQLite 持久化、描述生成、向量化、召回和重排闭环，处于迭代优化阶段。
 
-- 先保证前后端入口清晰
-- 先保证目录分层明确
-- 先写文档，不提前堆真实业务实现
-
-不要在没有明确需求时擅自补充数据库、向量库、消息队列或复杂部署脚本。
+不要在没有明确需求时擅自补充独立向量库、消息队列或复杂部署脚本。
 
 ## Code Layout
 
-- `src/backend`：Python FastAPI 后端骨架
-- `src/frontend`：Vue 3 + TypeScript 前端骨架
+- `src/avalonia`：Avalonia 桌面端、共享 Application 层、Console 与测试
+- `src/backend`：Python FastAPI 模型网关
+- `src/frontend`：早期 Vue 3 + TypeScript Web 骨架，当前不是主入口
 - `scripts/`：一次性数据库迁移等 Python 脚本
-- `docs/architecture.md`：系统方案与演进规划
+- `docs/roadmap.md`：只记录尚未实现或仍需完善的未来计划
 
 ## Implementation Rules
 
@@ -34,3 +31,4 @@
 - 尽量保持中文注释和中文文档
 - 不要把未来复杂实现直接塞进入口文件
 - 如果文档和代码不一致，以代码中的当前结构为准，并同步更新文档
+- 项目现状、结构和使用说明写入对应 `README.md`；`docs/` 不重复记录当前实现

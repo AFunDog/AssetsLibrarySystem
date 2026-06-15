@@ -66,5 +66,6 @@ dotnet run --project AssetsLibrarySystem.Console -- --help
 
 ## 相关文档
 
-- [系统方案与架构](docs/architecture.md)
-- [后端 Python 服务](../backend/) — 模型网关实现
+- [项目整体说明](../../README.md)
+- [未来计划](../../docs/roadmap.md)
+- [后端 Python 服务](../backend/README.md)
