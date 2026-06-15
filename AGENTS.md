@@ -2,7 +2,7 @@
 
 ## Repo Goal
 
-本仓库用于搭建一个素材管理系统，覆盖文本、图片、视频、音乐四类素材，并预留打标、RAG、自然语言搜索的扩展位。
+本仓库用于搭建一个素材快速查询系统，覆盖文本、图片、视频、音乐四类素材。核心目标是通过自然语言检索返回符合描述的素材信息。
 
 ## Current Stage
 
@@ -22,7 +22,8 @@
 - 优先保持分层清晰，再考虑功能完整
 - 当前允许使用 `TODO`、占位实现、假数据说明，但要明确边界
 - 一次性数据库迁移等 Python 脚本统一放在 `scripts/` 下
-- 搜索/RAG 相关设计需要对齐 `D:\GitRepository\RenderTest\test2.py` 的“召回 + 精排 + 索引持久化”思路
+- 搜索设计需要对齐 `D:\GitRepository\RenderTest\test2.py` 的“召回 + 精排 + 索引持久化”思路
+- 不实现 RAG、知识问答、答案生成或检索上下文拼装
 - 后续新增真实能力时，优先沿着 `domain -> application -> infrastructure -> api` 的方向扩展
 
 ## Editing Notes
