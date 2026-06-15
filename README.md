@@ -43,8 +43,6 @@ src/
     configs/
       providers.example.yaml # 私有 provider 模板，实际 providers.yaml 不进仓库
       prompts.yaml
-  frontend/
-    ...                    # 早期 Web 骨架，当前不是素材管理主入口
 AGENTS.md
 CLAUDE.md
 README.md

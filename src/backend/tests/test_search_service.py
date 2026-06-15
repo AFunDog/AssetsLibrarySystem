@@ -159,7 +159,7 @@ class SearchServiceTestCase(unittest.TestCase):
 
     def test_index_routes_dashscope_model_from_request(self) -> None:
         service = SearchService(model_bundle=FakeModelBundle())
-        service._dashscope_vectorize = Mock(return_value=np.asarray([0.1, 0.2], dtype=np.float32))
+        service._dashscope_vectorize = Mock(return_value=(np.asarray([0.1, 0.2], dtype=np.float32), 12))
 
         response = service.vectorize(
             SearchIndexRequest(
@@ -175,10 +175,11 @@ class SearchServiceTestCase(unittest.TestCase):
 
         service._dashscope_vectorize.assert_called_once_with("text-embedding-v4", "测试描述", None)
         self.assertEqual(response.embedding_model, "text-embedding-v4")
+        self.assertEqual(response.token_usage, 12)
 
     def test_index_routes_dashscope_embedding_dimensions_from_request(self) -> None:
         service = SearchService(model_bundle=FakeModelBundle())
-        service._dashscope_vectorize = Mock(return_value=np.asarray([0.1, 0.2, 0.3], dtype=np.float32))
+        service._dashscope_vectorize = Mock(return_value=(np.asarray([0.1, 0.2, 0.3], dtype=np.float32), 18))
 
         response = service.vectorize(
             SearchIndexRequest(
@@ -196,10 +197,11 @@ class SearchServiceTestCase(unittest.TestCase):
         service._dashscope_vectorize.assert_called_once_with("text-embedding-v4", "测试描述", 1024)
         self.assertEqual(response.embedding_model, "text-embedding-v4@1024d")
         self.assertEqual(response.vector_dim, 3)
+        self.assertEqual(response.token_usage, 18)
 
     def test_query_routes_dashscope_model_from_request(self) -> None:
         service = SearchService(model_bundle=FakeModelBundle())
-        service._dashscope_rerank = Mock(return_value=[0.8])
+        service._dashscope_rerank = Mock(return_value=([0.8], 7))
 
         response = service.rerank(
             SearchQueryRequest(
@@ -220,6 +222,7 @@ class SearchServiceTestCase(unittest.TestCase):
 
         service._dashscope_rerank.assert_called_once_with("qwen3-rerank", "测试", ["测试描述"])
         self.assertEqual(response.rerank_model, "qwen3-rerank")
+        self.assertEqual(response.token_usage, 7)
 
     def test_close_model_releases_single_cached_model(self) -> None:
         bundle = FakeModelBundle()

@@ -14,7 +14,6 @@
 
 - `src/avalonia`：Avalonia 桌面端、共享 Application 层、Console 与测试
 - `src/backend`：Python FastAPI 模型网关
-- `src/frontend`：早期 Vue 3 + TypeScript Web 骨架，当前不是主入口
 - `scripts/`：一次性数据库迁移等 Python 脚本
 - `docs/roadmap.md`：只记录尚未实现或仍需完善的未来计划
 
