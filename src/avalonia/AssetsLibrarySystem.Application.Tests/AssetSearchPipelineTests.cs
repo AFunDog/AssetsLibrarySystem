@@ -1,4 +1,5 @@
 using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
 using Xunit;
 
@@ -42,7 +43,9 @@ public sealed class AssetSearchPipelineTests
         Assert.Equal(7, response.EmbeddingTokenUsage);
         Assert.Equal(11, response.RerankTokenUsage);
         Assert.Equal(18, response.TotalTokenUsage);
-        Assert.Equal("image-1", Assert.Single(response.Results).AssetUid);
+        var result = Assert.Single(response.Results);
+        Assert.Equal("image-1", result.AssetUid);
+        Assert.Equal(["风格：电子氛围", "情感：紧张"], result.AngleTags);
     }
 
     [Fact]
@@ -61,6 +64,16 @@ public sealed class AssetSearchPipelineTests
         Assert.Equal("asset-1::全面", Assert.Single(result.Candidates).CandidateId);
     }
 
+    [Fact]
+    public void ExtractAngleTags_ReturnsAllNonComprehensiveDescriptionAngles()
+    {
+        const string description = """{"全面":"整体描述","乐器":"钢琴与弦乐","风格":{"text":"电影配乐"},"情感":"紧张"}""";
+
+        var tags = StructuredDescriptionHelper.ExtractAngleTags(description);
+
+        Assert.Equal(["乐器：钢琴与弦乐", "风格：电影配乐", "情感：紧张"], tags);
+    }
+
     private static LocalVectorRecord CreateRecord(
         string assetUid,
         string angleType,
@@ -75,6 +88,7 @@ public sealed class AssetSearchPipelineTests
             PrimaryDescription: $"{assetUid} description",
             SegmentText: $"{assetUid} {angleType}",
             Tags: [],
+            AngleTags: ["风格：电子氛围", "情感：紧张"],
             GeneratedAt: DateTimeOffset.UtcNow,
             VectorizedAt: DateTimeOffset.UtcNow,
             EmbeddingModel: "embedding-test",

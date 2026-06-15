@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 
 namespace AssetsLibrarySystem.Application.Models;
@@ -115,6 +116,24 @@ public static class StructuredDescriptionHelper
         }
 
         return ExtractPrimaryText(rawDescription);
+    }
+
+    public static string[] ExtractAngleTags(string? rawDescription)
+    {
+        try
+        {
+            return ExtractSegments(rawDescription)
+                .Where(segment => !string.Equals(
+                    segment.NormalizedAngleType,
+                    AssetDescriptionVectorDocument.DefaultAngleType,
+                    StringComparison.Ordinal))
+                .Select(segment => $"{segment.NormalizedAngleType}：{segment.NormalizedText}")
+                .ToArray();
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     private static string? ExtractSegmentText(JsonElement element)

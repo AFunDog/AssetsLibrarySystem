@@ -55,6 +55,7 @@ public sealed record LocalVectorRecord(
     string PrimaryDescription,
     string SegmentText,
     string[] Tags,
+    string[] AngleTags,
     DateTimeOffset? GeneratedAt,
     DateTimeOffset VectorizedAt,
     string EmbeddingModel,
@@ -306,6 +307,7 @@ public sealed class VectorRecordRepository : IVectorRecordRepository
                 PrimaryDescription: StructuredDescriptionHelper.ExtractPrimaryText(rawDescription),
                 SegmentText: StructuredDescriptionHelper.ExtractTextByAngle(rawDescription, angleType),
                 Tags: DeserializeTags(reader.IsDBNull(7) ? null : reader.GetString(7)),
+                AngleTags: StructuredDescriptionHelper.ExtractAngleTags(rawDescription),
                 GeneratedAt: reader.IsDBNull(8) ? null : DateTimeOffset.Parse(reader.GetString(8)),
                 VectorizedAt: reader.IsDBNull(9) ? DateTimeOffset.MinValue : DateTimeOffset.Parse(reader.GetString(9)),
                 EmbeddingModel: reader.GetString(10),
@@ -451,7 +453,8 @@ public sealed class SearchResultAggregator : ISearchResultAggregator
                 embeddingSimilarity: bestCandidate.EmbeddingSimilarity,
                 vectorDistance: bestCandidate.VectorDistance,
                 rerankScore: bestCandidate.RerankScore,
-                tags: displayCandidate.Record.Tags)
+                tags: displayCandidate.Record.Tags,
+                angleTags: displayCandidate.Record.AngleTags)
             {
                 CombinedScore = bestCandidate.CombinedScore,
             };

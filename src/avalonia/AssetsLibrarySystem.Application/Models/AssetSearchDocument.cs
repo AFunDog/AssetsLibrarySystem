@@ -20,7 +20,8 @@ public sealed class AssetSearchDocument
         float? embeddingSimilarity,
         float? vectorDistance,
         float rerankScore,
-        IEnumerable<string>? tags = null)
+        IEnumerable<string>? tags = null,
+        IEnumerable<string>? angleTags = null)
     {
         AssetUid = assetUid;
         AssetName = assetName;
@@ -32,6 +33,7 @@ public sealed class AssetSearchDocument
         VectorDistance = vectorDistance;
         RerankScore = rerankScore;
         Tags = tags?.ToArray() ?? [];
+        AngleTags = angleTags?.ToArray() ?? [];
     }
 
     public string AssetUid { get; set; } = string.Empty;
@@ -55,6 +57,7 @@ public sealed class AssetSearchDocument
     public float RerankScore { get; set; }
     public float? CombinedScore { get; set; }
     public string[] Tags { get; set; } = [];
+    public string[] AngleTags { get; set; } = [];
 }
 
 public sealed record AssetSearchResponseDocument(

@@ -40,18 +40,18 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             command.CommandText = """
             INSERT INTO asset_descriptions (
                 asset_id,
-                d.asset_name,
-                d.asset_type,
-                d.asset_path,
-                d.description,
-                d.backend_endpoint,
-                d.mode,
-                d.generated_at,
-                d.token_usage_json,
-                d.prompt,
-                d.system_prompt,
-                d.content_hash,
-                d.metadata_status
+                asset_name,
+                asset_type,
+                asset_path,
+                description,
+                backend_endpoint,
+                mode,
+                generated_at,
+                token_usage_json,
+                prompt,
+                system_prompt,
+                content_hash,
+                metadata_status
             )
             VALUES (
                 $asset_id,
