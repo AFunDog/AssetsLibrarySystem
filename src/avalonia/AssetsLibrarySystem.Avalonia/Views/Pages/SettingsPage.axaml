@@ -200,44 +200,8 @@
                     </Border>
                 </StackPanel>
 
-                <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto" RowSpacing="8">
-                    <Border Background="{DynamicResource AppSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            Padding="12">
-                        <StackPanel Spacing="8">
-                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                       FontWeight="SemiBold"
-                                       LetterSpacing="1.2"
-                                       Text="提示词" />
-                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                       FontWeight="SemiBold"
-                                       Text="发送给模型网关的草稿" />
-                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                       TextWrapping="Wrap"
-                                       Text="这里仅保存当前会话草稿，真正发送仍由后端接口接管。" />
-                            <TextBox Background="{DynamicResource AppSoftSurfaceBrush}"
-                                     Foreground="{DynamicResource AppTextBrush}"
-                                     BorderBrush="{DynamicResource AppBorderBrush}"
-                                     CornerRadius="4"
-                                     TextWrapping="Wrap"
-                                     MinHeight="112"
-                                     Text="{Binding PromptDraft}"
-                                     AcceptsReturn="True"
-                                     VerticalContentAlignment="Top" />
-                            <Button Background="{DynamicResource AppAccentBrush}"
-                                    Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
-                                    BorderThickness="0"
-                                    CornerRadius="4"
-                                    Padding="10,8"
-                                    MinHeight="32"
-                                    Command="{Binding SubmitPromptCommand}"
-                                    Content="准备发送提示词" />
-                        </StackPanel>
-                    </Border>
-
-                    <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Grid Grid.Column="1" RowDefinitions="*,Auto" RowSpacing="8">
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                         <Border Background="{DynamicResource AppSurfaceBrush}"
                                 BorderBrush="{DynamicResource AppBorderBrush}"
                                 BorderThickness="1"
@@ -328,7 +292,7 @@
                         </Border>
                     </Grid>
 
-                    <Border Grid.Row="2"
+                    <Border Grid.Row="1"
                             Background="{DynamicResource AppSurfaceBrush}"
                             BorderBrush="{DynamicResource AppBorderBrush}"
                             BorderThickness="1"
@@ -336,7 +300,7 @@
                             Padding="12">
                         <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                    TextWrapping="Wrap"
-                                   Text="提示词、接口列表和活动日志保持在同一页，便于在调试时快速确认状态与操作结果。" />
+                                   Text="接口列表和活动日志保持在同一页，便于在调试时快速确认模型网关状态与操作结果。" />
                     </Border>
                 </Grid>
             </Grid>

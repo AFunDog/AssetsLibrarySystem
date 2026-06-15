@@ -136,7 +136,7 @@ public partial class QuickSearchViewModel : ObservableObject
                 : $"已返回 {response.Results.Length} 条素材。";
             SearchMetricsSummary = BuildSearchMetricsSummary(response);
             Log.Information(
-                "快速检索完成: resultCount={ResultCount}, queryLength={QueryLength}, assetFormatMode={AssetFormatMode}, resolvedAssetFormat={ResolvedAssetFormat}, candidateTopK={CandidateTopK}, expandedCandidateTopK={ExpandedCandidateTopK}, finalTopK={FinalTopK}, vectorCandidates={VectorCandidates}, rerankCandidates={RerankCandidates}, elapsedMs={ElapsedMs}, tokenUsage={TokenUsage}",
+                "快速检索完成: resultCount={ResultCount}, queryLength={QueryLength}, assetFormatMode={AssetFormatMode}, resolvedAssetFormat={ResolvedAssetFormat}, candidateTopK={CandidateTopK}, expandedCandidateTopK={ExpandedCandidateTopK}, finalTopK={FinalTopK}, vectorCandidates={VectorCandidates}, rerankCandidates={RerankCandidates}, elapsedMs={ElapsedMs}, embeddingTokenUsage={EmbeddingTokenUsage}, rerankTokenUsage={RerankTokenUsage}",
                 response.Results.Length,
                 SearchQuery.Length,
                 response.AssetFormatMode,
@@ -147,7 +147,8 @@ public partial class QuickSearchViewModel : ObservableObject
                 response.VectorCandidateCount,
                 response.RerankCandidateCount,
                 response.ElapsedMs,
-                response.TotalTokenUsage);
+                response.EmbeddingTokenUsage,
+                response.RerankTokenUsage);
         }
         catch (System.Exception ex)
         {
@@ -206,15 +207,17 @@ public partial class QuickSearchViewModel : ObservableObject
 
     private static string BuildSearchMetricsSummary(AssetSearchResponseDocument response)
     {
-        var tokenText = response.TotalTokenUsage is null
-            ? "token 未返回"
-            : $"token {response.TotalTokenUsage}";
+        var embeddingTokenText = FormatTokenUsage("向量化", response.EmbeddingTokenUsage);
+        var rerankTokenText = FormatTokenUsage("重排序", response.RerankTokenUsage);
         var filterText = response.AssetFormat is null ? "全部" : response.AssetFormat;
         return $"参数：候选 {response.CandidateTopK}，扩展候选 {response.ExpandedCandidateTopK}，Top-K {response.FinalTopK}；" +
                $"类型：{FormatAssetFormatMode(response.AssetFormatMode)} / {filterText}；" +
                $"召回 {response.VectorCandidateCount}，重排 {response.RerankCandidateCount}，返回 {response.ReturnedCount}；" +
-               $"耗时 {response.ElapsedMs:0} ms，{tokenText}。";
+               $"耗时 {response.ElapsedMs:0} ms，{embeddingTokenText}，{rerankTokenText}。";
     }
+
+    private static string FormatTokenUsage(string stage, int? tokenUsage) =>
+        tokenUsage is null ? $"{stage} token 未返回" : $"{stage} token {tokenUsage}";
 
     private static string FormatAssetFormatMode(string mode) => mode switch
     {

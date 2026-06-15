@@ -38,7 +38,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         LibraryCatalogService = libraryCatalogService;
         UserSettingsService = userSettingsService;
         ActivityFeed = activityFeedService.Entries;
-        PromptDraft = "请基于当前素材生成一段准确、简洁、全面的中文描述。";
         SettingsStatusMessage = "勾选后会保存到本地，并在下次启动时自动预热对应模型。";
 
         IsLoadingSettings = true;
@@ -55,7 +54,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         SearchFinalTopK = UserSettingsService.SearchFinalTopK;
         IsLoadingSettings = false;
 
-        SubmitPromptCommand = new RelayCommand(SubmitPrompt);
         RefreshModelStatusCommand = new AsyncRelayCommand(RefreshModelStatusAsync);
         CloseEmbeddingModelCommand = new AsyncRelayCommand(() => CloseModelAsync("embedding"));
         CloseRerankModelCommand = new AsyncRelayCommand(() => CloseModelAsync("rerank"));
@@ -63,9 +61,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         BackendSessionService.PropertyChanged += OnDependencyPropertyChanged;
         LibraryCatalogService.PropertyChanged += OnDependencyPropertyChanged;
     }
-
-    [ObservableProperty]
-    public partial string PromptDraft { get; set; }
 
     [ObservableProperty]
     public partial bool AutoWarmupEmbeddingModel { get; set; }
@@ -124,7 +119,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public string SearchModelStatusDetail => BackendSessionService.SearchModelStatusDetail;
     public ObservableCollection<AiCapabilityRecord> AiCapabilities => BackendSessionService.AiCapabilities;
     public ObservableCollection<string> ActivityFeed { get; }
-    public IRelayCommand SubmitPromptCommand { get; }
     public IAsyncRelayCommand RefreshModelStatusCommand { get; }
     public IAsyncRelayCommand CloseEmbeddingModelCommand { get; }
     public IAsyncRelayCommand CloseRerankModelCommand { get; }
@@ -241,20 +235,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         SearchRerankTopK = UserSettingsService.SearchRerankTopK;
         SearchFinalTopK = UserSettingsService.SearchFinalTopK;
         IsLoadingSettings = false;
-    }
-
-    private void SubmitPrompt()
-    {
-        if (string.IsNullOrWhiteSpace(PromptDraft))
-        {
-            LibraryCatalogService.SetOperatorNotice("请输入要发送给 Python 模型服务的提示词。");
-            return;
-        }
-
-        LibraryCatalogService.SetOperatorNotice(BackendSessionService.IsBackendReady
-            ? $"提示词已准备发送到 {BackendSessionService.BackendEndpoint}，当前先保留为桌面端联动占位。"
-            : "Python 模型服务尚未就绪，当前先完成本地素材扫描与管理。");
-        ActivityFeed.Insert(0, "提示词草稿已更新：当前会话");
     }
 
     private async Task RefreshModelStatusAsync()

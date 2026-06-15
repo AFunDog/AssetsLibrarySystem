@@ -28,7 +28,7 @@
         <vm:QuickSearchViewModel SearchQuery="紧张氛围的音乐"
                                  SearchAssetFormat="智能类型"
                                  SearchStatus="已返回 2 条素材。"
-                                 SearchMetricsSummary="参数：候选 20，扩展候选 50，Top-K 5；类型：智能类型 / 音频；召回 20，重排 20，返回 2；耗时 382 ms，token 1280。">
+                                 SearchMetricsSummary="参数：候选 20，扩展候选 50，Top-K 5；类型：智能类型 / 音频；召回 20，重排 20，返回 2；耗时 382 ms，向量化 token 32，重排序 token 1248。">
             <vm:QuickSearchViewModel.SearchResults>
                 <models:AssetSearchDocument AssetId="asset-001"
                                             AssetName="37_zombie.mp3"
