@@ -216,16 +216,12 @@
                     </Border>
                 </Grid>
 
-                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="8">
                     <Border Classes="page-card">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="eyebrow" Text="已选素材" />
                             <TextBlock Classes="section-title" Text="{Binding SelectedAssetName}" />
-                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                       Text="{Binding SelectedAssetLibrary}" />
-                            <TextBlock Classes="section-subtitle" Text="{Binding SelectedAssetPath}" />
-
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="4" RowDefinitions="Auto,Auto" RowSpacing="4">
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
                                 <Border Classes="sub-card">
                                     <StackPanel Spacing="2">
                                         <TextBlock Classes="eyebrow" Text="类型" />
@@ -235,93 +231,26 @@
                                 </Border>
                                 <Border Grid.Column="1" Classes="sub-card">
                                     <StackPanel Spacing="2">
-                                        <TextBlock Classes="eyebrow" Text="阶段" />
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                   Text="{Binding SelectedAssetStage}" />
-                                    </StackPanel>
-                                </Border>
-                                <Border Grid.Row="1" Grid.ColumnSpan="2" Classes="sub-card">
-                                    <StackPanel Spacing="2">
                                         <TextBlock Classes="eyebrow" Text="状态" />
                                         <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                   TextWrapping="Wrap"
                                                    Text="{Binding SelectedAssetAiState}" />
                                     </StackPanel>
                                 </Border>
                             </Grid>
 
                             <Border Classes="sub-card">
-                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding SelectedAssetDetail}" />
+                                <StackPanel Spacing="2">
+                                    <TextBlock Classes="eyebrow" Text="描述" />
+                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding SelectedAssetDescriptionText}" />
+                                </StackPanel>
                             </Border>
                         </StackPanel>
                     </Border>
 
                     <Border Grid.Row="1" Classes="page-card">
-                        <StackPanel Spacing="8">
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Classes="eyebrow" Text="描述详情" />
-                                    <TextBlock Classes="section-title" Text="本地 SQLite 中的描述记录" />
-                                </StackPanel>
-                                <Button Grid.Column="1"
-                                        Classes="secondary-action"
-                                        Command="{Binding DeleteSelectedDescriptionCommand}"
-                                        Content="删除描述"
-                                        VerticalAlignment="Center" />
-                            </Grid>
-                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                       TextWrapping="Wrap"
-                                       Text="{Binding SelectedAssetDescriptionState}" />
-                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                       TextWrapping="Wrap"
-                                       Text="{Binding SelectedAssetDescriptionGeneratedAt, StringFormat=生成时间：{0}}" />
-                            <Border Classes="sub-card">
-                                <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding SelectedAssetDescriptionText}" />
-                            </Border>
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
-                                <Border Classes="sub-card">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Classes="eyebrow" Text="存储" />
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                   TextWrapping="Wrap"
-                                                   Text="{Binding SelectedAssetDescriptionStorePath}" />
-                                    </StackPanel>
-                                </Border>
-                                <Border Grid.Column="1" Classes="sub-card">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Classes="eyebrow" Text="模式" />
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                   Text="{Binding SelectedAssetDescriptionMode}" />
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
-                            <Border Classes="sub-card">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Classes="eyebrow" Text="Token 用量" />
-                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                               TextWrapping="Wrap"
-                                               Text="{Binding SelectedAssetDescriptionTokenUsage}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Classes="sub-card">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Classes="eyebrow" Text="提示词" />
-                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                               TextWrapping="Wrap"
-                                               Text="{Binding SelectedAssetDescriptionPrompt}" />
-                                    <TextBlock Classes="eyebrow" Text="系统提示词" />
-                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                               TextWrapping="Wrap"
-                                               Text="{Binding SelectedAssetDescriptionSystemPrompt}" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Grid.Row="2" Classes="page-card">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="eyebrow" Text="动态" />
                             <TextBlock Classes="section-title" Text="活动纪要" />

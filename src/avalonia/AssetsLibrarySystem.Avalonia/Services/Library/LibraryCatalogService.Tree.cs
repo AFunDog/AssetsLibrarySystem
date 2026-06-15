@@ -18,8 +18,8 @@ public sealed partial class LibraryCatalogService
             SelectedAssetPath = "当前未加载本地文件路径";
             SelectedAssetType = "未选择";
             SelectedAssetStage = "待选择";
-            SelectedAssetAiState = "未排队";
-            SelectedAssetDetail = "右侧详情区域会展示当前素材的路径、类型和扫描结果。";
+            SelectedAssetAiState = "未描述";
+            SelectedAssetDetail = "当前素材还没有可显示的 AI 描述。";
             ResetSelectedAssetDescription();
             return;
         }

@@ -59,8 +59,8 @@ public sealed partial class LibraryCatalogService : ObservableObject
         SelectedAssetPath = "当前未加载本地文件路径";
         SelectedAssetType = "未选择";
         SelectedAssetStage = "待选择";
-        SelectedAssetAiState = "未排队";
-        SelectedAssetDetail = "右侧详情区域会展示当前素材的路径、类型和扫描结果。";
+        SelectedAssetAiState = "未描述";
+        SelectedAssetDetail = "当前素材还没有可显示的 AI 描述。";
         DescriptionSelectionSummary = "请选择左侧素材库、目录或单个素材，再安排描述任务。";
 
         RebuildMetrics();
@@ -263,7 +263,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
         }
 
         SelectedAsset.Stage = "桌面端已接管";
-        SelectedAsset.AiState = "无需后端素材处理";
+        SelectedAsset.AiState = "无需描述";
         SyncSelectedAssetFields();
         OperatorNotice = $"{SelectedAsset.Name} 已切换到 .NET 素材管理视图。";
         ActivityFeedService.Add($"状态更新：{SelectedAsset.Name} -> 桌面端已接管");
@@ -295,7 +295,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
     public void MarkAssetDescriptionQueued(ManagedAssetRecord asset)
     {
         asset.Stage = "描述中";
-        asset.AiState = "已发送到 Python HTTP 服务";
+        asset.AiState = "描述生成中";
         Log.Information("素材进入描述队列: assetUid={AssetUid}, assetName={AssetName}", asset.AssetUid, asset.Name);
 
         if (ReferenceEquals(SelectedAsset, asset))
@@ -315,7 +315,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
     public void CompleteAssetDescription(ManagedAssetRecord asset, AssetDescriptionDocument document)
     {
         asset.Stage = document.Mode == "live" ? "已描述" : "已描述（占位）";
-        asset.AiState = $"SQLite 已保存 · {document.Mode}";
+        asset.AiState = asset.Stage;
         asset.IsDescribed = true;
         Log.Information(
             "素材描述完成: assetUid={AssetUid}, assetName={AssetName}, storePath={StorePath}, mode={Mode}",
@@ -376,7 +376,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
         asset.IsDescribed = false;
         asset.IsVectorized = false;
         asset.Stage = "已识别";
-        asset.AiState = vectorDeleted ? "描述与向量已删除" : "描述已删除";
+        asset.AiState = "未描述";
         Log.Information(
             "素材描述已删除: assetUid={AssetUid}, assetName={AssetName}, vectorDeleted={VectorDeleted}",
             asset.AssetUid,
@@ -386,7 +386,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
         if (ReferenceEquals(SelectedAsset, asset))
         {
             ResetSelectedAssetDescription();
-            SelectedAssetDescriptionState = "当前素材尚未生成 AI 描述";
+            SelectedAssetDescriptionState = "未描述";
             SelectedAssetDescriptionStorePath = AssetDescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
             SelectedAssetDescriptionText = "当前素材的描述记录已删除。";
             SyncSelectedAssetFields();

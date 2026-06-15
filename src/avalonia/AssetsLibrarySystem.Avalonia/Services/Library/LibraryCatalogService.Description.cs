@@ -19,9 +19,10 @@ public sealed partial class LibraryCatalogService
         if (AssetDescriptionStore is null)
         {
             ResetSelectedAssetDescription();
-            SelectedAssetDescriptionState = "描述存储未注册";
+            SelectedAssetDescriptionState = "描述存储未就绪";
             SelectedAssetDescriptionStorePath = "SQLite 存储未就绪";
             SelectedAssetDescriptionText = "当前环境尚未注入描述 SQLite 存储。";
+            SelectedAssetAiState = "描述存储未就绪";
             return;
         }
 
@@ -31,9 +32,10 @@ public sealed partial class LibraryCatalogService
             if (document is null)
             {
                 ResetSelectedAssetDescription();
-                SelectedAssetDescriptionState = "当前素材尚未生成 AI 描述";
+                SelectedAssetDescriptionState = "未描述";
                 SelectedAssetDescriptionStorePath = AssetDescriptionStore.DatabasePath;
                 SelectedAssetDescriptionText = "点击“排入描述任务”后，这里会展示 AI 返回的中文描述。";
+                SelectedAssetAiState = "未描述";
                 return;
             }
 
@@ -51,6 +53,7 @@ public sealed partial class LibraryCatalogService
             SelectedAssetDescriptionState = "描述记录读取失败";
             SelectedAssetDescriptionStorePath = AssetDescriptionStore.DatabasePath;
             SelectedAssetDescriptionText = ex.Message;
+            SelectedAssetAiState = "描述读取失败";
         }
     }
 
@@ -66,7 +69,7 @@ public sealed partial class LibraryCatalogService
             ? "未返回 token 用量"
             : FormatTokenUsage(document.TokenUsage);
 
-        SelectedAssetDescriptionState = document.Mode == "live" ? "已生成" : "已生成（占位）";
+        SelectedAssetDescriptionState = document.Mode == "live" ? "已描述" : "已描述（占位）";
         SelectedAssetDescriptionStorePath = AssetDescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
         SelectedAssetDescriptionGeneratedAt = document.GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
         SelectedAssetDescriptionMode = document.Mode;
@@ -78,13 +81,13 @@ public sealed partial class LibraryCatalogService
             ? "使用配置中的默认 system prompt。"
             : document.SystemPrompt;
         SelectedAssetDescriptionText = document.PrimaryDescription;
-        SelectedAssetAiState = $"SQLite 已保存 · {tokenUsage}";
+        SelectedAssetAiState = SelectedAssetDescriptionState;
         SelectedAssetDetail = document.PrimaryDescription;
     }
 
     private void ResetSelectedAssetDescription()
     {
-        SelectedAssetDescriptionState = "未生成 AI 描述";
+        SelectedAssetDescriptionState = "未描述";
         SelectedAssetDescriptionStorePath = "尚未生成描述记录";
         SelectedAssetDescriptionGeneratedAt = "未生成";
         SelectedAssetDescriptionMode = "未生成";
