@@ -12,6 +12,15 @@ src/avalonia/
 └── AssetsLibrarySystem.Application.Tests/  # 单元测试
 ```
 
+`AssetLibraryService` 负责扫描编排、身份匹配和 SQLite 持久化，纯文件系统职责拆分为：
+
+- `AssetFileScanner`：支持格式判断与目录枚举
+- `AssetUidSidecarStore`：UID 生成及 `.uid` 侧写读写
+- `AssetContentHasher`：SHA-256 内容指纹与扫描期缓存
+- `AssetRecordFormatter`：标签与展示摘要生成
+
+用户设置采用 500ms 防抖保存，并通过同目录临时文件原子替换；应用退出释放容器时会刷新最后一次待保存修改。
+
 ## 功能概览
 
 | 功能 | 说明 |

@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import asyncio
-import importlib.util
-import shutil
-import subprocess
 from pathlib import Path
-import re
-import uuid
 from typing import Any
 
+from app.application.services.dashscope_model_client import DashScopeModelClient
+from app.application.services.media_preprocessor import MediaPreprocessor
+from app.application.services.model_response_parser import ModelResponseParser
+from app.application.services.provider_resolver import ProviderResolver
 from app.core.config import get_settings
 from app.core.paths import ensure_shared_data_dir
 from app.core.prompt_config import extract_prompt_templates, load_prompt_config
@@ -67,6 +66,10 @@ class ModelService:
         self._image_jpeg_quality = min(max(settings.image_jpeg_quality, 40), 95)
         self._video_crf = min(max(settings.video_crf, 18), 40)
         self._video_audio_bitrate = settings.video_audio_bitrate.strip() or "128k"
+        self._provider_manager: ProviderConfigManager | None = None
+        self._provider_resolver: ProviderResolver | None = None
+        self._dashscope_client = DashScopeModelClient()
+        self._response_parser = ModelResponseParser()
 
     def get_capabilities(self, provider_slot: str = DEFAULT_PROVIDER_SLOT) -> ModelCapabilitiesResponse:
         context = self._resolve_provider_context(provider_slot)
@@ -119,8 +122,8 @@ class ModelService:
         )
 
     def _resolve_provider_context(self, provider_slot: str) -> ModelRuntimeContext:
-        provider_manager = ProviderConfigManager(self._providers_path)
-        resolved_slot = self._resolve_provider_slot(provider_manager, provider_slot)
+        provider_manager = self._get_provider_manager()
+        resolved_slot = self._get_provider_resolver().resolve_slot(provider_slot)
         provider = provider_manager.get(resolved_slot)
         return ModelRuntimeContext(
             config_slot=resolved_slot,
@@ -144,8 +147,8 @@ class ModelService:
         )
 
     def _resolve_provider_context_for_asset_format(self, asset_format: str) -> ModelRuntimeContext:
-        provider_manager = ProviderConfigManager(self._providers_path)
-        resolved_slot = self._resolve_asset_provider_slot(provider_manager, asset_format)
+        provider_manager = self._get_provider_manager()
+        resolved_slot = self._get_provider_resolver().resolve_asset_slot(asset_format)
         provider = provider_manager.get(resolved_slot)
         return ModelRuntimeContext(
             config_slot=resolved_slot,
@@ -161,31 +164,35 @@ class ModelService:
         provider_manager: ProviderConfigManager,
         requested_slot: str,
     ) -> str:
-        raw = getattr(provider_manager, "_raw", {})
-        if isinstance(raw.get(requested_slot), dict):
-            return requested_slot
-        if requested_slot == DEFAULT_PROVIDER_SLOT and isinstance(raw.get(LEGACY_PROVIDER_SLOT), dict):
-            return LEGACY_PROVIDER_SLOT
-        if isinstance(raw, dict):
-            for slot, value in raw.items():
-                if isinstance(value, dict):
-                    return slot
-        raise KeyError(f"provider 槽位不存在: {requested_slot}")
+        return ProviderResolver(
+            provider_manager,
+            DEFAULT_PROVIDER_SLOT,
+            LEGACY_PROVIDER_SLOT,
+            ASSET_PROVIDER_SLOTS,
+        ).resolve_slot(requested_slot)
 
     def _resolve_asset_provider_slot(self, provider_manager: ProviderConfigManager, asset_format: str) -> str:
-        raw = getattr(provider_manager, "_raw", {})
-        preferred_slot = ASSET_PROVIDER_SLOTS.get(asset_format, asset_format)
-        if isinstance(raw.get(preferred_slot), dict):
-            return preferred_slot
-        if isinstance(raw.get(DEFAULT_PROVIDER_SLOT), dict):
-            return DEFAULT_PROVIDER_SLOT
-        if isinstance(raw.get(LEGACY_PROVIDER_SLOT), dict):
-            return LEGACY_PROVIDER_SLOT
-        if isinstance(raw, dict):
-            for slot, value in raw.items():
-                if isinstance(value, dict):
-                    return slot
-        raise KeyError(f"素材类型的 provider 槽位不存在: {asset_format}")
+        return ProviderResolver(
+            provider_manager,
+            DEFAULT_PROVIDER_SLOT,
+            LEGACY_PROVIDER_SLOT,
+            ASSET_PROVIDER_SLOTS,
+        ).resolve_asset_slot(asset_format)
+
+    def _get_provider_manager(self) -> ProviderConfigManager:
+        if self._provider_manager is None:
+            self._provider_manager = ProviderConfigManager(self._providers_path)
+        return self._provider_manager
+
+    def _get_provider_resolver(self) -> ProviderResolver:
+        if self._provider_resolver is None:
+            self._provider_resolver = ProviderResolver(
+                self._get_provider_manager(),
+                DEFAULT_PROVIDER_SLOT,
+                LEGACY_PROVIDER_SLOT,
+                ASSET_PROVIDER_SLOTS,
+            )
+        return self._provider_resolver
 
     def _load_prompt_template(self, asset_format: str):
         prompt_config = load_prompt_config(self._prompts_path)
@@ -213,7 +220,7 @@ class ModelService:
         asset_path: str,
         model_name: str,
     ) -> tuple[str, ModelGenerateResponse.TokenUsage | None]:
-        provider_manager = ProviderConfigManager(self._providers_path)
+        provider_manager = self._get_provider_manager()
         provider_config = provider_manager.get(context.config_slot)
         if asset_format == "文本":
             response = await asyncio.to_thread(
@@ -241,9 +248,7 @@ class ModelService:
             await asyncio.to_thread(self._cleanup_preprocessed_asset, asset_path, preprocessed_path)
 
     def _supports_live_call(self, provider: ProviderConfig) -> bool:
-        if not provider.api_key:
-            return False
-        return importlib.util.find_spec("dashscope") is not None
+        return ProviderResolver.supports_live_call(provider)
 
     def _call_generation_sync(
         self,
@@ -253,27 +258,14 @@ class ModelService:
         user_prompt: str,
         text_content: str,
     ) -> Any:
-        try:
-            from dashscope import Generation
-        except ImportError as exc:
-            raise RuntimeError("live 模式需要安装 `dashscope` 包。") from exc
-
-        messages: list[dict[str, str]] = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"{user_prompt}\n\n素材内容：\n{text_content}".strip()},
-        ]
-
-        response = Generation.call(
-            api_key=provider_config.api_key,
-            model=model_name,
-            messages=messages,
-            temperature=provider_config.temperature,
-            max_tokens=provider_config.max_tokens,
-            result_format="message",
-            response_format=self._build_response_format(provider_config),
+        return self._dashscope_client.call_generation(
+            provider_config,
+            model_name,
+            system_prompt,
+            user_prompt,
+            text_content,
+            self._build_response_format(provider_config),
         )
-
-        return response
 
     def _call_multimodal_sync(
         self,
@@ -282,23 +274,13 @@ class ModelService:
         system_prompt: str,
         multimodal_content: list[dict[str, Any]],
     ) -> Any:
-        try:
-            from dashscope import MultiModalConversation
-        except ImportError as exc:
-            raise RuntimeError("live 模式需要安装 `dashscope` 包。") from exc
-
-        messages: list[dict[str, Any]] = []
-        if system_prompt.strip():
-            messages.append({"role": "system", "content": [{"text": system_prompt}]})
-        messages.append({"role": "user", "content": multimodal_content})
-
-        response = MultiModalConversation.call(
-            api_key=provider_config.api_key,
-            model=model_name,
-            messages=messages,
-            response_format=self._build_response_format(provider_config),
+        return self._dashscope_client.call_multimodal(
+            provider_config,
+            model_name,
+            system_prompt,
+            multimodal_content,
+            self._build_response_format(provider_config),
         )
-        return response
 
     def _build_response_format(self, provider_config: ProviderConfig) -> dict[str, Any]:
         configured = provider_config.extra_body or {}
@@ -308,116 +290,10 @@ class ModelService:
         return {"type": "json_object"}
 
     def _extract_response_text(self, response: Any) -> str:
-        output = getattr(response, "output", None)
-        if output is None and isinstance(response, dict):
-            output = response.get("output")
-
-        choices = getattr(output, "choices", None)
-        if choices is None and isinstance(output, dict):
-            choices = output.get("choices")
-
-        if not choices:
-            raise RuntimeError(f"无法解析模型响应: {response}")
-
-        message = choices[0].get("message") if isinstance(choices[0], dict) else getattr(choices[0], "message", None)
-        if message is None:
-            raise RuntimeError(f"无法解析模型消息体: {response}")
-
-        content = message.get("content") if isinstance(message, dict) else getattr(message, "content", None)
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            parts: list[str] = []
-            for item in content:
-                if isinstance(item, dict) and "text" in item:
-                    parts.append(str(item["text"]))
-                else:
-                    parts.append(str(item))
-            return "\n".join(parts).strip()
-
-        raise RuntimeError(f"无法解析模型输出文本: {response}")
+        return self._response_parser.extract_text(response)
 
     def _extract_token_usage(self, response: Any) -> ModelGenerateResponse.TokenUsage | None:
-        usage = getattr(response, "usage", None)
-        if usage is None and isinstance(response, dict):
-            usage = response.get("usage")
-
-        if usage is None:
-            return None
-
-        input_tokens = self._read_usage_value(usage, ("input_tokens", "prompt_tokens"))
-        output_tokens = self._read_usage_value(usage, ("output_tokens", "completion_tokens"))
-        total_tokens = self._read_usage_value(usage, ("total_tokens",))
-        image_tokens = self._read_usage_value(usage, ("image_tokens",))
-        video_tokens = self._read_usage_value(usage, ("video_tokens",))
-        audio_tokens = self._read_usage_value(usage, ("audio_tokens",))
-
-        if (
-            input_tokens is None
-            and output_tokens is None
-            and total_tokens is None
-            and image_tokens is None
-            and video_tokens is None
-            and audio_tokens is None
-        ):
-            return None
-
-        return ModelGenerateResponse.TokenUsage(
-            input_tokens=input_tokens or 0,
-            output_tokens=output_tokens or 0,
-            total_tokens=total_tokens or (input_tokens or 0) + (output_tokens or 0),
-            image_tokens=image_tokens,
-            video_tokens=video_tokens,
-            audio_tokens=audio_tokens,
-            input_tokens_details=self._read_usage_details(usage, ("input_tokens_details",)),
-            output_tokens_details=self._read_usage_details(usage, ("output_tokens_details",)),
-            prompt_tokens_details=self._read_usage_details(usage, ("prompt_tokens_details",)),
-        )
-
-    def _read_usage_value(self, usage: Any, keys: tuple[str, ...]) -> int | None:
-        for key in keys:
-            value = self._read_usage_field(usage, key)
-            if value is not None:
-                return value
-
-        models = self._read_usage_field(usage, "models")
-        if isinstance(models, list):
-            total = 0
-            found = False
-            for item in models:
-                if not isinstance(item, dict):
-                    continue
-                for key in keys:
-                    value = item.get(key)
-                    if value is not None:
-                        try:
-                            total += int(value)
-                            found = True
-                        except (TypeError, ValueError):
-                            continue
-                        break
-            if found:
-                return total
-
-        return None
-
-    def _read_usage_details(self, usage: Any, keys: tuple[str, ...]) -> dict[str, Any] | None:
-        for key in keys:
-            value = self._read_usage_field(usage, key)
-            if isinstance(value, dict):
-                return value
-            if value is not None:
-                return {"value": value}
-        return None
-
-    def _read_usage_field(self, usage: Any, key: str) -> Any:
-        try:
-            value = getattr(usage, key, None)
-        except KeyError:
-            value = None
-        if value is None and isinstance(usage, dict):
-            value = usage.get(key)
-        return value
+        return self._response_parser.extract_token_usage(response)
 
     def _build_text_user_prompt(self, prompt: str, asset_path: str) -> str:
         parts: list[str] = [f"素材绝对路径：{asset_path}"]
@@ -445,129 +321,36 @@ class ModelService:
         return f"file://{Path(asset_path).resolve().as_posix()}"
 
     def _prepare_media_asset(self, asset_format: str, asset_path: str) -> str:
-        source_path = Path(asset_path).resolve()
-        if not source_path.exists():
-            raise FileNotFoundError(f"素材不存在: {source_path}")
-
-        if not self._enable_media_preprocess or asset_format not in {"图片", "视频"}:
-            return str(source_path)
-
-        self._temp_dir.mkdir(parents=True, exist_ok=True)
-        target_path = self._build_temp_asset_path(source_path)
-
-        if asset_format == "图片":
-            return str(self._compress_image(source_path, target_path))
-        if asset_format == "视频":
-            return str(self._compress_video(source_path, target_path))
-        return str(source_path)
+        return self._create_media_preprocessor().prepare(asset_format, asset_path)
 
     def _build_temp_asset_path(self, source_path: Path, preferred_suffix: str | None = None) -> Path:
-        safe_stem = re.sub(r"[^\w\-.]+", "_", source_path.stem).strip("._") or "asset"
-        suffix = preferred_suffix or source_path.suffix or ".bin"
-        return self._temp_dir / f"{safe_stem}-{uuid.uuid4().hex[:8]}{suffix.lower()}"
+        return self._create_media_preprocessor().build_temp_asset_path(source_path, preferred_suffix)
 
     def _compress_image(self, source_path: Path, target_path: Path) -> Path:
-        try:
-            from PIL import Image
-        except ImportError:
-            return source_path
-
-        try:
-            with Image.open(source_path) as image:
-                converted = image.copy()
-                converted.thumbnail((self._image_max_side, self._image_max_side))
-                suffix = target_path.suffix.lower()
-
-                if suffix in {".jpg", ".jpeg"}:
-                    if converted.mode not in {"RGB", "L"}:
-                        converted = converted.convert("RGB")
-                    converted.save(
-                        target_path,
-                        format="JPEG",
-                        quality=self._image_jpeg_quality,
-                        optimize=True,
-                    )
-                    return target_path
-
-                if suffix == ".webp":
-                    converted.save(
-                        target_path,
-                        format="WEBP",
-                        quality=self._image_jpeg_quality,
-                        method=6,
-                    )
-                    return target_path
-
-                save_kwargs: dict[str, Any] = {"optimize": True}
-                if suffix == ".png":
-                    save_kwargs["compress_level"] = 9
-                converted.save(target_path, **save_kwargs)
-                return target_path
-        except Exception:
-            self._remove_file_if_exists(target_path)
-            return source_path
+        return self._create_media_preprocessor().compress_image(source_path, target_path)
 
     def _compress_video(self, source_path: Path, target_path: Path) -> Path:
-        if shutil.which("ffmpeg") is None:
-            return source_path
-
-        command = [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(source_path),
-            "-vf",
-            "scale='min(1280,iw)':-2",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            str(self._video_crf),
-            "-c:a",
-            "aac",
-            "-b:a",
-            self._video_audio_bitrate,
-            str(target_path),
-        ]
-        return self._run_ffmpeg_or_fallback(command, source_path, target_path)
+        return self._create_media_preprocessor().compress_video(source_path, target_path)
 
     def _run_ffmpeg_or_fallback(self, command: list[str], source_path: Path, target_path: Path) -> Path:
-        try:
-            subprocess.run(
-                command,
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except Exception:
-            self._remove_file_if_exists(target_path)
-            return source_path
-
-        if not target_path.exists() or target_path.stat().st_size <= 0:
-            self._remove_file_if_exists(target_path)
-            return source_path
-        return target_path
+        return self._create_media_preprocessor().run_ffmpeg_or_fallback(command, source_path, target_path)
 
     def _cleanup_preprocessed_asset(self, source_path: str, prepared_path: str) -> None:
-        source = Path(source_path).resolve()
-        prepared = Path(prepared_path).resolve()
-        if prepared == source:
-            return
-
-        try:
-            prepared.relative_to(self._temp_dir.resolve())
-        except ValueError:
-            return
-
-        self._remove_file_if_exists(prepared)
+        self._create_media_preprocessor().cleanup(source_path, prepared_path)
 
     @staticmethod
     def _remove_file_if_exists(path: Path) -> None:
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        MediaPreprocessor.remove_file_if_exists(path)
+
+    def _create_media_preprocessor(self) -> MediaPreprocessor:
+        return MediaPreprocessor(
+            temp_dir=self._temp_dir,
+            enabled=self._enable_media_preprocess,
+            image_max_side=self._image_max_side,
+            image_jpeg_quality=self._image_jpeg_quality,
+            video_crf=self._video_crf,
+            video_audio_bitrate=self._video_audio_bitrate,
+        )
 
     def _resolve_model_name(self, configured_model: str, asset_format: str) -> str:
         if asset_format == "音频" and "omni" not in configured_model.lower() and "audio" not in configured_model.lower():

@@ -71,3 +71,9 @@ class ProviderConfigManager:
             reasoning_effort=item.get("reasoning_effort"),
             extra_body=item.get("extra_body") or {},
         )
+
+    def has_slot(self, slot: str) -> bool:
+        return isinstance(self._raw.get(slot), dict)
+
+    def slots(self) -> tuple[str, ...]:
+        return tuple(slot for slot, value in self._raw.items() if isinstance(value, dict))

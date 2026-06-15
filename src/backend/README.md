@@ -124,6 +124,14 @@ uvicorn app.main:app --reload
 
 如果未配置真实 API Key，`/api/v1/model/generate` 会返回占位响应，便于先和桌面端联调。
 
+模型描述网关内部按职责拆分：
+
+- `ModelService`：请求编排与 Prompt 选择
+- `ProviderResolver`：provider 槽位解析，单个服务实例复用一次配置加载
+- `DashScopeModelClient`：DashScope SDK 调用
+- `MediaPreprocessor`：图片/视频预处理与临时文件清理
+- `ModelResponseParser`：输出文本与 token 使用量解析
+
 ## 单素材控制台测试入口
 
 安装后可以直接运行：

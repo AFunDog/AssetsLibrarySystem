@@ -8,6 +8,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
 
+from app.application.services.media_preprocessor import MediaPreprocessor
 from app.application.services.model_service import ModelRuntimeContext, ModelService
 from app.core.provider_config import ProviderConfig, ProviderConfigManager
 from app.schemas.model import ModelGenerateRequest
@@ -130,7 +131,7 @@ class ModelServiceTestCase(unittest.TestCase):
             source_path.write_bytes(b"fake")
             service._temp_dir = Path(temp_dir) / "temp"
 
-            with patch.object(ModelService, "_compress_image", return_value=service._temp_dir / "cover-12345678.png") as compress_mock:
+            with patch.object(MediaPreprocessor, "compress_image", return_value=service._temp_dir / "cover-12345678.png") as compress_mock:
                 prepared = service._prepare_media_asset("图片", str(source_path))
 
         compress_mock.assert_called_once()
@@ -155,8 +156,8 @@ class ModelServiceTestCase(unittest.TestCase):
             target_path = Path(temp_dir) / "target.mp4"
 
             with (
-                patch("app.application.services.model_service.shutil.which", return_value="ffmpeg"),
-                patch.object(ModelService, "_run_ffmpeg_or_fallback", return_value=target_path) as run_mock,
+                patch("app.application.services.media_preprocessor.shutil.which", return_value="ffmpeg"),
+                patch.object(MediaPreprocessor, "run_ffmpeg_or_fallback", return_value=target_path) as run_mock,
             ):
                 result = service._compress_video(source_path, target_path)
 
@@ -323,6 +324,19 @@ class ModelServiceTestCase(unittest.TestCase):
         self.assertEqual(context.config_slot, "文本")
         self.assertEqual(context.provider, "dashscope")
 
+    def test_provider_config_manager_is_reused_across_resolutions(self) -> None:
+        fake_manager = self._build_fake_provider_manager(
+            raw={"文本": {}},
+            provider=ProviderConfig(provider="dashscope", model="qwen-plus", api_key=""),
+        )
+
+        with patch("app.application.services.model_service.ProviderConfigManager", return_value=fake_manager) as manager_cls:
+            service = ModelService()
+            service._resolve_provider_context_for_asset_format("文本")
+            service._resolve_provider_context_for_asset_format("文本")
+
+        manager_cls.assert_called_once_with(service._providers_path)
+
     def test_shared_api_key_is_inherited_by_all_slots(self) -> None:
         with patch.object(
             ProviderConfigManager,
@@ -437,6 +451,12 @@ class ModelServiceTestCase(unittest.TestCase):
                 if slot not in self._raw:
                     raise KeyError(slot)
                 return self._provider_config
+
+            def has_slot(self, slot: str) -> bool:
+                return slot in self._raw
+
+            def slots(self) -> tuple[str, ...]:
+                return tuple(self._raw)
 
         return FakeProviderManager(raw, provider)
 

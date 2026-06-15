@@ -1,14 +1,16 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
 using AssetsLibrarySystem.Application.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.Services.Settings;
 
-public sealed class UserSettingsService : IUserSettingsService
+public sealed class UserSettingsService : IUserSettingsService, IDisposable
 {
+    private static readonly TimeSpan SaveDebounceDelay = TimeSpan.FromMilliseconds(500);
     private const string DashScopeProvider = "dashscope";
     private const string LocalProvider = "local";
     private const string DefaultDashScopeEmbeddingModel = "text-embedding-v4";
@@ -33,6 +35,10 @@ public sealed class UserSettingsService : IUserSettingsService
     private int _searchExpandedCandidateTopK = 160;
     private int _searchRerankTopK = 50;
     private int _searchFinalTopK = 5;
+    private readonly object _saveGate = new();
+    private Timer? _saveTimer;
+    private bool _hasPendingSave;
+    private bool _isDisposed;
 
     private bool IsLoading { get; set; } = true;
 
@@ -344,11 +350,32 @@ public sealed class UserSettingsService : IUserSettingsService
             return;
         }
 
-        Save();
+        lock (_saveGate)
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+            _hasPendingSave = true;
+            _saveTimer ??= new Timer(_ => FlushPendingSave(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            _saveTimer.Change(SaveDebounceDelay, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private void FlushPendingSave()
+    {
+        lock (_saveGate)
+        {
+            if (!_hasPendingSave)
+            {
+                return;
+            }
+
+            _hasPendingSave = false;
+            Save();
+        }
     }
 
     private void Save()
     {
+        string? tempPath = null;
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
@@ -373,7 +400,16 @@ public sealed class UserSettingsService : IUserSettingsService
             };
 
             var json = JsonSerializer.Serialize(snapshot, JsonOptions);
-            File.WriteAllText(SettingsPath, json);
+            tempPath = $"{SettingsPath}.{Guid.NewGuid():N}.tmp";
+            File.WriteAllText(tempPath, json);
+            if (File.Exists(SettingsPath))
+            {
+                File.Replace(tempPath, SettingsPath, null);
+            }
+            else
+            {
+                File.Move(tempPath, SettingsPath);
+            }
             Log.Information(
                 "用户设置已保存: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}",
                 SettingsPath,
@@ -392,6 +428,42 @@ public sealed class UserSettingsService : IUserSettingsService
         catch (Exception ex)
         {
             Log.Error(ex, "保存用户设置失败: settingsPath={SettingsPath}", SettingsPath);
+        }
+        finally
+        {
+            if (tempPath is not null)
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug(ex, "清理用户设置临时文件失败: tempPath={TempPath}", tempPath);
+                }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_saveGate)
+        {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            _saveTimer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            if (_hasPendingSave)
+            {
+                _hasPendingSave = false;
+                Save();
+            }
+
+            _saveTimer?.Dispose();
+            _saveTimer = null;
+            _isDisposed = true;
         }
     }
 

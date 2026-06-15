@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Globalization;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,36 +19,16 @@ public sealed class AssetLibraryService : IAssetLibraryService
 {
     private const string SystemCreatedBy = "AssetsLibrarySystem";
 
-    private static readonly HashSet<string> TextExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".txt", ".md", ".yaml", ".yml", ".csv", ".log", ".xml"
-    };
-
-    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".avif"
-    };
-
-    private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".mp4", ".mkv", ".avi", ".mov", ".webm", ".wmv", ".flv"
-    };
-
-    private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".wma"
-    };
-
+    private IDatabaseWriteQueue WriteQueue { get; }
+    private IAssetDatabase AssetDatabase { get; }
     private JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
     };
-
-    private IDatabaseWriteQueue WriteQueue { get; }
-    private IAssetDatabase AssetDatabase { get; }
-    private ConcurrentDictionary<string, CachedUidSidecar> UidSidecarCache { get; } = new(StringComparer.OrdinalIgnoreCase);
-    private ConcurrentDictionary<string, CachedContentHash> ContentHashCache { get; } = new(StringComparer.OrdinalIgnoreCase);
+    private AssetFileScanner FileScanner { get; } = new();
+    private AssetUidSidecarStore UidSidecarStore { get; } = new();
+    private AssetContentHasher ContentHasher { get; } = new();
 
     public AssetLibraryService(IDatabaseWriteQueue writeQueue, IAssetDatabase assetDatabase)
     {
@@ -134,7 +113,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         var scanAt = DateTimeOffset.UtcNow;
         var descriptionTableExists = DescriptionTableExists();
         var records = new ConcurrentBag<ManagedAssetRecord>();
-        var paths = EnumerateSupportedFiles(library.RootPath)
+        var paths = FileScanner.EnumerateSupportedFiles(library.RootPath)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -175,11 +154,11 @@ public sealed class AssetLibraryService : IAssetLibraryService
         var normalizedPath = Path.GetFullPath(fullPath);
         var relativePath = Path.GetRelativePath(library.RootPath, normalizedPath);
         var fileInfo = new FileInfo(normalizedPath);
-        var assetType = ClassifyAssetType(normalizedPath);
+        var assetType = FileScanner.Classify(normalizedPath);
         var extension = fileInfo.Extension.TrimStart('.').ToLowerInvariant();
-        var sidecarPath = GetUidSidecarPath(normalizedPath);
+        var sidecarPath = AssetUidSidecarStore.GetSidecarPath(normalizedPath);
         var sidecarInfo = new FileInfo(sidecarPath);
-        var sidecarUid = TryReadUidSidecar(sidecarPath, sidecarInfo, out var hasUidSidecar);
+        var sidecarUid = UidSidecarStore.Read(sidecarPath, sidecarInfo, out var hasUidSidecar);
 
         AssetDbRecord? assetRecord;
         var currentHash = string.Empty;
@@ -192,7 +171,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             assetRecord = TryGetAssetByUid(connection, sidecarUid!);
             if (assetRecord is null)
             {
-                currentHash = GetContentHash(normalizedPath, fileInfo, stats);
+                currentHash = ContentHasher.GetHash(normalizedPath, fileInfo, stats);
                 assetRecord = await CreateOrUpdateAssetAsync(
                     library,
                     assetUid: sidecarUid!,
@@ -209,11 +188,11 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 stage = "已迁入";
                 aiState = "待生成描述与向量";
             }
-            else if (CanReuseStoredHash(assetRecord, fileInfo))
+            else if (AssetContentHasher.CanReuseStoredHash(assetRecord.FileSize, assetRecord.ModifiedTimeUtc, fileInfo))
             {
                 currentHash = assetRecord.ContentHash;
                 stats.IncrementReusedHashCount();
-                CacheContentHash(normalizedPath, fileInfo, currentHash);
+                ContentHasher.CacheHash(normalizedPath, fileInfo, currentHash);
                 if (IsSameAssetSnapshot(
                         assetRecord,
                         library.Id,
@@ -252,7 +231,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             }
             else
             {
-                currentHash = GetContentHash(normalizedPath, fileInfo, stats);
+                currentHash = ContentHasher.GetHash(normalizedPath, fileInfo, stats);
                 if (string.Equals(assetRecord.ContentHash, currentHash, StringComparison.OrdinalIgnoreCase))
                 {
                     if (IsSameAssetSnapshot(
@@ -316,11 +295,11 @@ public sealed class AssetLibraryService : IAssetLibraryService
         }
         else
         {
-            currentHash = GetContentHash(normalizedPath, fileInfo, stats);
+            currentHash = ContentHasher.GetHash(normalizedPath, fileInfo, stats);
             assetRecord = TryGetAssetByContentHash(connection, currentHash);
             if (assetRecord is not null)
             {
-                WriteUidSidecar(sidecarPath, assetRecord.AssetUid);
+                UidSidecarStore.Write(sidecarPath, assetRecord.AssetUid);
                 if (IsSameAssetSnapshot(
                         assetRecord,
                         library.Id,
@@ -359,8 +338,8 @@ public sealed class AssetLibraryService : IAssetLibraryService
             }
             if (assetRecord is null)
             {
-                var assetUid = GenerateAssetUid();
-                WriteUidSidecar(sidecarPath, assetUid);
+                var assetUid = AssetUidSidecarStore.GenerateUid();
+                UidSidecarStore.Write(sidecarPath, assetUid);
                 assetRecord = await CreateOrUpdateAssetAsync(
                     library,
                     assetUid: assetUid,
@@ -382,8 +361,8 @@ public sealed class AssetLibraryService : IAssetLibraryService
         var isDescribed = descriptionTableExists && HasDescription(connection, assetRecord.Id);
         var isVectorized = HasVector(connection, assetRecord.Id);
         var metadataTags = ReadMetadataTags(connection, assetRecord.Id);
-        var tags = BuildTags(assetType, extension, metadataTags);
-        var summary = BuildSummary(assetType, fileInfo.Length, fileInfo.LastWriteTime, assetRecord.AssetUid, assetRecord.Status);
+        var tags = AssetRecordFormatter.BuildTags(assetType, extension, metadataTags);
+        var summary = AssetRecordFormatter.BuildSummary(assetType, fileInfo.Length, fileInfo.LastWriteTime, assetRecord.AssetUid, assetRecord.Status);
 
         return new ManagedAssetRecord
         {
@@ -737,174 +716,6 @@ public sealed class AssetLibraryService : IAssetLibraryService
         return command.ExecuteScalar() is not null;
     }
 
-    private static string[] BuildTags(string assetType, string extension, IEnumerable<string> metadataTags)
-    {
-        return metadataTags
-            .Append(assetType)
-            .Append(extension)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private static string BuildSummary(string assetType, long bytes, DateTime modifiedTime, string assetUid, string status)
-    {
-        var statusText = status switch
-        {
-            "changed" => "内容变化",
-            "ok" => "已同步",
-            _ => status
-        };
-
-        return $"{assetType}文件 · {FormatFileSize(bytes)} · 修改于 {modifiedTime:yyyy-MM-dd HH:mm} · {statusText} · UID {assetUid}";
-    }
-
-    private static string GenerateAssetUid()
-    {
-        return $"asset_{Guid.NewGuid():N}";
-    }
-
-    private string? TryReadUidSidecar(string sidecarPath, FileInfo sidecarInfo, out bool hasSidecar)
-    {
-        hasSidecar = sidecarInfo.Exists;
-        if (!hasSidecar)
-        {
-            return null;
-        }
-
-        if (UidSidecarCache.TryGetValue(sidecarPath, out var cached) &&
-            cached.Length == sidecarInfo.Length &&
-            cached.LastWriteTimeUtc == sidecarInfo.LastWriteTimeUtc)
-        {
-            return cached.Uid;
-        }
-
-        try
-        {
-            using var stream = sidecarInfo.Open(FileMode.Open, FileAccess.Read, FileShare.Read);
-            var document = JsonSerializer.Deserialize<UidSidecarDocument>(stream, JsonOptions);
-            var uid = string.IsNullOrWhiteSpace(document?.Uid) ? null : document.Uid.Trim();
-            CacheUidSidecar(sidecarPath, sidecarInfo, uid);
-            return uid;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private void WriteUidSidecar(string sidecarPath, string assetUid)
-    {
-        var document = new UidSidecarDocument
-        {
-            Uid = assetUid,
-            Version = 1,
-            CreatedBy = SystemCreatedBy
-        };
-
-        File.WriteAllText(sidecarPath, JsonSerializer.Serialize(document, JsonOptions));
-        CacheUidSidecar(sidecarPath, new FileInfo(sidecarPath), assetUid);
-    }
-
-    private static string GetUidSidecarPath(string assetPath)
-    {
-        return assetPath + ".uid";
-    }
-
-    private string GetContentHash(string path, FileInfo fileInfo, ScanHashStats stats)
-    {
-        if (ContentHashCache.TryGetValue(path, out var cached) &&
-            cached.Length == fileInfo.Length &&
-            cached.LastWriteTimeUtc == fileInfo.LastWriteTimeUtc)
-        {
-            stats.IncrementReusedHashCount();
-            return cached.Hash;
-        }
-
-        stats.IncrementRecomputedHashCount();
-        var hash = ComputeContentHash(path);
-        CacheContentHash(path, fileInfo, hash);
-        return hash;
-    }
-
-    private static string ComputeContentHash(string path)
-    {
-        using var stream = File.OpenRead(path);
-        var bytes = SHA256.HashData(stream);
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
-    private bool CanReuseStoredHash(AssetDbRecord assetRecord, FileInfo fileInfo)
-    {
-        return assetRecord.FileSize == fileInfo.Length &&
-               assetRecord.ModifiedTimeUtc == fileInfo.LastWriteTimeUtc;
-    }
-
-    private void CacheUidSidecar(string sidecarPath, FileInfo sidecarInfo, string? uid)
-    {
-        UidSidecarCache[sidecarPath] = new CachedUidSidecar(
-            sidecarInfo.Length,
-            sidecarInfo.LastWriteTimeUtc,
-            uid);
-    }
-
-    private void CacheContentHash(string path, FileInfo fileInfo, string hash)
-    {
-        ContentHashCache[path] = new CachedContentHash(
-            fileInfo.Length,
-            fileInfo.LastWriteTimeUtc,
-            hash);
-    }
-
-    private IEnumerable<string> EnumerateSupportedFiles(string rootPath)
-    {
-        if (!Directory.Exists(rootPath))
-        {
-            yield break;
-        }
-
-        var pending = new Stack<string>();
-        pending.Push(rootPath);
-
-        while (pending.Count > 0)
-        {
-            var current = pending.Pop();
-
-            IEnumerable<string> subDirectories;
-            try
-            {
-                subDirectories = Directory.EnumerateDirectories(current);
-            }
-            catch
-            {
-                continue;
-            }
-
-            foreach (var subDirectory in subDirectories)
-            {
-                pending.Push(subDirectory);
-            }
-
-            IEnumerable<string> files;
-            try
-            {
-                files = Directory.EnumerateFiles(current);
-            }
-            catch
-            {
-                continue;
-            }
-
-            foreach (var file in files)
-            {
-                if (TryClassifyAssetType(file, out _))
-                {
-                    yield return file;
-                }
-            }
-        }
-    }
-
     private static string BuildLibraryName(string normalizedPath, IEnumerable<LibraryWorkspace> existing)
     {
         var baseName = Path.GetFileName(normalizedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
@@ -928,92 +739,10 @@ public sealed class AssetLibraryService : IAssetLibraryService
         return $"{baseName} {index}";
     }
 
-    private static string ClassifyAssetType(string path)
-    {
-        return TryClassifyAssetType(path, out var type) ? type : "其他";
-    }
-
-    private static bool TryClassifyAssetType(string path, out string type)
-    {
-        var extension = Path.GetExtension(path);
-        if (TextExtensions.Contains(extension))
-        {
-            type = "文本";
-            return true;
-        }
-
-        if (ImageExtensions.Contains(extension))
-        {
-            type = "图片";
-            return true;
-        }
-
-        if (VideoExtensions.Contains(extension))
-        {
-            type = "视频";
-            return true;
-        }
-
-        if (AudioExtensions.Contains(extension))
-        {
-            type = "音频";
-            return true;
-        }
-
-        type = string.Empty;
-        return false;
-    }
-
-    private static string FormatFileSize(long bytes)
-    {
-        if (bytes < 1024)
-        {
-            return $"{bytes} B";
-        }
-
-        if (bytes < 1024 * 1024)
-        {
-            return $"{bytes / 1024d:F1} KB";
-        }
-
-        if (bytes < 1024L * 1024 * 1024)
-        {
-            return $"{bytes / 1024d / 1024:F1} MB";
-        }
-
-        return $"{bytes / 1024d / 1024 / 1024:F1} GB";
-    }
-
     private static void AddParameter(SqliteCommand command, string name, object? value)
     {
         command.Parameters.AddWithValue(name, value ?? DBNull.Value);
     }
-
-    private sealed class UidSidecarDocument
-    {
-        public string Uid { get; set; } = string.Empty;
-        public int Version { get; set; }
-        public string CreatedBy { get; set; } = string.Empty;
-    }
-
-    private sealed class ScanHashStats
-    {
-        private int _recomputedHashCount;
-        private int _reusedHashCount;
-        private int _skippedPersistCount;
-
-        public int RecomputedHashCount => _recomputedHashCount;
-        public int ReusedHashCount => _reusedHashCount;
-        public int SkippedPersistCount => _skippedPersistCount;
-
-        public void IncrementRecomputedHashCount() => Interlocked.Increment(ref _recomputedHashCount);
-        public void IncrementReusedHashCount() => Interlocked.Increment(ref _reusedHashCount);
-        public void IncrementSkippedPersistCount() => Interlocked.Increment(ref _skippedPersistCount);
-    }
-
-    private sealed record CachedUidSidecar(long Length, DateTime LastWriteTimeUtc, string? Uid);
-
-    private sealed record CachedContentHash(long Length, DateTime LastWriteTimeUtc, string Hash);
 
     private sealed record AssetDbRecord(
         long Id,
