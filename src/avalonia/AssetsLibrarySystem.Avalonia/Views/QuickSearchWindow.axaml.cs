@@ -42,7 +42,7 @@ public partial class QuickSearchWindow : Window
             return;
         }
 
-        Hide();
+        // Hide();
     }
 
     private void CloseWindow_Click(object? sender, RoutedEventArgs e)

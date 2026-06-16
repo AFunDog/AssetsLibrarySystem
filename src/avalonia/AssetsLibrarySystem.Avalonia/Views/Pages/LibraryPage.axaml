@@ -5,62 +5,72 @@
              xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
              xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.LibraryPage"
-             x:DataType="pagevm:LibraryPageViewModel">
+             x:DataType="pagevm:LibraryPageViewModel"
+             FontSize="14">
     <Design.DataContext>
         <pagevm:LibraryPageViewModel />
     </Design.DataContext>
 
     <UserControl.Styles>
         <Style Selector="Border.page-card">
-            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="12" />
-        </Style>
-        <Style Selector="Border.sub-card">
             <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="8" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16" />
+        </Style>
+        <Style Selector="Border.sub-card">
+            <Setter Property="Background" Value="{DynamicResource AppWindowBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10" />
         </Style>
         <Style Selector="Button.primary-action">
             <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="MinHeight" Value="34" />
+        </Style>
+        <Style Selector="Button.primary-action:pointerover">
+            <Setter Property="Background" Value="{DynamicResource AppAccentHoverBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.primary-action:pressed">
+            <Setter Property="Background" Value="{DynamicResource AppAccentPressedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
         </Style>
         <Style Selector="Button.secondary-action">
             <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="MinHeight" Value="34" />
         </Style>
         <Style Selector="Button.result-action">
             <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="10" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
         </Style>
         <Style Selector="TextBlock.eyebrow">
             <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
-            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="LetterSpacing" Value="1.2" />
         </Style>
         <Style Selector="TextBlock.section-title">
             <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontSize" Value="18" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="TextBlock.section-subtitle">
@@ -78,12 +88,14 @@
     </UserControl.Styles>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <Grid RowDefinitions="Auto,*" RowSpacing="8">
+        <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="28,18,28,28">
             <Border Classes="page-card">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <StackPanel Spacing="4">
-                        <TextBlock Classes="eyebrow" Text="素材库" />
-                        <TextBlock Classes="section-title" Text="素材库资源管理器" />
+                        <TextBlock FontSize="34"
+                                   FontWeight="SemiLight"
+                                   Foreground="{DynamicResource AppTextBrush}"
+                                   Text="素材库" />
                         <TextBlock Classes="section-subtitle"
                                    Text="中央用大图标浏览素材库、目录和文件，右键可定位位置或加入描述任务队列。" />
                     </StackPanel>
@@ -102,7 +114,7 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" ColumnDefinitions="*,320" ColumnSpacing="8">
+            <Grid Grid.Row="1" ColumnDefinitions="*,332" ColumnSpacing="12">
                 <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
                     <Border Classes="page-card">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">

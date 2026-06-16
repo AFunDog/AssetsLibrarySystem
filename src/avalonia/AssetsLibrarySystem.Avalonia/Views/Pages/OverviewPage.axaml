@@ -3,91 +3,196 @@
              xmlns:pagevm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:models="using:AssetsLibrarySystem.Application.Models"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.OverviewPage"
-             x:DataType="pagevm:OverviewPageViewModel">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="8">
-            <Border Background="{DynamicResource AppSurfaceBrush}"
-                    BorderBrush="{DynamicResource AppBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="12">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <StackPanel Spacing="4">
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   FontWeight="SemiBold"
-                                   LetterSpacing="1.2"
-                                   Text="概览" />
-                        <TextBlock FontWeight="SemiBold" Text="素材库统计" />
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   TextWrapping="Wrap"
-                                   Text="统计当前已加载素材库中的文件类型、描述和向量化进度。" />
-                    </StackPanel>
-                    <Button Grid.Column="1"
-                            Background="{DynamicResource AppSoftSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="10,8"
-                            VerticalAlignment="Center"
-                            Command="{Binding RefreshWorkspaceCommand}"
-                            Content="刷新当前素材库" />
-                </Grid>
-            </Border>
+             x:DataType="pagevm:OverviewPageViewModel"
+             FontSize="14">
+    <UserControl.Styles>
+        <Style Selector="Border.settings-card">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
 
-            <ItemsControl ItemsSource="{Binding Metrics}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <UniformGrid Columns="4" ColumnSpacing="4" RowSpacing="4"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="models:DashboardMetric">
-                        <Border Background="{DynamicResource AppSurfaceBrush}"
+        <Style Selector="Border.settings-row">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16" />
+        </Style>
+
+        <Style Selector="TextBlock.page-title">
+            <Setter Property="FontSize" Value="34" />
+            <Setter Property="FontWeight" Value="SemiLight" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        </Style>
+
+        <Style Selector="TextBlock.subtle">
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+        </Style>
+
+        <Style Selector="Border.fluent-icon">
+            <Setter Property="Background" Value="{DynamicResource AppAccentSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8" />
+        </Style>
+
+        <Style Selector="Button.fluent-action">
+            <Setter Property="Background" Value="{DynamicResource AppSoftSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="14,8" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid RowDefinitions="Auto,*" RowSpacing="18" Margin="28,18,28,28">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                <StackPanel Spacing="6">
+                    <TextBlock Classes="page-title" Text="主页" />
+                    <TextBlock Classes="subtle"
+                               TextWrapping="Wrap"
+                               Text="查看素材库扫描、描述生成和向量化进度。" />
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Classes="fluent-action"
+                        Command="{Binding RefreshWorkspaceCommand}"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <LucideIcon Kind="RefreshCw" Size="16" />
+                        <TextBlock Text="刷新当前素材库" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <Grid Grid.Row="1"
+                  ColumnDefinitions="1.05*,0.95*"
+                  ColumnSpacing="12"
+                  RowDefinitions="Auto,*">
+                <Border Classes="settings-card" Padding="0">
+                    <StackPanel>
+                        <Border Padding="18,16">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <Border Classes="fluent-icon">
+                                    <LucideIcon Kind="LibraryBig" Size="22" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding WorkspaceTitle}" />
+                                    <TextBlock Classes="subtle"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding WorkspaceSummary}" />
+                                </StackPanel>
+                                <LucideIcon Grid.Column="2"
+                                            Kind="ChevronRight"
+                                            Size="18"
+                                            Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                            VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Border Height="1" Background="{DynamicResource AppBorderBrush}" />
+
+                        <Border Padding="18,16">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <Border Classes="fluent-icon">
+                                    <LucideIcon Kind="Cpu" Size="22" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock FontWeight="SemiBold"
+                                               Text="{Binding BackendStatusTitle}" />
+                                    <TextBlock Classes="subtle"
+                                               TextWrapping="Wrap"
+                                               Text="{Binding BackendStatusStage}" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2"
+                                           Foreground="{DynamicResource AppAccentBrush}"
+                                           FontWeight="SemiBold"
+                                           Text="{Binding BackendStatusDetail}"
+                                           TextTrimming="CharacterEllipsis"
+                                           MaxWidth="180"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Classes="settings-card" Padding="18,16">
+                    <StackPanel Spacing="14">
+                        <TextBlock Classes="section-title" Text="当前素材库" />
+                        <TextBlock Classes="subtle"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding AssetSummary}" />
+                        <Border Background="{DynamicResource AppWindowBackgroundBrush}"
                                 BorderBrush="{DynamicResource AppBorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="4"
+                                CornerRadius="6"
                                 Padding="12">
-                            <StackPanel Spacing="4">
-                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                           FontWeight="SemiBold"
-                                           Text="{Binding Label}" />
-                                <TextBlock FontSize="20"
-                                           FontWeight="SemiBold"
-                                           Text="{Binding Value}" />
-                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Border Width="4"
+                                        CornerRadius="2"
+                                        Background="{DynamicResource AppAccentBrush}" />
+                                <TextBlock Grid.Column="1"
                                            TextWrapping="Wrap"
-                                           Text="{Binding Hint}" />
-                            </StackPanel>
+                                           Text="{Binding OperatorNotice}" />
+                            </Grid>
                         </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                    </StackPanel>
+                </Border>
 
-            <Border Background="{DynamicResource AppSurfaceBrush}"
-                    BorderBrush="{DynamicResource AppBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="12">
-                <StackPanel Spacing="8">
-                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                               FontWeight="SemiBold"
-                               Text="当前素材库" />
-                    <TextBlock FontWeight="SemiBold" Text="{Binding WorkspaceTitle}" />
-                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                               TextWrapping="Wrap"
-                               Text="{Binding WorkspaceSummary}" />
-                    <Border Background="{DynamicResource AppSoftSurfaceBrush}"
-                            BorderBrush="{DynamicResource AppBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="8">
-                        <TextBlock TextWrapping="Wrap" Text="{Binding AssetSummary}" />
-                    </Border>
-                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                               TextWrapping="Wrap"
-                               Text="{Binding OperatorNotice}" />
-                </StackPanel>
-            </Border>
-        </StackPanel>
+                <Border Grid.Row="1"
+                        Grid.ColumnSpan="2"
+                        Classes="settings-card"
+                        Margin="0,12,0,0"
+                        Padding="18,16">
+                    <StackPanel Spacing="14">
+                        <TextBlock Classes="section-title" Text="素材统计" />
+                        <ItemsControl ItemsSource="{Binding Metrics}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="4" ColumnSpacing="8" RowSpacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:DashboardMetric">
+                                    <Border Classes="settings-row">
+                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                <Border Width="4"
+                                                        CornerRadius="2"
+                                                        Background="{DynamicResource AppAccentBrush}" />
+                                                <TextBlock Grid.Column="1"
+                                                           Classes="subtle"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding Label}" />
+                                            </Grid>
+                                            <TextBlock Grid.Row="1"
+                                                       FontSize="26"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding Value}" />
+                                            <TextBlock Grid.Row="2"
+                                                       Classes="subtle"
+                                                       TextWrapping="Wrap"
+                                                       Text="{Binding Hint}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
     </ScrollViewer>
 </UserControl>
