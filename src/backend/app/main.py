@@ -12,6 +12,7 @@ from app.api.routes.search import router as search_router
 from app.core.config import settings
 from app.core.container import build_app_container
 from app.core.heartbeat import HeartbeatMonitor
+from app.core.logging import setup_logging
 
 
 heartbeat_monitor = HeartbeatMonitor()
@@ -19,6 +20,7 @@ heartbeat_monitor = HeartbeatMonitor()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging(log_level=settings.log_level)
     app.state.container = build_app_container()
     async with heartbeat_monitor.lifespan(app):
         yield

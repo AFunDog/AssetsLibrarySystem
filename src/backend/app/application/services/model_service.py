@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 import asyncio
 from pathlib import Path
@@ -18,6 +19,8 @@ from app.schemas.model import (
     ModelGenerateRequest,
     ModelGenerateResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_PROVIDER_SLOT = "llm_gateway"
 LEGACY_PROVIDER_SLOT = "asset_describer"
@@ -82,6 +85,12 @@ class ModelService:
         )
 
     async def generate_text(self, payload: ModelGenerateRequest) -> ModelGenerateResponse:
+        logger.info(
+            "描述生成请求: format=%s, path=%s, mock=%s",
+            payload.asset_format,
+            payload.asset_path,
+            payload.mock_response,
+        )
         context = self._resolve_prompt_context(payload.asset_format)
         provider_context = self._resolve_provider_context_for_asset_format(payload.asset_format)
         system_prompt = self._resolve_system_prompt(payload.system_prompt, context.system_prompt)
@@ -89,6 +98,7 @@ class ModelService:
         call_model = self._resolve_model_name(provider_context.model, payload.asset_format)
 
         if payload.mock_response or not context.supports_live_call:
+            logger.info("描述生成使用 mock 模式: format=%s, model=%s", payload.asset_format, call_model)
             return ModelGenerateResponse(
                 provider_slot=DEFAULT_PROVIDER_SLOT,
                 provider=provider_context.provider,
@@ -102,6 +112,12 @@ class ModelService:
         if provider_context.provider.lower() != "dashscope":
             raise ValueError(f"当前仅实现 dashscope live 调用，实际 provider 为: {provider_context.provider}")
 
+        logger.info(
+            "描述生成调用 DashScope: format=%s, model=%s, slot=%s",
+            payload.asset_format,
+            call_model,
+            provider_context.config_slot,
+        )
         raw_output_text, usage = await self._call_dashscope(
             provider_context,
             system_prompt,
@@ -111,6 +127,8 @@ class ModelService:
             call_model,
         )
         output_text = self._clean_llm_output(raw_output_text)
+        token_info = f", tokens={usage.total_tokens}" if usage else ""
+        logger.info("描述生成完成: format=%s, model=%s%s", payload.asset_format, call_model, token_info)
         return ModelGenerateResponse(
             provider_slot=DEFAULT_PROVIDER_SLOT,
             provider=provider_context.provider,

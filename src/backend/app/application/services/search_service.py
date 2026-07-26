@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from http import HTTPStatus
 from typing import Any
 
@@ -12,6 +13,8 @@ from app.schemas.search import (
     SearchQueryResultItem,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class SearchService:
     def __init__(self) -> None:
@@ -22,6 +25,14 @@ class SearchService:
         import dashscope
         import numpy as np
 
+        dim_info = f", dim={payload.embedding_dimensions}" if payload.embedding_dimensions is not None else ""
+        logger.info(
+            "向量化请求: model=%s, asset=%s%s",
+            payload.model,
+            payload.asset_name,
+            dim_info,
+        )
+
         request_args = {
             "api_key": self._dashscope_api_key or None,
             "model": payload.model,
@@ -30,16 +41,36 @@ class SearchService:
         if payload.embedding_dimensions is not None:
             request_args["dimension"] = payload.embedding_dimensions
 
-        response = dashscope.TextEmbedding.call(**request_args)
+        try:
+            response = dashscope.TextEmbedding.call(**request_args)
+        except Exception as exc:
+            logger.error("DashScope 向量化调用异常: %s", exc)
+            raise RuntimeError(f"DashScope 向量化失败：{exc}") from exc
+
         if response.status_code != HTTPStatus.OK:
+            logger.error(
+                "DashScope 向量化返回错误: status=%s, response=%s",
+                response.status_code,
+                response,
+            )
             raise RuntimeError(f"DashScope 向量化失败：{response}")
+
         embeddings = response.output["embeddings"]
         if not embeddings:
+            logger.error("DashScope 返回空向量: model=%s", payload.model)
             raise RuntimeError("DashScope 返回空向量。")
+
         vector = np.asarray(embeddings[0]["embedding"], dtype=np.float32)
         token_usage = _extract_token_usage(response)
 
         embedding_model = _format_embedding_model(payload.model, payload.embedding_dimensions)
+        logger.info(
+            "向量化完成: asset=%s, dim=%s, model=%s, tokens=%s",
+            payload.asset_name,
+            vector.shape[0],
+            embedding_model,
+            token_usage,
+        )
         return SearchIndexResponse(
             asset_id=payload.asset_id,
             asset_name=payload.asset_name,
@@ -57,17 +88,34 @@ class SearchService:
 
         candidates = payload.candidates
         descriptions = [candidate.description for candidate in candidates]
-
-        response = dashscope.TextReRank.call(
-            api_key=self._dashscope_api_key or None,
-            model=payload.model,
-            query=payload.query,
-            documents=descriptions,
-            top_n=len(descriptions),
-            return_documents=False,
+        logger.info(
+            "重排序请求: model=%s, query_len=%s, candidates=%s",
+            payload.model,
+            len(payload.query),
+            len(candidates),
         )
+
+        try:
+            response = dashscope.TextReRank.call(
+                api_key=self._dashscope_api_key or None,
+                model=payload.model,
+                query=payload.query,
+                documents=descriptions,
+                top_n=len(descriptions),
+                return_documents=False,
+            )
+        except Exception as exc:
+            logger.error("DashScope 重排序调用异常: %s", exc)
+            raise RuntimeError(f"DashScope 重排序失败：{exc}") from exc
+
         if response.status_code != HTTPStatus.OK:
+            logger.error(
+                "DashScope 重排序返回错误: status=%s, response=%s",
+                response.status_code,
+                response,
+            )
             raise RuntimeError(f"DashScope 重排序失败：{response}")
+
         results = response.output["results"]
         scores = [0.0] * len(descriptions)
         for result in results:
@@ -95,6 +143,14 @@ class SearchService:
 
         ranked_items.sort(key=lambda item: item.combined_score if item.combined_score is not None else item.rerank_score, reverse=True)
 
+        top_score = ranked_items[0].rerank_score if ranked_items else 0
+        logger.info(
+            "重排序完成: candidates=%s, returned=%s, top_score=%.4f, tokens=%s",
+            len(candidates),
+            min(payload.final_top_k, len(ranked_items)),
+            top_score,
+            token_usage,
+        )
         return SearchQueryResponse(
             query=payload.query,
             final_top_k=min(payload.final_top_k, len(ranked_items)),

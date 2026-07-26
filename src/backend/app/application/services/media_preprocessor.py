@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import uuid
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class MediaPreprocessor:
@@ -30,16 +33,25 @@ class MediaPreprocessor:
     def prepare(self, asset_format: str, asset_path: str) -> str:
         source_path = Path(asset_path).resolve()
         if not source_path.exists():
+            logger.error("素材不存在: %s", source_path)
             raise FileNotFoundError(f"素材不存在: {source_path}")
 
         if not self.enabled or asset_format not in {"图片", "视频"}:
+            logger.debug("预处理跳过: format=%s, enabled=%s", asset_format, self.enabled)
             return str(source_path)
 
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         target_path = self.build_temp_asset_path(source_path)
         if asset_format == "图片":
-            return str(self.compress_image(source_path, target_path))
-        return str(self.compress_video(source_path, target_path))
+            result = self.compress_image(source_path, target_path)
+        else:
+            result = self.compress_video(source_path, target_path)
+
+        if result == source_path:
+            logger.warning("预处理回退到原始文件: format=%s, path=%s", asset_format, source_path)
+        else:
+            logger.debug("预处理完成: format=%s, size=%s -> %s", asset_format, source_path, result)
+        return str(result)
 
     def cleanup(self, source_path: str, prepared_path: str) -> None:
         source = Path(source_path).resolve()
@@ -53,6 +65,7 @@ class MediaPreprocessor:
             return
 
         self.remove_file_if_exists(prepared)
+        logger.debug("临时文件已清理: %s", prepared)
 
     def build_temp_asset_path(self, source_path: Path, preferred_suffix: str | None = None) -> Path:
         safe_stem = re.sub(r"[^\w\-.]+", "_", source_path.stem).strip("._") or "asset"
@@ -63,6 +76,7 @@ class MediaPreprocessor:
         try:
             from PIL import Image
         except ImportError:
+            logger.warning("Pillow 未安装，跳过图片压缩: %s", source_path)
             return source_path
 
         try:
@@ -75,23 +89,28 @@ class MediaPreprocessor:
                     if converted.mode not in {"RGB", "L"}:
                         converted = converted.convert("RGB")
                     converted.save(target_path, format="JPEG", quality=self.image_jpeg_quality, optimize=True)
+                    logger.debug("图片 JPEG 压缩完成: %s -> %s", source_path.name, target_path)
                     return target_path
 
                 if suffix == ".webp":
                     converted.save(target_path, format="WEBP", quality=self.image_jpeg_quality, method=6)
+                    logger.debug("图片 WebP 压缩完成: %s -> %s", source_path.name, target_path)
                     return target_path
 
                 save_kwargs: dict[str, Any] = {"optimize": True}
                 if suffix == ".png":
                     save_kwargs["compress_level"] = 9
                 converted.save(target_path, **save_kwargs)
+                logger.debug("图片压缩完成: %s -> %s", source_path.name, target_path)
                 return target_path
-        except Exception:
+        except Exception as exc:
+            logger.warning("图片压缩失败，回退到原始文件: %s, error=%s", source_path, exc)
             self.remove_file_if_exists(target_path)
             return source_path
 
     def compress_video(self, source_path: Path, target_path: Path) -> Path:
         if shutil.which("ffmpeg") is None:
+            logger.warning("ffmpeg 未找到，跳过视频压缩: %s", source_path)
             return source_path
 
         command = [
@@ -106,11 +125,14 @@ class MediaPreprocessor:
     def run_ffmpeg_or_fallback(self, command: list[str], source_path: Path, target_path: Path) -> Path:
         try:
             subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:
+            logger.debug("视频压缩完成: %s -> %s", source_path.name, target_path)
+        except Exception as exc:
+            logger.warning("视频压缩失败，回退到原始文件: %s, error=%s", source_path, exc)
             self.remove_file_if_exists(target_path)
             return source_path
 
         if not target_path.exists() or target_path.stat().st_size <= 0:
+            logger.warning("视频压缩输出为空，回退到原始文件: %s", source_path)
             self.remove_file_if_exists(target_path)
             return source_path
         return target_path

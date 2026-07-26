@@ -262,7 +262,7 @@ public sealed class BackendLauncherService : IBackendLauncher
             HealthCheckInterval = TimeSpan.FromMilliseconds(section.GetValue<double?>("HealthCheckIntervalMilliseconds") ?? 500),
             HeartbeatInterval = TimeSpan.FromSeconds(section.GetValue<double?>("HeartbeatIntervalSeconds") ?? 2),
             HeartbeatTimeout = TimeSpan.FromSeconds(section.GetValue<double?>("HeartbeatTimeoutSeconds") ?? 8),
-            HeartbeatStartupGrace = TimeSpan.FromSeconds(section.GetValue<double?>("HeartbeatStartupGraceSeconds") ?? 15),
+            HeartbeatStartupGrace = TimeSpan.FromSeconds(section.GetValue<double?>("HeartbeatStartupGraceSeconds") ?? 35),
         };
     }
 }

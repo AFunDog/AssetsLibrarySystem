@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.schemas.model import ModelGenerateResponse
+
+logger = logging.getLogger(__name__)
 
 
 class ModelResponseParser:
@@ -17,20 +20,24 @@ class ModelResponseParser:
         if choices is None and isinstance(output, dict):
             choices = output.get("choices")
         if not choices:
+            logger.warning("无法解析模型响应: choices 为空")
             raise RuntimeError(f"无法解析模型响应: {response}")
 
         message = choices[0].get("message") if isinstance(choices[0], dict) else getattr(choices[0], "message", None)
         if message is None:
+            logger.warning("无法解析模型消息体: message 为空")
             raise RuntimeError(f"无法解析模型消息体: {response}")
 
         content = message.get("content") if isinstance(message, dict) else getattr(message, "content", None)
         if isinstance(content, str):
             return content
         if isinstance(content, list):
-            return "\n".join(
+            text = "\n".join(
                 str(item["text"]) if isinstance(item, dict) and "text" in item else str(item)
                 for item in content
             ).strip()
+            return text
+        logger.warning("无法解析模型输出文本: content 类型=%s", type(content).__name__)
         raise RuntimeError(f"无法解析模型输出文本: {response}")
 
     def extract_token_usage(self, response: Any) -> ModelGenerateResponse.TokenUsage | None:
@@ -49,6 +56,12 @@ class ModelResponseParser:
         if all(value is None for value in (input_tokens, output_tokens, total_tokens, image_tokens, video_tokens, audio_tokens)):
             return None
 
+        logger.debug(
+            "解析 token 用量: input=%s, output=%s, total=%s",
+            input_tokens,
+            output_tokens,
+            total_tokens,
+        )
         return ModelGenerateResponse.TokenUsage(
             input_tokens=input_tokens or 0,
             output_tokens=output_tokens or 0,

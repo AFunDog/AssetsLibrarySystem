@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 import threading
@@ -7,6 +8,8 @@ from datetime import datetime
 from typing import Final
 
 from fastapi import FastAPI
+
+logger = logging.getLogger(__name__)
 
 
 class HeartbeatMonitor:
@@ -65,7 +68,7 @@ class HeartbeatMonitor:
                 text=True,
             )
         except Exception as exc:  # pragma: no cover - defensive guard
-            print(f"[heartbeat] failed to terminate supervisor pid={parent_pid}: {exc}", flush=True)
+            logger.warning("heartbeat terminate supervisor failed pid=%s: %s", parent_pid, exc)
 
     def _force_exit(self) -> None:
         current_pid = os.getpid()
@@ -77,7 +80,7 @@ class HeartbeatMonitor:
                 text=True,
             )
         except Exception as exc:  # pragma: no cover - defensive guard
-            print(f"[heartbeat] failed to terminate backend pid={current_pid}: {exc}", flush=True)
+            logger.warning("heartbeat terminate backend failed pid=%s: %s", current_pid, exc)
 
         self._terminate_supervisor_tree()
         os._exit(1)
@@ -100,14 +103,15 @@ class HeartbeatMonitor:
                     started_wall = self._format_wall_time(started_wall_at)
                     last_heartbeat_wall = self._format_wall_time(last_heartbeat_wall_at)
                     age_seconds = now - last_heartbeat_at
-                    print(
-                        f"[heartbeat] {now_wall} desktop heartbeat timeout after {age_seconds:.1f}s; "
-                        f"started_at={started_wall}; last_heartbeat_at={last_heartbeat_wall}; backend will exit",
-                        flush=True,
+                    logger.warning(
+                        "desktop heartbeat timeout after %.1fs; started_at=%s; last_heartbeat_at=%s; backend will exit",
+                        age_seconds,
+                        started_wall,
+                        last_heartbeat_wall,
                     )
                     self._force_exit()
             except Exception as exc:  # pragma: no cover - defensive guard
-                print(f"[heartbeat] watcher error, keep monitoring: {exc}", flush=True)
+                logger.warning("heartbeat watcher error, keep monitoring: %s", exc)
 
     def _start_watcher(self) -> None:
         self._watcher_stop_event.clear()
@@ -135,11 +139,10 @@ class HeartbeatMonitor:
             self.started_wall_at = now_wall
             self.last_heartbeat_wall_at = now_wall
         self._start_watcher()
-        print(
-            "[heartbeat] monitor started at "
-            f"{self._format_wall_time(now_wall)}, timeout={self.timeout_seconds:.1f}s, "
-            f"startup_grace={self.startup_grace_seconds:.1f}s",
-            flush=True,
+        logger.info(
+            "heartbeat monitor started, timeout=%.1fs, startup_grace=%.1fs",
+            self.timeout_seconds,
+            self.startup_grace_seconds,
         )
 
         try:

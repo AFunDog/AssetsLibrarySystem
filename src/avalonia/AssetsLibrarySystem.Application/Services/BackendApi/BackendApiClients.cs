@@ -82,13 +82,23 @@ public interface IBackendApiTransport
 
 public sealed class BackendApiTransport : IBackendApiTransport, IDisposable
 {
-    private HttpClient Http { get; } = new();
+    private HttpClient Http { get; }
     private JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
+
+    public BackendApiTransport()
+    {
+        var handler = new HttpClientHandler
+        {
+            UseProxy = false,
+            Proxy = null,
+        };
+        Http = new HttpClient(handler);
+    }
 
     public async Task<TResponse> GetAsync<TResponse>(
         string backendBaseUrl,
@@ -158,12 +168,14 @@ public sealed class BackendApiTransport : IBackendApiTransport, IDisposable
             using var response = await Http.GetAsync(BuildEndpoint(backendBaseUrl, relativePath), ct).ConfigureAwait(false);
             return response.IsSuccessStatusCode;
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
+            Log.Debug("后端健康检查失败: {RelativePath}, error={Error}", relativePath, ex.Message);
             return false;
         }
-        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        catch (TaskCanceledException ex) when (!ct.IsCancellationRequested)
         {
+            Log.Debug("后端健康检查超时: {RelativePath}, error={Error}", relativePath, ex.Message);
             return false;
         }
     }
