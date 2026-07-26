@@ -28,7 +28,7 @@ public sealed class QueryEmbeddingClient : IQueryEmbeddingClient
         var request = new BackendSearchIndexRequest(
             Provider: searchModels.EmbeddingProvider,
             Model: searchModels.EmbeddingModel,
-            EmbeddingDimensions: searchModels.IsDashScopeEmbeddingProvider ? searchModels.EmbeddingDimensions : null,
+            EmbeddingDimensions: searchModels.EmbeddingDimensions,
             AssetId: "__query__",
             AssetName: "__query__",
             AssetFormat: "文本",
@@ -79,56 +79,5 @@ public sealed class RerankClient : IRerankClient
             response.RerankModel,
             response.Results.Select(item => new SearchRerankScore(item.CandidateId, item.RerankScore)).ToArray(),
             response.TokenUsage);
-    }
-}
-
-public sealed class SearchModelManagementClient : ISearchModelManagementClient
-{
-    private IBackendModelClient BackendModelClient { get; }
-
-    public SearchModelManagementClient(IBackendModelClient backendModelClient)
-    {
-        BackendModelClient = backendModelClient;
-    }
-
-    public async Task<AssetSearchWarmupDocument> WarmupAsync(
-        string backendBaseUrl,
-        string modelKind,
-        CancellationToken ct = default)
-    {
-        var response = await BackendModelClient.WarmupAsync(backendBaseUrl, modelKind, ct).ConfigureAwait(false);
-        return new AssetSearchWarmupDocument(response.ModelKind, response.ModelName, response.Device, response.Warmed);
-    }
-
-    public async Task<AssetSearchModelStatusDocument> GetModelStatusAsync(
-        string backendBaseUrl,
-        CancellationToken ct = default)
-    {
-        var response = await BackendModelClient.GetStatusAsync(backendBaseUrl, ct).ConfigureAwait(false);
-        return new AssetSearchModelStatusDocument(
-            response.EmbeddingModelName,
-            response.RerankModelName,
-            response.Device,
-            response.LoadedModelKinds.ToArray(),
-            response.EmbeddingLoaded,
-            response.RerankLoaded,
-            response.LoadedCount);
-    }
-
-    public async Task<AssetSearchModelCloseDocument> CloseModelAsync(
-        string backendBaseUrl,
-        string modelKind,
-        CancellationToken ct = default)
-    {
-        var response = await BackendModelClient
-            .CloseAsync(backendBaseUrl, new BackendModelCloseRequest(modelKind), ct)
-            .ConfigureAwait(false);
-        return new AssetSearchModelCloseDocument(
-            response.ModelKind,
-            response.ModelName,
-            response.Device,
-            response.Closed,
-            response.CudaCacheCleared,
-            response.RemainingLoadedModels.ToArray());
     }
 }

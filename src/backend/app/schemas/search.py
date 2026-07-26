@@ -12,11 +12,11 @@ EmbeddingDimensions = Literal[2048, 1024, 512]
 
 
 class SearchIndexRequest(BaseModel):
-    provider: Literal["local", "dashscope"] = "local"
-    model: str = Field(default="Qwen/Qwen3-Embedding-0.6B", min_length=1)
+    provider: Literal["dashscope"] = "dashscope"
+    model: str = Field(default="text-embedding-v4", min_length=1)
     embedding_dimensions: EmbeddingDimensions | None = Field(
         default=None,
-        description="DashScope embedding output dimensions; ignored by local models",
+        description="DashScope embedding output dimensions",
     )
     asset_id: str = Field(min_length=1, description="Asset id")
     asset_name: str = Field(min_length=1, description="Asset name")
@@ -46,8 +46,8 @@ class SearchIndexResponse(BaseModel):
 
 
 class SearchQueryRequest(BaseModel):
-    provider: Literal["local", "dashscope"] = "local"
-    model: str = Field(default="Qwen/Qwen3-Reranker-0.6B", min_length=1)
+    provider: Literal["dashscope"] = "dashscope"
+    model: str = Field(default="qwen3-rerank", min_length=1)
     query: str = Field(min_length=1, description="User query")
     candidates: list["SearchQueryCandidate"] = Field(min_length=1, description="Candidates to rerank")
     final_top_k: int = Field(default=5, ge=1, le=50)
@@ -85,36 +85,6 @@ class SearchQueryResponse(BaseModel):
     rerank_model: str
     results: list[SearchQueryResultItem]
     token_usage: int | None = None
-
-
-class SearchWarmupResponse(BaseModel):
-    model_kind: Literal["embedding", "rerank"]
-    model_name: str
-    device: str
-    warmed: bool = True
-
-
-class SearchModelCloseRequest(BaseModel):
-    model_kind: Literal["embedding", "rerank"] = Field(description="Model kind to release")
-
-
-class SearchModelCloseResponse(BaseModel):
-    model_kind: Literal["embedding", "rerank"]
-    model_name: str
-    device: str
-    closed: bool = Field(description="Whether a loaded model was released")
-    cuda_cache_cleared: bool = Field(description="Whether CUDA cache was cleared")
-    remaining_loaded_models: list[Literal["embedding", "rerank"]] = Field(default_factory=list)
-
-
-class SearchModelStatusResponse(BaseModel):
-    embedding_model_name: str
-    rerank_model_name: str
-    device: str
-    loaded_model_kinds: list[Literal["embedding", "rerank"]] = Field(default_factory=list)
-    embedding_loaded: bool
-    rerank_loaded: bool
-    loaded_count: int = Field(ge=0)
 
 
 SearchQueryRequest.model_rebuild()

@@ -77,24 +77,3 @@ public sealed record BackendTokenUsage(
     JsonElement? InputTokensDetails,
     JsonElement? OutputTokensDetails,
     JsonElement? PromptTokensDetails);
-
-public sealed record BackendModelWarmupResponse(string ModelKind, string ModelName, string Device, bool Warmed);
-
-public sealed record BackendModelStatusResponse(
-    string EmbeddingModelName,
-    string RerankModelName,
-    string Device,
-    string[] LoadedModelKinds,
-    bool EmbeddingLoaded,
-    bool RerankLoaded,
-    int LoadedCount);
-
-public sealed record BackendModelCloseRequest(string ModelKind);
-
-public sealed record BackendModelCloseResponse(
-    string ModelKind,
-    string ModelName,
-    string Device,
-    bool Closed,
-    bool CudaCacheCleared,
-    string[] RemainingLoadedModels);

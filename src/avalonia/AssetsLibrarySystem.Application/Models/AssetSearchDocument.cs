@@ -88,26 +88,3 @@ public sealed record AssetReindexResponseDocument(
     string IndexPath,
     string MetadataPath,
     string[] EmbeddingModels);
-
-public sealed record AssetSearchWarmupDocument(
-    string ModelKind,
-    string ModelName,
-    string Device,
-    bool Warmed);
-
-public sealed record AssetSearchModelStatusDocument(
-    string EmbeddingModelName,
-    string RerankModelName,
-    string Device,
-    string[] LoadedModelKinds,
-    bool EmbeddingLoaded,
-    bool RerankLoaded,
-    int LoadedCount);
-
-public sealed record AssetSearchModelCloseDocument(
-    string ModelKind,
-    string ModelName,
-    string Device,
-    bool Closed,
-    bool CudaCacheCleared,
-    string[] RemainingLoadedModels);

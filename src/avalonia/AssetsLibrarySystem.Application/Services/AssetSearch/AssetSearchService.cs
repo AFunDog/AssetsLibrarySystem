@@ -14,20 +14,17 @@ public sealed class AssetSearchService : IAssetSearchService
     private IAssetDatabase AssetDatabase { get; }
     private ISearchModelOptionsProvider SearchModelOptionsProvider { get; }
     private IVectorRecordRepository VectorRecordRepository { get; }
-    private ISearchModelManagementClient ModelManagementClient { get; }
     private IAssetSearchPipeline SearchPipeline { get; }
 
     public AssetSearchService(
         IAssetDatabase assetDatabase,
         ISearchModelOptionsProvider searchModelOptionsProvider,
         IVectorRecordRepository vectorRecordRepository,
-        ISearchModelManagementClient modelManagementClient,
         IAssetSearchPipeline searchPipeline)
     {
         AssetDatabase = assetDatabase;
         SearchModelOptionsProvider = searchModelOptionsProvider;
         VectorRecordRepository = vectorRecordRepository;
-        ModelManagementClient = modelManagementClient;
         SearchPipeline = searchPipeline;
     }
 
@@ -90,26 +87,6 @@ public sealed class AssetSearchService : IAssetSearchService
             IndexPath: indexManager.IndexPath,
             MetadataPath: indexManager.MetadataPath,
             EmbeddingModels: embeddingModels);
-    }
-
-    public async Task<AssetSearchWarmupDocument> WarmupEmbeddingAsync(string backendBaseUrl, CancellationToken ct = default)
-    {
-        return await ModelManagementClient.WarmupAsync(backendBaseUrl, "embedding", ct).ConfigureAwait(false);
-    }
-
-    public async Task<AssetSearchWarmupDocument> WarmupRerankAsync(string backendBaseUrl, CancellationToken ct = default)
-    {
-        return await ModelManagementClient.WarmupAsync(backendBaseUrl, "rerank", ct).ConfigureAwait(false);
-    }
-
-    public async Task<AssetSearchModelStatusDocument> GetModelStatusAsync(string backendBaseUrl, CancellationToken ct = default)
-    {
-        return await ModelManagementClient.GetModelStatusAsync(backendBaseUrl, ct).ConfigureAwait(false);
-    }
-
-    public async Task<AssetSearchModelCloseDocument> CloseModelAsync(string backendBaseUrl, string modelKind, CancellationToken ct = default)
-    {
-        return await ModelManagementClient.CloseModelAsync(backendBaseUrl, modelKind, ct).ConfigureAwait(false);
     }
 
     private static LocalVectorIndexState BuildIndexState(System.Collections.Generic.IReadOnlyList<LocalVectorRecord> records)

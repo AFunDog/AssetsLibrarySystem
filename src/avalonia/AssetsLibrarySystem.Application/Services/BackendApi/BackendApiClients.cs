@@ -51,20 +51,6 @@ public interface IBackendModelClient
         string backendBaseUrl,
         BackendModelGenerateRequest request,
         CancellationToken ct = default);
-
-    Task<BackendModelWarmupResponse> WarmupAsync(
-        string backendBaseUrl,
-        string modelKind,
-        CancellationToken ct = default);
-
-    Task<BackendModelStatusResponse> GetStatusAsync(
-        string backendBaseUrl,
-        CancellationToken ct = default);
-
-    Task<BackendModelCloseResponse> CloseAsync(
-        string backendBaseUrl,
-        BackendModelCloseRequest request,
-        CancellationToken ct = default);
 }
 
 public interface IBackendHealthClient
@@ -270,26 +256,6 @@ public sealed class BackendModelClient : IBackendModelClient
         CancellationToken ct = default) =>
         Transport.PostAsync<BackendModelGenerateRequest, BackendModelGenerateResponse>(
             backendBaseUrl, "/api/v1/model/generate", request, "描述生成", ct);
-
-    public Task<BackendModelWarmupResponse> WarmupAsync(
-        string backendBaseUrl,
-        string modelKind,
-        CancellationToken ct = default) =>
-        Transport.PostAsync<object, BackendModelWarmupResponse>(
-            backendBaseUrl, $"/api/v1/search/warmup/{modelKind}", new { }, "模型预热", ct);
-
-    public Task<BackendModelStatusResponse> GetStatusAsync(
-        string backendBaseUrl,
-        CancellationToken ct = default) =>
-        Transport.GetAsync<BackendModelStatusResponse>(
-            backendBaseUrl, "/api/v1/search/models/status", "模型状态查询", ct);
-
-    public Task<BackendModelCloseResponse> CloseAsync(
-        string backendBaseUrl,
-        BackendModelCloseRequest request,
-        CancellationToken ct = default) =>
-        Transport.PostAsync<BackendModelCloseRequest, BackendModelCloseResponse>(
-            backendBaseUrl, "/api/v1/search/models/close", request, "模型关闭", ct);
 }
 
 public sealed class BackendHealthClient : IBackendHealthClient

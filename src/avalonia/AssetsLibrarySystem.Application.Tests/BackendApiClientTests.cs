@@ -20,27 +20,11 @@ public sealed class BackendApiClientTests
         await client.IndexAsync(
             "http://backend/",
             new BackendSearchIndexRequest(
-                "local", "embedding-test", null, "asset-1", "asset.png", "图片",
+                "dashscope", "embedding-test", null, "asset-1", "asset.png", "图片",
                 @"D:\asset.png", "description", null));
 
         Assert.Equal("/api/v1/search/index", transport.RelativePath);
         Assert.Equal("向量化", transport.Operation);
-    }
-
-    [Fact]
-    public async Task BackendModelClient_UsesCentralModelEndpoints()
-    {
-        var transport = new FakeBackendApiTransport
-        {
-            Response = new BackendModelStatusResponse(
-                "embedding-test", "rerank-test", "cpu", [], false, false, 0),
-        };
-        var client = new BackendModelClient(transport);
-
-        await client.GetStatusAsync("http://backend");
-
-        Assert.Equal("/api/v1/search/models/status", transport.RelativePath);
-        Assert.Equal("模型状态查询", transport.Operation);
     }
 
     [Fact]

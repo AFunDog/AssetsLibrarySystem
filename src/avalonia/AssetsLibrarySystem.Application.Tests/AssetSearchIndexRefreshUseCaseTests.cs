@@ -318,25 +318,5 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             ReindexCallCount++;
             return Task.FromResult(new AssetReindexResponseDocument(0, 0, "test.db", "test.hnsw", "test.meta.json", []));
         }
-
-        public Task<AssetSearchWarmupDocument> WarmupEmbeddingAsync(string backendBaseUrl, CancellationToken ct = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<AssetSearchWarmupDocument> WarmupRerankAsync(string backendBaseUrl, CancellationToken ct = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<AssetSearchModelStatusDocument> GetModelStatusAsync(string backendBaseUrl, CancellationToken ct = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<AssetSearchModelCloseDocument> CloseModelAsync(string backendBaseUrl, string modelKind, CancellationToken ct = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 }

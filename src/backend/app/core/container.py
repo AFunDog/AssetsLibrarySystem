@@ -11,9 +11,6 @@ class AppContainer:
     model_service: ModelService
     search_service: SearchService
 
-    def close(self) -> None:
-        self.search_service.close_all_models()
-
 
 def build_app_container() -> AppContainer:
     return AppContainer(

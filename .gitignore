@@ -14,3 +14,5 @@ obj/
 data/
 logs/
 tmp/
+
+.zcode/

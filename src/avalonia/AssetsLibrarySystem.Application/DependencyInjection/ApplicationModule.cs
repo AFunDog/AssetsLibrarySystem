@@ -117,10 +117,6 @@ public sealed class AssetSearchModule : Module
             .As<IRerankClient>()
             .SingleInstance();
 
-        builder.RegisterType<SearchModelManagementClient>()
-            .As<ISearchModelManagementClient>()
-            .SingleInstance();
-
         builder.RegisterType<ExactVectorRetriever>()
             .AsSelf()
             .SingleInstance();

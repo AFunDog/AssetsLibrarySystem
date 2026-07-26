@@ -49,7 +49,7 @@
                         <TextBlock Classes="settings-title" Text="设置" />
                         <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                    TextWrapping="Wrap"
-                                   Text="管理模型网关、本地检索模型和桌面端运行状态。" />
+                                   Text="管理模型网关和桌面端运行状态。" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -86,26 +86,15 @@
 
                     <Border Classes="settings-card">
                         <StackPanel Spacing="8">
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                               FontWeight="SemiBold"
-                                               Text="搜索模型" />
-                                    <TextBlock Classes="settings-section-title"
-                                               Text="{Binding SearchModelStatusTitle}" />
-                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                               Text="{Binding SearchModelStatusStage}" />
-                                </StackPanel>
-                                <Button Grid.Column="1"
-                                        Background="{DynamicResource AppSoftSurfaceBrush}"
-                                        Foreground="{DynamicResource AppTextBrush}"
-                                        BorderBrush="{DynamicResource AppBorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="12,8"
-                                        Command="{Binding RefreshModelStatusCommand}"
-                                        Content="刷新状态" />
-                            </Grid>
+                            <StackPanel Spacing="4">
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           FontWeight="SemiBold"
+                                           Text="搜索模型" />
+                                <TextBlock Classes="settings-section-title"
+                                           Text="{Binding SearchModelStatusTitle}" />
+                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                           Text="{Binding SearchModelStatusStage}" />
+                            </StackPanel>
 
                             <Border Background="{DynamicResource AppWindowBackgroundBrush}"
                                     BorderBrush="{DynamicResource AppBorderBrush}"
@@ -116,24 +105,16 @@
                                            Text="{Binding SearchModelStatusDetail}" />
                             </Border>
 
-                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
-                                <TextBlock VerticalAlignment="Center" Text="向量来源" />
-                                <ComboBox Grid.Column="1"
-                                          ItemsSource="{Binding ProviderOptions}"
-                                          SelectedItem="{Binding EmbeddingProvider, Mode=TwoWay}" />
-                                <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="向量模型" />
-                                <TextBox Grid.Row="1" Grid.Column="1"
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+                                <TextBlock VerticalAlignment="Center" Text="向量模型" />
+                                <TextBox Grid.Column="1"
                                          Text="{Binding EmbeddingModel, Mode=TwoWay}" />
-                                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="向量维度" />
-                                <ComboBox Grid.Row="2" Grid.Column="1"
+                                <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="向量维度" />
+                                <ComboBox Grid.Row="1" Grid.Column="1"
                                           ItemsSource="{Binding EmbeddingDimensionOptions}"
                                           SelectedItem="{Binding EmbeddingDimensions, Mode=TwoWay}" />
-                                <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="重排序来源" />
-                                <ComboBox Grid.Row="3" Grid.Column="1"
-                                          ItemsSource="{Binding ProviderOptions}"
-                                          SelectedItem="{Binding RerankProvider, Mode=TwoWay}" />
-                                <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="重排序模型" />
-                                <TextBox Grid.Row="4" Grid.Column="1"
+                                <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="重排序模型" />
+                                <TextBox Grid.Row="2" Grid.Column="1"
                                          Text="{Binding RerankModel, Mode=TwoWay}" />
                             </Grid>
 
@@ -171,40 +152,10 @@
                                 </StackPanel>
                             </Border>
 
-                            <StackPanel Spacing="4">
-                                <CheckBox Content="下次启动自动预热 embedding 模型"
-                                          IsChecked="{Binding AutoWarmupEmbeddingModel, Mode=TwoWay}" />
-                                <CheckBox Content="下次启动自动预热 rerank 模型"
-                                          IsChecked="{Binding AutoWarmupRerankModel, Mode=TwoWay}" />
-                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                           FontSize="12"
-                                           Text="DashScope 向量维度固定支持 2048 / 1024 / 512；本地 embedding 模型仍使用模型自身输出维度。"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                           FontSize="12"
-                                           Text="{Binding SettingsStatusMessage}"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                <Button Background="{DynamicResource AppSoftSurfaceBrush}"
-                                        Foreground="{DynamicResource AppTextBrush}"
-                                        BorderBrush="{DynamicResource AppBorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="12,8"
-                                        Command="{Binding CloseEmbeddingModelCommand}"
-                                        Content="关闭 embedding" />
-                                <Button Grid.Column="1"
-                                        Background="{DynamicResource AppSoftSurfaceBrush}"
-                                        Foreground="{DynamicResource AppTextBrush}"
-                                        BorderBrush="{DynamicResource AppBorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="12,8"
-                                        Command="{Binding CloseRerankModelCommand}"
-                                        Content="关闭 rerank" />
-                            </Grid>
+                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                       FontSize="12"
+                                       Text="{Binding SettingsStatusMessage}"
+                                       TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

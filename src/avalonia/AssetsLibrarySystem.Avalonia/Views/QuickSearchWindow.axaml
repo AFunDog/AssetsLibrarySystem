@@ -5,7 +5,7 @@
         xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
         x:Class="AssetsLibrarySystem.Avalonia.Views.QuickSearchWindow"
         x:DataType="vm:QuickSearchViewModel"
-
+        FontFamily="Noto Sans SC"
         CanResize="False"
         ShowInTaskbar="False"
         Topmost="True"
@@ -92,7 +92,6 @@
                              Background="Transparent"
                              BorderBrush="Transparent"
                              Foreground="{DynamicResource AppTextBrush}"
-                             FontFamily="Noto Sans SC"
                              VerticalContentAlignment="Center"
                              Padding="0,0,0,0"
                              PlaceholderText="输入素材描述并回车，例如：紧张氛围的音乐">

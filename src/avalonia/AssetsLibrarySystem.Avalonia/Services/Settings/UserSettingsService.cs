@@ -12,25 +12,18 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
 {
     private static readonly TimeSpan SaveDebounceDelay = TimeSpan.FromMilliseconds(500);
     private const string DashScopeProvider = "dashscope";
-    private const string LocalProvider = "local";
     private const string DefaultDashScopeEmbeddingModel = "text-embedding-v4";
-    private const string DefaultLocalEmbeddingModel = "Qwen/Qwen3-Embedding-0.6B";
     private const string DefaultDashScopeRerankModel = "qwen3-rerank";
-    private const string DefaultLocalRerankModel = "Qwen/Qwen3-Reranker-0.6B";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
     };
 
-    private bool _autoWarmupEmbeddingModel;
-    private bool _autoWarmupRerankModel;
     private string _embeddingProvider = DashScopeProvider;
     private string _rerankProvider = DashScopeProvider;
     private ProviderEmbeddingSettings _dashScopeEmbedding = new(DefaultDashScopeEmbeddingModel, 1024);
-    private ProviderEmbeddingSettings _localEmbedding = new(DefaultLocalEmbeddingModel, 1024);
     private ProviderRerankSettings _dashScopeRerank = new(DefaultDashScopeRerankModel);
-    private ProviderRerankSettings _localRerank = new(DefaultLocalRerankModel);
     private int _searchCandidateTopK = 20;
     private int _searchExpandedCandidateTopK = 160;
     private int _searchRerankTopK = 50;
@@ -61,42 +54,12 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
 
     public string SettingsPath { get; }
 
-    public bool AutoWarmupEmbeddingModel
-    {
-        get => _autoWarmupEmbeddingModel;
-        set
-        {
-            if (_autoWarmupEmbeddingModel == value)
-            {
-                return;
-            }
-
-            _autoWarmupEmbeddingModel = value;
-            SaveIfReady();
-        }
-    }
-
-    public bool AutoWarmupRerankModel
-    {
-        get => _autoWarmupRerankModel;
-        set
-        {
-            if (_autoWarmupRerankModel == value)
-            {
-                return;
-            }
-
-            _autoWarmupRerankModel = value;
-            SaveIfReady();
-        }
-    }
-
     public string EmbeddingProvider
     {
         get => _embeddingProvider;
         set
         {
-            value = NormalizeProvider(value);
+            value = DashScopeProvider;
             if (_embeddingProvider == value)
             {
                 return;
@@ -112,7 +75,7 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
         get => CurrentEmbeddingSettings.Model;
         set
         {
-            value = NormalizeModel(value, GetDefaultEmbeddingModel(EmbeddingProvider));
+            value = NormalizeModel(value, DefaultDashScopeEmbeddingModel);
             var settings = CurrentEmbeddingSettings;
             if (settings.Model == value)
             {
@@ -146,7 +109,7 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
         get => _rerankProvider;
         set
         {
-            value = NormalizeProvider(value);
+            value = DashScopeProvider;
             if (_rerankProvider == value)
             {
                 return;
@@ -162,7 +125,7 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
         get => CurrentRerankSettings.Model;
         set
         {
-            value = NormalizeModel(value, GetDefaultRerankModel(RerankProvider));
+            value = NormalizeModel(value, DefaultDashScopeRerankModel);
             var settings = CurrentRerankSettings;
             if (settings.Model == value)
             {
@@ -252,11 +215,9 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
 
     public SearchModelOptions Current => new(EmbeddingProvider, EmbeddingModel, EmbeddingDimensions, RerankProvider, RerankModel);
 
-    private ProviderEmbeddingSettings CurrentEmbeddingSettings =>
-        EmbeddingProvider == LocalProvider ? _localEmbedding : _dashScopeEmbedding;
+    private ProviderEmbeddingSettings CurrentEmbeddingSettings => _dashScopeEmbedding;
 
-    private ProviderRerankSettings CurrentRerankSettings =>
-        RerankProvider == LocalProvider ? _localRerank : _dashScopeRerank;
+    private ProviderRerankSettings CurrentRerankSettings => _dashScopeRerank;
 
     private static string CreateFallbackSettingsPath()
     {
@@ -292,28 +253,16 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
                 return;
             }
 
-            AutoWarmupEmbeddingModel = snapshot.AutoWarmupEmbeddingModel;
-            AutoWarmupRerankModel = snapshot.AutoWarmupRerankModel;
-
             _dashScopeEmbedding = NormalizeEmbeddingSettings(
                 snapshot.DashScopeEmbedding,
                 DefaultDashScopeEmbeddingModel,
-                snapshot.EmbeddingProvider == DashScopeProvider ? snapshot.EmbeddingModel : null,
-                snapshot.EmbeddingProvider == DashScopeProvider ? snapshot.EmbeddingDimensions : null);
-            _localEmbedding = NormalizeEmbeddingSettings(
-                snapshot.LocalEmbedding,
-                DefaultLocalEmbeddingModel,
-                snapshot.EmbeddingProvider == LocalProvider ? snapshot.EmbeddingModel : null,
-                snapshot.EmbeddingProvider == LocalProvider ? snapshot.EmbeddingDimensions : null);
+                snapshot.EmbeddingModel,
+                snapshot.EmbeddingDimensions);
 
             _dashScopeRerank = NormalizeRerankSettings(
                 snapshot.DashScopeRerank,
                 DefaultDashScopeRerankModel,
-                snapshot.RerankProvider == DashScopeProvider ? snapshot.RerankModel : null);
-            _localRerank = NormalizeRerankSettings(
-                snapshot.LocalRerank,
-                DefaultLocalRerankModel,
-                snapshot.RerankProvider == LocalProvider ? snapshot.RerankModel : null);
+                snapshot.RerankModel);
 
             SearchCandidateTopK = snapshot.SearchCandidateTopK;
             SearchExpandedCandidateTopK = snapshot.SearchExpandedCandidateTopK;
@@ -323,10 +272,8 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
             RerankProvider = snapshot.RerankProvider;
 
             Log.Debug(
-                "用户设置已加载: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}",
+                "用户设置已加载: settingsPath={SettingsPath}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}",
                 SettingsPath,
-                AutoWarmupEmbeddingModel,
-                AutoWarmupRerankModel,
                 EmbeddingProvider,
                 EmbeddingModel,
                 EmbeddingDimensions,
@@ -382,17 +329,13 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
 
             var snapshot = new UserSettingsSnapshot
             {
-                AutoWarmupEmbeddingModel = AutoWarmupEmbeddingModel,
-                AutoWarmupRerankModel = AutoWarmupRerankModel,
                 EmbeddingProvider = EmbeddingProvider,
                 EmbeddingModel = EmbeddingModel,
                 EmbeddingDimensions = EmbeddingDimensions,
                 RerankProvider = RerankProvider,
                 RerankModel = RerankModel,
                 DashScopeEmbedding = _dashScopeEmbedding.Clone(),
-                LocalEmbedding = _localEmbedding.Clone(),
                 DashScopeRerank = _dashScopeRerank.Clone(),
-                LocalRerank = _localRerank.Clone(),
                 SearchCandidateTopK = SearchCandidateTopK,
                 SearchExpandedCandidateTopK = SearchExpandedCandidateTopK,
                 SearchRerankTopK = SearchRerankTopK,
@@ -411,10 +354,8 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
                 File.Move(tempPath, SettingsPath);
             }
             Log.Information(
-                "用户设置已保存: settingsPath={SettingsPath}, autoWarmupEmbeddingModel={AutoWarmupEmbeddingModel}, autoWarmupRerankModel={AutoWarmupRerankModel}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}",
+                "用户设置已保存: settingsPath={SettingsPath}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}",
                 SettingsPath,
-                AutoWarmupEmbeddingModel,
-                AutoWarmupRerankModel,
                 EmbeddingProvider,
                 EmbeddingModel,
                 EmbeddingDimensions,
@@ -469,10 +410,6 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
 
     private sealed class UserSettingsSnapshot
     {
-        public bool AutoWarmupEmbeddingModel { get; set; }
-
-        public bool AutoWarmupRerankModel { get; set; }
-
         public string EmbeddingProvider { get; set; } = DashScopeProvider;
 
         public string EmbeddingModel { get; set; } = DefaultDashScopeEmbeddingModel;
@@ -485,11 +422,7 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
 
         public ProviderEmbeddingSettings? DashScopeEmbedding { get; set; }
 
-        public ProviderEmbeddingSettings? LocalEmbedding { get; set; }
-
         public ProviderRerankSettings? DashScopeRerank { get; set; }
-
-        public ProviderRerankSettings? LocalRerank { get; set; }
 
         public int SearchCandidateTopK { get; set; } = 20;
 
@@ -564,15 +497,6 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
         return Math.Clamp(value, min, max);
     }
 
-    private static string NormalizeProvider(string? value) =>
-        string.Equals(value?.Trim(), LocalProvider, StringComparison.OrdinalIgnoreCase) ? LocalProvider : DashScopeProvider;
-
     private static string NormalizeModel(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
-
-    private static string GetDefaultEmbeddingModel(string provider) =>
-        NormalizeProvider(provider) == LocalProvider ? DefaultLocalEmbeddingModel : DefaultDashScopeEmbeddingModel;
-
-    private static string GetDefaultRerankModel(string provider) =>
-        NormalizeProvider(provider) == LocalProvider ? DefaultLocalRerankModel : DefaultDashScopeRerankModel;
 }

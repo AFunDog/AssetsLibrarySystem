@@ -18,9 +18,6 @@ class Settings(BaseSettings):
     port: int = 8000
     data_root: str | None = Field(default=None, validation_alias="DATA_ROOT")
     dashscope_api_key: str = Field(default="", validation_alias="DASHSCOPE_API_KEY")
-    search_cache_dir: str | None = Field(default=None, validation_alias="ALS_SEARCH_CACHE_DIR")
-    search_embed_model: str = Field(default="Qwen/Qwen3-Embedding-0.6B", validation_alias="ALS_SEARCH_EMBED_MODEL")
-    search_rerank_model: str = Field(default="Qwen/Qwen3-Reranker-0.6B", validation_alias="ALS_SEARCH_RERANK_MODEL")
     media_temp_dir: str | None = Field(default=None, validation_alias="ALS_MEDIA_TEMP_DIR")
     enable_media_preprocess: bool = Field(default=True, validation_alias="ALS_ENABLE_MEDIA_PREPROCESS")
     image_max_side: int = Field(default=1600, validation_alias="ALS_IMAGE_MAX_SIDE")

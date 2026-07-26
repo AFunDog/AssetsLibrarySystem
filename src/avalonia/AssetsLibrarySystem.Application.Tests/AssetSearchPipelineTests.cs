@@ -97,7 +97,7 @@ public sealed class AssetSearchPipelineTests
     private sealed class FakeSearchModelOptionsProvider : ISearchModelOptionsProvider
     {
         public SearchModelOptions Current { get; } =
-            new("local", "embedding-test", 1024, "local", "rerank-test");
+            new("dashscope", "embedding-test", 1024, "dashscope", "rerank-test");
     }
 
     private sealed class FakeVectorRecordRepository(IReadOnlyList<LocalVectorRecord> records)
