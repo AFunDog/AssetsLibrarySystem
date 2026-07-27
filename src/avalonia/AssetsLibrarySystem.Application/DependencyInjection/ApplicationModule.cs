@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetLibrary;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
@@ -6,6 +7,7 @@ using AssetsLibrarySystem.Application.Services.BackendApi;
 using AssetsLibrarySystem.Application.Services.BackendLauncher;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
+using AssetsLibrarySystem.Application.Services.Python;
 using Autofac;
 
 namespace AssetsLibrarySystem.Application.DependencyInjection;
@@ -18,8 +20,7 @@ public sealed class ApplicationModule : Module
         builder.RegisterModule<AssetLibraryModule>();
         builder.RegisterModule<AssetDescriptionModule>();
         builder.RegisterModule<AssetSearchModule>();
-        builder.RegisterModule<BackendApiModule>();
-        builder.RegisterModule<BackendModule>();
+        builder.RegisterModule<PythonModule>();
         builder.RegisterModule<BackgroundTaskModule>();
         builder.RegisterModule<ApplicationUseCaseModule>();
     }
@@ -39,25 +40,40 @@ public sealed class ApplicationInfrastructureModule : Module
     }
 }
 
-public sealed class BackendApiModule : Module
+public sealed class PythonModule : Module
 {
     protected override void Load(ContainerBuilder builder)
     {
-        builder.RegisterType<BackendApiTransport>()
-            .As<IBackendApiTransport>()
-            .SingleInstance();
+        var backendSourcePath = ResolveBackendSourcePath();
 
-        builder.RegisterType<BackendSearchClient>()
-            .As<IBackendSearchClient>()
-            .SingleInstance();
+        builder.Register(c => new PythonEngineService(backendSourcePath))
+            .AsSelf()
+            .As<IBackendLauncher>()
+            .SingleInstance()
+            .OnRelease(engine => engine.Dispose());
 
-        builder.RegisterType<BackendModelClient>()
+        builder.RegisterType<PythonModelService>()
             .As<IBackendModelClient>()
             .SingleInstance();
 
-        builder.RegisterType<BackendHealthClient>()
-            .As<IBackendHealthClient>()
+        builder.RegisterType<PythonSearchService>()
+            .As<IBackendSearchClient>()
             .SingleInstance();
+    }
+
+    private static string ResolveBackendSourcePath()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var current = new DirectoryInfo(baseDir);
+        while (current != null)
+        {
+            if (Directory.Exists(Path.Combine(current.FullName, "src", "backend", "app")))
+            {
+                return Path.Combine(current.FullName, "src", "backend");
+            }
+            current = current.Parent;
+        }
+        throw new InvalidOperationException("无法找到 Python 后端源码目录 (src/backend/app)");
     }
 }
 
@@ -147,16 +163,6 @@ public sealed class AssetSearchModule : Module
 
         builder.RegisterType<AssetSearchService>()
             .As<IAssetSearchService>()
-            .SingleInstance();
-    }
-}
-
-public sealed class BackendModule : Module
-{
-    protected override void Load(ContainerBuilder builder)
-    {
-        builder.RegisterType<BackendLauncherService>()
-            .As<IBackendLauncher>()
             .SingleInstance();
     }
 }
