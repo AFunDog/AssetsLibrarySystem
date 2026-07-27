@@ -95,11 +95,10 @@ class VideoSliceDescriber:
     Args:
         call_llm: 调用 LLM 的异步回调函数，用于描述视频片段。
         summarize_fn: 可选，用于总结累积摘要的异步回调。
-                      接收 (现有摘要 + 新片段描述)，返回 ≤300 字的自然语言总结。
-                      为 None 时使用简单的拼接截断方案。
         scene_detector: 场景检测器实例。
         slice_threshold: 切片阈值（秒），超过此值时长的视频才启用切片。
         min_seconds: 最小场景时长（秒），相邻过短场景会被合并。默认 5.0。
+        overlap_seconds: 相邻切片的重叠秒数，前后各延伸此值，避免切点遗漏关键内容。默认 0.5。
         temp_dir: 临时文件目录。
     """
 
@@ -110,12 +109,14 @@ class VideoSliceDescriber:
         scene_detector: VideoSceneDetector | None = None,
         slice_threshold: float = DEFAULT_SLICE_THRESHOLD_SECONDS,
         min_seconds: float = 5.0,
+        overlap_seconds: float = 0.5,
         temp_dir: str | Path | None = None,
     ) -> None:
         self._call_llm = call_llm
         self._summarize_fn = summarize_fn
         self._scene_detector = scene_detector or VideoSceneDetector(min_seconds=min_seconds)
         self._slice_threshold = slice_threshold
+        self._overlap_seconds = overlap_seconds
         self._temp_dir = Path(temp_dir) if temp_dir else Path(tempfile.gettempdir())
 
     def should_slice(self, video_path: str) -> bool:
@@ -151,14 +152,27 @@ class VideoSliceDescriber:
             logger.info("视频只有一个场景，无需切片，直接描述")
             return await self._describe_single(video_path, asset_format, angles, system_prompt, prompt)
 
-        # 2. 描述每个片段（带上下文传递）
+        # 获取视频总时长，用于边界裁剪
+        video_duration = get_video_duration(video_path)
+
+        # 2. 描述每个片段（带重叠 + 上下文传递）
         segment_descriptions = []
         previous_context = ""
         cumulative_summary = ""
         for i, scene in enumerate(scenes):
+            # 应用重叠：起点向前延伸，终点向后延伸，不超出视频边界
+            overlap = self._overlap_seconds
+            overlap_start = max(0.0, scene.start_sec - overlap)
+            overlap_end = min(video_duration, scene.end_sec + overlap)
+            overlapped = SceneRange(
+                start_frame=scene.start_frame,
+                end_frame=scene.end_frame,
+                start_sec=overlap_start,
+                end_sec=overlap_end,
+            )
             seg_desc = await self._describe_segment(
                 video_path=video_path,
-                scene=scene,
+                scene=overlapped,
                 index=i,
                 asset_format=asset_format,
                 angles=angles,

@@ -141,6 +141,7 @@ class ModelService:
                 summarize_fn=self._summarize_text,
                 slice_threshold=payload.slice_threshold,
                 min_seconds=5.0,
+                overlap_seconds=0.5,
                 temp_dir=self._temp_dir,
             )
             if slice_describer.should_slice(payload.asset_path):
@@ -444,7 +445,7 @@ class ModelService:
         if asset_format == "图片":
             return {"image": file_uri}
         if asset_format == "视频":
-            return {"video": file_uri, "fps": 2}
+            return {"video": file_uri, "fps": 5}
         if asset_format == "音频":
             return {"audio": file_uri}
         raise ValueError(f"不支持的多模态素材格式: {asset_format}")

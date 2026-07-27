@@ -83,20 +83,25 @@ class VideoSliceDescriberTestCase(unittest.IsolatedAsyncioTestCase):
                 SceneRange(300, 600, 10.0, 20.0),
             ]
         )
-
-        result = await describer.describe_sliced(
-            "test.mp4",
-            "视频",
-            [{"key": "整体", "label": "整体", "prompt": "概括", "max_length": 120}],
-            "你是描述助手",
-            "请描述",
-        )
+        # Mock get_video_duration
+        with patch(
+            "app.application.services.video_slice_describer.get_video_duration",
+            return_value=30.0,
+        ):
+            result = await describer.describe_sliced(
+                "test.mp4",
+                "视频",
+                [{"key": "整体", "label": "整体", "prompt": "概括", "max_length": 120}],
+                "你是描述助手",
+                "请描述",
+            )
 
         self.assertIn("整体", result)
         self.assertIn("segments", result)
         self.assertEqual(len(result["segments"]), 2)
+        # 由于重叠，第一段起点 0.0（裁剪到边界），第二段起点 9.5（10-0.5）
         self.assertEqual(result["segments"][0]["start_time"], 0.0)
-        self.assertEqual(result["segments"][1]["start_time"], 10.0)
+        self.assertEqual(result["segments"][1]["start_time"], 9.5)
         self.assertIn("测试场景描述", result["整体"]["text"])
 
     async def test_describe_sliced_single_scene(self):
