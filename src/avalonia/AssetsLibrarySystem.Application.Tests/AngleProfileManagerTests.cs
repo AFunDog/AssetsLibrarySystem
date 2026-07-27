@@ -137,6 +137,7 @@ public sealed class AngleProfileManagerTests
         var profile = manager.GetProfile("视频", "实拍");
         Assert.NotNull(profile);
         Assert.Equal("实拍", profile.Subtype);
+        Assert.Contains(profile.Angles, a => a.Key == "时间线");
         Assert.Contains(profile.Angles, a => a.Key == "场景");
         Assert.Contains(profile.Angles, a => a.Key == "动作");
         Assert.Contains(profile.Angles, a => a.Key == "镜头");
@@ -144,13 +145,13 @@ public sealed class AngleProfileManagerTests
     }
 
     [Fact]
-    public void GetProfile_Video_Default_HasOnlyOverall()
+    public void GetProfile_Video_Default_HasTimelineAndOverall()
     {
         var manager = new AngleProfileManager(TestYamlPath);
         var profile = manager.GetProfile("视频", "默认");
         Assert.NotNull(profile);
-        Assert.Single(profile.Angles);
-        Assert.Equal("整体", profile.Angles[0].Key);
+        Assert.Contains(profile.Angles, a => a.Key == "时间线");
+        Assert.Contains(profile.Angles, a => a.Key == "整体");
     }
 
     [Fact]
