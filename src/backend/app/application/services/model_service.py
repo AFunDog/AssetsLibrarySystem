@@ -10,11 +10,13 @@ from app.application.services.dashscope_model_client import DashScopeModelClient
 from app.application.services.media_preprocessor import MediaPreprocessor
 from app.application.services.model_response_parser import ModelResponseParser
 from app.application.services.provider_resolver import ProviderResolver
+from app.core.angle_prompt_builder import build_system_prompt_from_angles
 from app.core.config import get_settings
 from app.core.paths import ensure_shared_data_dir
 from app.core.prompt_config import extract_prompt_templates, load_prompt_config
 from app.core.provider_config import ProviderConfig, ProviderConfigManager
 from app.schemas.model import (
+    AngleDef,
     ModelCapabilitiesResponse,
     ModelGenerateRequest,
     ModelGenerateResponse,
@@ -86,18 +88,33 @@ class ModelService:
 
     async def generate_text(self, payload: ModelGenerateRequest) -> ModelGenerateResponse:
         logger.info(
-            "描述生成请求: format=%s, path=%s, mock=%s",
+            "描述生成请求: format=%s, path=%s, mock=%s, subtype=%s",
             payload.asset_format,
             payload.asset_path,
             payload.mock_response,
+            payload.subtype,
         )
-        context = self._resolve_prompt_context(payload.asset_format)
+
+        # 如果 C# 端传入了角度定义，使用动态构建的 system prompt
+        if payload.angles:
+            system_prompt = build_system_prompt_from_angles(
+                payload.asset_format,
+                [a.model_dump() for a in payload.angles],
+            )
+            # 如果 C# 端也传了 system_prompt 覆盖，则优先使用
+            if payload.system_prompt and payload.system_prompt.strip():
+                system_prompt = payload.system_prompt.strip()
+            prompt = payload.prompt.strip() if payload.prompt else ""
+        else:
+            # 旧路径：从 prompts.yaml 加载静态配置
+            context = self._resolve_prompt_context(payload.asset_format)
+            system_prompt = self._resolve_system_prompt(payload.system_prompt, context.system_prompt)
+            prompt = self._resolve_prompt(payload.prompt, context.prompt)
+
         provider_context = self._resolve_provider_context_for_asset_format(payload.asset_format)
-        system_prompt = self._resolve_system_prompt(payload.system_prompt, context.system_prompt)
-        prompt = self._resolve_prompt(payload.prompt, context.prompt)
         call_model = self._resolve_model_name(provider_context.model, payload.asset_format)
 
-        if payload.mock_response or not context.supports_live_call:
+        if payload.mock_response or not provider_context.supports_live_call:
             logger.info("描述生成使用 mock 模式: format=%s, model=%s", payload.asset_format, call_model)
             return ModelGenerateResponse(
                 provider_slot=DEFAULT_PROVIDER_SLOT,

@@ -74,6 +74,7 @@ public sealed class ManagedAssetRecord : ObservableModel
         set => SetProperty(ref field, value);
     }
     public string Summary { get; init; } = string.Empty;
+    public string Subtype { get; init; } = string.Empty;
     public ObservableCollection<string> Tags { get; init; } = new();
     public string DescriptionStatusLabel => IsDescribed ? "已描述" : "未描述";
     public string FileSizeLabel => FormatFileSize(FileSize);

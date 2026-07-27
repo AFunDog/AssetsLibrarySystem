@@ -155,24 +155,9 @@ public static class StructuredDescriptionHelper
 
     private static void SortSegments(List<StructuredDescriptionSegment> segments)
     {
-        static int GetPriority(string angleType)
-        {
-            return angleType switch
-            {
-                "全面" => 0,
-                "乐器" => 1,
-                "风格" => 2,
-                "情感" => 3,
-                _ => 10,
-            };
-        }
-
-        segments.Sort((left, right) =>
-        {
-            var priorityCompare = GetPriority(left.AngleType).CompareTo(GetPriority(right.AngleType));
-            return priorityCompare != 0
-                ? priorityCompare
-                : string.Compare(left.AngleType, right.AngleType, StringComparison.Ordinal);
-        });
+        // 保持 JSON 中的原始顺序，不做硬编码优先级排序。
+        // 子类型和角度配置由 C# 端的 AngleProfileManager 管理，
+        // 不再在此处硬编码 "全面"→0, "乐器"→1 等优先级。
+        // 仅按出现顺序稳定排序即可。
     }
 }

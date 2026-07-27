@@ -197,6 +197,7 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
         await EnsureColumnAsync(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_description_vectors", "angle_type", "TEXT NOT NULL DEFAULT '全面'", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_description_vectors", "content_hash", "TEXT NULL", ct).ConfigureAwait(false);
+        await EnsureColumnAsync(connection, "asset_metadata", "subtype", "TEXT NULL", ct).ConfigureAwait(false);
     }
 
     private static async Task EnsureColumnAsync(

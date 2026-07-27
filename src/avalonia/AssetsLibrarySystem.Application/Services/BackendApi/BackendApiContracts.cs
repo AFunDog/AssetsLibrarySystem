@@ -51,12 +51,20 @@ public sealed record BackendSearchQueryResponse(
 
 public sealed record BackendSearchQueryResult(string? CandidateId, float RerankScore);
 
+public sealed record AngleDefinitionDto(
+    string Key,
+    string Label,
+    string Prompt,
+    int MaxLength = 120);
+
 public sealed record BackendModelGenerateRequest(
     string AssetFormat,
     string AssetPath,
     string? Prompt,
     string? SystemPrompt,
-    bool MockResponse);
+    bool MockResponse,
+    string? Subtype = null,
+    AngleDefinitionDto[]? Angles = null);
 
 public sealed record BackendModelGenerateResponse(
     string ProviderSlot,

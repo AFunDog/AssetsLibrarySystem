@@ -55,6 +55,27 @@ public sealed class PythonModelService : IBackendModelClient
         kw["prompt"] = request.Prompt is not null ? new PyString(request.Prompt) : Runtime.None;
         kw["system_prompt"] = request.SystemPrompt is not null ? new PyString(request.SystemPrompt) : Runtime.None;
         kw["mock_response"] = new PyInt(request.MockResponse ? 1 : 0);
+        kw["subtype"] = request.Subtype is not null ? new PyString(request.Subtype) : Runtime.None;
+
+        if (request.Angles is { Length: > 0 })
+        {
+            var pyAngles = new PyList();
+            foreach (var angle in request.Angles)
+            {
+                var angleKw = new PyDict();
+                angleKw["key"] = new PyString(angle.Key);
+                angleKw["label"] = new PyString(angle.Label);
+                angleKw["prompt"] = new PyString(angle.Prompt);
+                angleKw["max_length"] = new PyInt(angle.MaxLength);
+                pyAngles.Append(schemas.AngleDef.Invoke(Array.Empty<PyObject>(), angleKw));
+            }
+            kw["angles"] = pyAngles;
+        }
+        else
+        {
+            kw["angles"] = Runtime.None;
+        }
+
         return schemas.ModelGenerateRequest.Invoke(Array.Empty<PyObject>(), kw);
     }
 

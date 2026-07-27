@@ -163,8 +163,10 @@ public sealed class PythonEngineService : IBackendLauncher, IDisposable
         var venvSitePackages = Path.Combine(PythonHome, "Lib", "site-packages");
         var stdLib = Path.Combine(basePython, "Lib");
         var venvLib = Path.Combine(PythonHome, "Lib");
+        var dllsDir = Path.Combine(basePython, "DLLs");
         // 后端源码目录必须在 path 中，以便 import app
-        return $"{BackendSourcePath};{venvSitePackages};{venvLib};{stdLib}";
+        // DLLs 目录必须包含在内，否则 C 扩展模块（如 _socket.pyd）无法加载
+        return $"{BackendSourcePath};{venvSitePackages};{venvLib};{stdLib};{dllsDir}";
     }
 
     private static string ResolveBasePython(string pythonHome)

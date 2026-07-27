@@ -16,7 +16,8 @@ public sealed record AssetDescriptionDocument(
     string? Prompt,
     string? SystemPrompt,
     string? ContentHash,
-    string MetadataStatus)
+    string MetadataStatus,
+    string? Subtype = null)
 {
     public string AssetPath => CurrentPath;
     public string PrimaryDescription => StructuredDescriptionHelper.ExtractPrimaryText(Description);

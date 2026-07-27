@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetLibrary;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
@@ -105,6 +107,27 @@ public sealed class AssetDescriptionModule : Module
 
         builder.RegisterType<AssetTextVectorizationService>()
             .As<IAssetTextVectorizationService>()
+            .SingleInstance();
+
+        // 角度配置管理
+        builder.Register(_ =>
+            {
+                // 优先从输出目录查找，回退到源码目录
+                var yamlPath = Path.Combine(AppContext.BaseDirectory, "angle_profiles.yaml");
+                if (!File.Exists(yamlPath))
+                {
+                    // 回退到仓库源路径
+                    var repoRoot = SharedDataPathHelper.GetRepositoryRoot();
+                    yamlPath = Path.Combine(repoRoot, "src", "avalonia", "AssetsLibrarySystem.Application", "angle_profiles.yaml");
+                }
+                return new AngleProfileManager(yamlPath);
+            })
+            .AsSelf()
+            .SingleInstance();
+
+        // 子类型检测
+        builder.RegisterType<SubtypeDetector>()
+            .As<ISubtypeDetector>()
             .SingleInstance();
     }
 }

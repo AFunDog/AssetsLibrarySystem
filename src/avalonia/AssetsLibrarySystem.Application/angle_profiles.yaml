@@ -1,0 +1,143 @@
+# 素材子类型与角度配置
+# 每个 type → subtype 定义了该子类型的角度组合
+# 角度可以用简写（仅 key）或完整定义（key + label + prompt + max_length）
+# 简写时从定义段继承完整属性
+
+# ========== 角度定义（供简写引用） ==========
+angle_definitions:
+  整体:
+    label: 整体
+    prompt: 用一句话概括该素材
+    max_length: 120
+  场景:
+    label: 场景环境
+    prompt: 描述素材中的场景、环境和背景
+    max_length: 100
+  动作:
+    label: 动作活动
+    prompt: 描述素材中的人物动作、物体运动或动态变化
+    max_length: 100
+  镜头:
+    label: 镜头语言
+    prompt: 描述镜头类型、运动方式和剪辑节奏
+    max_length: 80
+  视觉风格:
+    label: 视觉风格
+    prompt: 描述素材的视觉风格、美术风格和色彩
+    max_length: 100
+  游戏类型:
+    label: 游戏类型
+    prompt: 判断可能的游戏类型和风格
+    max_length: 80
+  歌词大意:
+    label: 歌词大意
+    prompt: 分析歌词主题和情感表达
+    max_length: 150
+  曲风:
+    label: 曲风
+    prompt: 描述音乐风格和流派
+    max_length: 80
+  情感:
+    label: 情感
+    prompt: 描述素材传达的情感氛围
+    max_length: 80
+  乐器:
+    label: 乐器
+    prompt: 列出主要使用的乐器或声音元素
+    max_length: 80
+  风格:
+    label: 风格
+    prompt: 描述速度、节奏、编曲类型和声音质感
+    max_length: 80
+  声音描述:
+    label: 声音描述
+    prompt: 描述声音的特征和质感
+    max_length: 100
+  使用场景:
+    label: 使用场景
+    prompt: 素材适合用在什么场景
+    max_length: 80
+
+# ========== 音频子类型 ==========
+音频:
+  歌曲:
+    label: 歌曲
+    angles:
+      - 歌词大意
+      - 曲风
+      - 情感
+      - 乐器
+      - 整体
+  纯音乐:
+    label: 纯音乐/伴奏
+    angles:
+      - 曲风
+      - 情感
+      - 乐器
+      - 整体
+  音效:
+    label: 音效
+    angles:
+      - 声音描述
+      - 使用场景
+      - 整体
+  默认:
+    label: 通用音频
+    angles:
+      - 整体
+      - 乐器
+      - 风格
+      - 情感
+
+# ========== 视频子类型 ==========
+视频:
+  实拍:
+    label: 实拍视频
+    angles:
+      - 场景
+      - 动作
+      - 镜头
+      - 整体
+  动画:
+    label: 动画/CG
+    angles:
+      - 视觉风格
+      - 场景
+      - 动作
+      - 整体
+  游戏录制:
+    label: 游戏录制
+    angles:
+      - 游戏类型
+      - 场景
+      - 动作
+      - 整体
+  默认:
+    label: 通用视频
+    angles:
+      - 整体
+
+# ========== 图片子类型 ==========
+图片:
+  插画:
+    label: 插画/手绘
+    angles:
+      - 视觉风格
+      - 场景
+      - 整体
+  照片:
+    label: 照片/实拍
+    angles:
+      - 场景
+      - 整体
+  默认:
+    label: 通用图片
+    angles:
+      - 整体
+
+# ========== 文本子类型 ==========
+文本:
+  默认:
+    label: 通用文本
+    angles:
+      - 整体
