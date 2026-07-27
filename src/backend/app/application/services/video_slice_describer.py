@@ -149,6 +149,7 @@ class VideoSliceDescriber:
         # 2. 描述每个片段（带上下文传递）
         segment_descriptions = []
         previous_context = ""
+        cumulative_summary = ""
         for i, scene in enumerate(scenes):
             seg_desc = await self._describe_segment(
                 video_path=video_path,
@@ -159,8 +160,9 @@ class VideoSliceDescriber:
                 system_prompt=system_prompt,
                 prompt=prompt,
                 previous_context=previous_context,
+                cumulative_summary=cumulative_summary,
             )
-            # 提取当前片段的描述文本作为下一片的上下文
+            # 提取当前片段描述，更新累积摘要和上一片段上下文
             seg_texts = []
             for angle in angles:
                 key = angle["key"]
@@ -170,8 +172,21 @@ class VideoSliceDescriber:
                         text = value.get("text", "")
                         if text:
                             seg_texts.append(f"{key}: {text}")
-            if seg_texts:
-                previous_context = f"上一片段 ({scene.start_sec:.1f}s-{scene.end_sec:.1f}s)：{'；'.join(seg_texts)}"
+
+            seg_brief = "；".join(seg_texts) if seg_texts else ""
+            if seg_brief:
+                # 累积摘要：只保留关键信息，限制长度避免膨胀
+                seg_line = f"片段{i+1}({scene.start_sec:.1f}s-{scene.end_sec:.1f}s)：{seg_brief[:200]}"
+                if cumulative_summary:
+                    cumulative_summary = f"{cumulative_summary}\n{seg_line}"
+                else:
+                    cumulative_summary = seg_line
+                # 累积摘要超过 800 字时，保留后半部分（最近的信息更重要）
+                if len(cumulative_summary) > 800:
+                    cutoff = cumulative_summary.rfind("\n", len(cumulative_summary) - 600)
+                    cumulative_summary = cumulative_summary[cutoff + 1:] if cutoff > 0 else cumulative_summary[-600:]
+
+                previous_context = f"上一片段 ({scene.start_sec:.1f}s-{scene.end_sec:.1f}s)：{seg_brief[:300]}"
             else:
                 previous_context = ""
 
@@ -223,6 +238,7 @@ class VideoSliceDescriber:
         system_prompt: str,
         prompt: str,
         previous_context: str = "",
+        cumulative_summary: str = "",
     ) -> dict[str, Any]:
         """描述单个视频片段。"""
         # 提取片段
@@ -236,12 +252,15 @@ class VideoSliceDescriber:
             segment_path = video_path
 
         # 构建带时间戳和上下文的 prompt
-        time_prompt = f"[时间范围: {scene.start_sec:.1f}s - {scene.end_sec:.1f}s]"
+        parts = [f"[时间范围: {scene.start_sec:.1f}s - {scene.end_sec:.1f}s]"]
+        if cumulative_summary:
+            parts.append(f"[历史摘要: {cumulative_summary[:500]}]")
         if previous_context:
-            time_prompt += f"\n[上一片段描述: {previous_context}]"
-            time_prompt += "\n[注意：当前画面是最高优先级证据，请基于当前片段内容进行描述，不要为了与前文一致而忽略当前画面。]"
+            parts.append(f"[{previous_context[:300]}]")
+        parts.append("[注意：当前画面是最高优先级证据，请基于当前片段内容进行描述，不要为了与前文一致而忽略当前画面。]")
         if prompt:
-            time_prompt += f"\n{prompt}"
+            parts.append(prompt)
+        time_prompt = "\n".join(parts)
 
         # 调 LLM 描述
         try:
