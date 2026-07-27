@@ -10,6 +10,7 @@ from app.application.services.dashscope_model_client import DashScopeModelClient
 from app.application.services.media_preprocessor import MediaPreprocessor
 from app.application.services.model_response_parser import ModelResponseParser
 from app.application.services.provider_resolver import ProviderResolver
+from app.application.services.video_slice_describer import VideoSliceDescriber
 from app.core.angle_prompt_builder import build_system_prompt_from_angles
 from app.core.config import get_settings
 from app.core.paths import ensure_shared_data_dir
@@ -129,6 +130,44 @@ class ModelService:
         if provider_context.provider.lower() != "dashscope":
             raise ValueError(f"当前仅实现 dashscope live 调用，实际 provider 为: {provider_context.provider}")
 
+        # 视频切片描述：对长视频启用场景检测和分段描述
+        if (
+            payload.asset_format == "视频"
+            and payload.enable_slicing
+            and payload.angles
+        ):
+            slice_describer = VideoSliceDescriber(
+                call_llm=self._call_slice_llm,
+                slice_threshold=payload.slice_threshold,
+                temp_dir=self._temp_dir,
+            )
+            if slice_describer.should_slice(payload.asset_path):
+                logger.info(
+                    "视频启用切片描述: path=%s, threshold=%ss",
+                    payload.asset_path,
+                    payload.slice_threshold,
+                )
+                sliced_result = await slice_describer.describe_sliced(
+                    video_path=payload.asset_path,
+                    asset_format=payload.asset_format,
+                    angles=[a.model_dump() for a in payload.angles],
+                    system_prompt=system_prompt,
+                    prompt=prompt,
+                )
+                import json
+                output_text = json.dumps(sliced_result, ensure_ascii=False)
+                output_text = self._clean_llm_output(output_text)
+                logger.info("视频切片描述完成: scenes=%d", len(sliced_result.get("segments", [])))
+                return ModelGenerateResponse(
+                    provider_slot=DEFAULT_PROVIDER_SLOT,
+                    provider=provider_context.provider,
+                    model=call_model,
+                    mode="live",
+                    output_text=output_text,
+                    system_prompt=system_prompt,
+                    token_usage=None,
+                )
+
         logger.info(
             "描述生成调用 DashScope: format=%s, model=%s, slot=%s",
             payload.asset_format,
@@ -245,6 +284,25 @@ class ModelService:
         if isinstance(override_prompt, str) and override_prompt.strip():
             return override_prompt.strip()
         return configured_prompt.strip()
+
+    async def _call_slice_llm(
+        self,
+        system_prompt: str,
+        prompt: str,
+        asset_format: str,
+        asset_path: str,
+    ) -> tuple[str, ModelGenerateResponse.TokenUsage | None]:
+        """VideoSliceDescriber 使用的 LLM 回调，封装 _call_dashscope 的调用。"""
+        provider_context = self._resolve_provider_context_for_asset_format(asset_format)
+        call_model = self._resolve_model_name(provider_context.model, asset_format)
+        return await self._call_dashscope(
+            provider_context,
+            system_prompt,
+            prompt,
+            asset_format,
+            asset_path,
+            call_model,
+        )
 
     async def _call_dashscope(
         self,

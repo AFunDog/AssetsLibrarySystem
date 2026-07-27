@@ -26,6 +26,11 @@ class ModelGenerateRequest(BaseModel):
     mock_response: bool = Field(default=False, description="强制走占位响应，便于联调")
     subtype: str | None = Field(default=None, description="素材子类型，如 '实拍'、'歌曲'")
     angles: list[AngleDef] | None = Field(default=None, description="角度定义列表，由 C# 端传入")
+    # 视频切片配置
+    enable_slicing: bool = Field(default=False, description="是否启用视频切片描述")
+    slice_threshold: float = Field(default=60.0, description="切片阈值（秒），超过此时长才切片")
+    min_scene_len: int = Field(default=15, description="最小场景长度（帧），低于此长度的场景会被合并")
+    adaptive_threshold: float = Field(default=3.0, description="场景检测自适应阈值，越高越不敏感")
 
     @field_validator("asset_path")
     @classmethod

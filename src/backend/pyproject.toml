@@ -9,15 +9,16 @@ description = "FastAPI backend skeleton for Assets Library System"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "fastapi>=0.115.0",
-  "uvicorn[standard]>=0.30.0",
-  "pydantic>=2.8.0",
-  "pydantic-settings>=2.5.0",
-  "pyyaml>=6.0.2",
-  "dashscope>=1.22.0",
-  "numpy>=1.26.0",
-"Pillow>=10.4.0",
-]
+	  "fastapi>=0.115.0",
+	  "uvicorn[standard]>=0.30.0",
+	  "pydantic>=2.8.0",
+	  "pydantic-settings>=2.5.0",
+	  "pyyaml>=6.0.2",
+	  "dashscope>=1.22.0",
+	  "numpy>=1.26.0",
+	  "Pillow>=10.4.0",
+	  "scenedetect>=0.7.1",
+	]
 
 [tool.setuptools]
 packages = ["app"]

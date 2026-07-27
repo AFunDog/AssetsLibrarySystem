@@ -67,3 +67,67 @@ def build_system_prompt_from_angles(
     lines.append("}")
 
     return "\n".join(lines)
+
+
+def build_summary_prompt(
+    asset_format: str,
+    angles: list[dict[str, Any]],
+    segment_descriptions: list[dict[str, Any]],
+) -> str:
+    """从所有片段的描述文本合成整体摘要的提示词。
+
+    Args:
+        asset_format: 素材格式
+        angles: 角度定义列表
+        segment_descriptions: 每个片段的描述结果
+
+    Returns:
+        用于合成摘要的提示词字符串
+    """
+    asset_label = _ASSET_TYPE_LABELS.get(asset_format, f"{asset_format}素材")
+    angle_keys = ', '.join(f'"{a["key"]}"' for a in angles)
+
+    lines = [
+        f"你是{asset_label}综合摘要助手。",
+        "以下是一段视频的多个场景描述，请根据这些描述生成整体摘要。",
+        "",
+        "输出要求：",
+        "- 综合所有场景，概括视频的整体内容和风格。",
+        "- 不要编造场景描述中没有的信息。",
+        "- 只能输出 JSON，不要输出 Markdown、代码块或解释。",
+        f"- JSON 必须包含且只包含以下字段： {angle_keys}",
+        '- 每个字段是对象，包含 "text" 和 "tags"。',
+        "- 每个 text 用中文，不超过 200 个中文字符。",
+        "- tags 是简短中文标签数组，适合筛选和展示。",
+        "",
+        "场景描述如下：",
+    ]
+
+    for i, seg in enumerate(segment_descriptions):
+        seg_texts = []
+        for angle in angles:
+            key = angle["key"]
+            if key in seg:
+                value = seg[key]
+                if isinstance(value, dict):
+                    text = value.get("text", "")
+                    if text:
+                        seg_texts.append(f"{key}: {text}")
+        if seg_texts:
+            start = seg.get("start_time", 0)
+            end = seg.get("end_time", 0)
+            lines.append(
+                f"场景{i+1} ({start:.1f}s-{end:.1f}s)：{'；'.join(seg_texts)}"
+            )
+
+    lines.extend([
+        "",
+        "请输出 JSON：",
+        "{",
+    ])
+    for i, a in enumerate(angles):
+        comma = "," if i < len(angles) - 1 else ""
+        lines.append(f'  "{a["key"]}": {{ "text": "...", "tags": ["..."] }}{comma}')
+    lines.append("}")
+
+    return "\n".join(lines)
