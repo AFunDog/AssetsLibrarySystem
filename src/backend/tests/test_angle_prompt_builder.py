@@ -53,8 +53,14 @@ class AnglePromptBuilderTestCase(unittest.TestCase):
         ]
         prompt = build_system_prompt_from_angles("视频", angles)
         lines = prompt.split("\n")
-        # 只统计 JSON 示例块中的行（以 4 空格缩进的 "key": {...} 格式）
-        example_lines = [l for l in lines if l.strip().startswith('"') and "text" in l and "tags" in l]
+        # 只统计 JSON 示例块中的行（以 "  键名": 开头，包含 "text" 和 "tags"）
+        # 排除 note 中的 "字段名" 占位符
+        example_lines = [
+            l for l in lines
+            if l.strip().startswith('"')
+            and "text" in l and "tags" in l
+            and "字段名" not in l
+        ]
         self.assertEqual(3, len(example_lines))
         # 前两个有逗号，最后一个没有
         self.assertTrue(example_lines[0].rstrip().endswith(","), f"Line 1 should end with comma: {example_lines[0]}")
