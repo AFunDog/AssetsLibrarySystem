@@ -52,7 +52,7 @@ def create_test_video(duration: int = 70) -> str:
     return str(output)
 
 
-async def test_video_verbose(video_path: str, full_json: bool = False):
+async def run_test_verbose(video_path: str, full_json: bool = False):
     """实时输出模式：每个切片的 LLM 输入输出立即可见。"""
     # 延迟导入，确保路径正确
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "backend"))
@@ -185,7 +185,7 @@ async def main():
     args = parser.parse_args()
 
     video_path = args.video or create_test_video(args.duration)
-    await test_video_verbose(video_path, full_json=args.full_json)
+    await run_test_verbose(video_path, full_json=args.full_json)
 
 
 if __name__ == "__main__":

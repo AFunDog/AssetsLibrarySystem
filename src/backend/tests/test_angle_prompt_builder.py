@@ -27,7 +27,7 @@ class AnglePromptBuilderTestCase(unittest.TestCase):
         prompt = build_system_prompt_from_angles("音频", angles)
         self.assertIn("音频素材", prompt)
         self.assertIn("只能输出 JSON", prompt)
-        self.assertIn('"text" 和 "tags"', prompt)
+        self.assertIn('{"text": ..., "tags": [...]}', prompt)
 
     def test_build_prompt_contains_json_example(self) -> None:
         angles = [

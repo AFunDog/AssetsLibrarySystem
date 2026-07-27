@@ -42,7 +42,8 @@ def build_system_prompt_from_angles(
         "- 不要把文件名、路径、目录名当作素材内容，除非素材本身支持。",
         "- 只能输出 JSON，不要输出 Markdown、代码块、解释或额外文本。",
         f"- JSON 必须包含且只包含以下字段： {angle_keys}",
-        '- 每个字段都是对象，包含 "text" 和 "tags"。',
+        '- 每个字段的值必须是对象 {"text": ..., "tags": [...]}，不能是普通字符串。',
+        '- 如果某个字段没有合适的标签，tags 请使用空数组 []，不要省略该字段。',
         "- 每个 text 用中文，不超过对应字段的最大字数。",
         '- tags 是简短中文标签数组，适合筛选和展示，避免重复和长句。',
         "- JSON 字符串必须使用双引号，不能有注释或尾随逗号。",
@@ -65,6 +66,9 @@ def build_system_prompt_from_angles(
         lines.append(f'  "{a["key"]}": {{ "text": "...", "tags": ["..."] }}{comma}')
 
     lines.append("}")
+    lines.append("")
+    lines.append("注意：必须严格按照以上示例的嵌套格式输出，每个字段的值必须是 {\"text\": ..., \"tags\": [...]} 对象。")
+    lines.append("如果输出扁平字符串（如 \"场景\": \"描述\"）会导致程序解析失败。")
 
     return "\n".join(lines)
 
