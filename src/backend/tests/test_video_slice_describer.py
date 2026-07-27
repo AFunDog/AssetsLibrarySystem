@@ -6,7 +6,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.application.services.video_slice_describer import (
     VideoSliceDescriber,
@@ -16,10 +16,10 @@ from app.application.services.video_slice_describer import (
 from app.application.services.video_scene_detector import SceneRange
 
 
-class VideoSliceDescriberTestCase(unittest.TestCase):
+class VideoSliceDescriberTestCase(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        # 模拟 LLM 回调
-        self.mock_llm = MagicMock()
+        # 模拟异步 LLM 回调
+        self.mock_llm = AsyncMock()
         self.mock_llm.return_value = (
             '{"整体":{"text":"测试场景描述","tags":["测试"]}}',
             None,
@@ -71,7 +71,7 @@ class VideoSliceDescriberTestCase(unittest.TestCase):
         duration = get_video_duration("/nonexistent.mp4")
         self.assertEqual(duration, 0.0)
 
-    def test_describe_sliced_with_two_scenes(self):
+    async def test_describe_sliced_with_two_scenes(self):
         describer = VideoSliceDescriber(
             self.mock_llm,
             slice_threshold=10.0,
@@ -84,7 +84,7 @@ class VideoSliceDescriberTestCase(unittest.TestCase):
             ]
         )
 
-        result = describer.describe_sliced(
+        result = await describer.describe_sliced(
             "test.mp4",
             "视频",
             [{"key": "整体", "label": "整体", "prompt": "概括", "max_length": 120}],
@@ -99,7 +99,7 @@ class VideoSliceDescriberTestCase(unittest.TestCase):
         self.assertEqual(result["segments"][1]["start_time"], 10.0)
         self.assertIn("测试场景描述", result["整体"]["text"])
 
-    def test_describe_sliced_single_scene(self):
+    async def test_describe_sliced_single_scene(self):
         """只有一个场景时，不走切片逻辑"""
         describer = VideoSliceDescriber(
             self.mock_llm,
@@ -111,7 +111,7 @@ class VideoSliceDescriberTestCase(unittest.TestCase):
             ]
         )
 
-        result = describer.describe_sliced(
+        result = await describer.describe_sliced(
             "test.mp4",
             "视频",
             [{"key": "整体", "label": "整体", "prompt": "概括", "max_length": 120}],
@@ -123,9 +123,9 @@ class VideoSliceDescriberTestCase(unittest.TestCase):
         self.assertIn("segments", result)
         self.assertEqual(len(result["segments"]), 1)
 
-    def test_describe_sliced_llm_failure_uses_empty(self):
+    async def test_describe_sliced_llm_failure_uses_empty(self):
         """LLM 调用失败时，使用空描述"""
-        failing_llm = MagicMock(side_effect=RuntimeError("LLM failed"))
+        failing_llm = AsyncMock(side_effect=RuntimeError("LLM failed"))
         describer = VideoSliceDescriber(
             failing_llm,
             slice_threshold=10.0,
@@ -136,7 +136,7 @@ class VideoSliceDescriberTestCase(unittest.TestCase):
             ]
         )
 
-        result = describer.describe_sliced(
+        result = await describer.describe_sliced(
             "test.mp4",
             "视频",
             [{"key": "整体", "label": "整体", "prompt": "概括", "max_length": 120}],

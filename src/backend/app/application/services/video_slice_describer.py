@@ -13,7 +13,7 @@ import json
 import logging
 import subprocess
 import tempfile
-from collections import OrderedDict
+from collections.abc import Awaitable
 from pathlib import Path
 from typing import Any, Callable
 
@@ -93,8 +93,8 @@ class VideoSliceDescriber:
     2. 从片段描述合成整体摘要
 
     Args:
-        call_llm: 调用 LLM 的回调函数，接收 (system_prompt, prompt, asset_format, asset_path)
-                  返回 (output_text, token_usage)。
+        call_llm: 调用 LLM 的异步回调函数，接收 (system_prompt, prompt, asset_format, asset_path)
+                  返回 (output_text, token_usage) 的协程。
         scene_detector: 场景检测器实例。
         slice_threshold: 切片阈值（秒），超过此值时长的视频才启用切片。
         temp_dir: 临时文件目录。
@@ -102,7 +102,7 @@ class VideoSliceDescriber:
 
     def __init__(
         self,
-        call_llm: Callable[..., tuple[str, Any]],
+        call_llm: Callable[..., Awaitable[tuple[str, Any]]],
         scene_detector: VideoSceneDetector | None = None,
         slice_threshold: float = DEFAULT_SLICE_THRESHOLD_SECONDS,
         temp_dir: str | Path | None = None,
@@ -117,7 +117,7 @@ class VideoSliceDescriber:
         duration = get_video_duration(video_path)
         return duration >= self._slice_threshold
 
-    def describe_sliced(
+    async def describe_sliced(
         self,
         video_path: str,
         asset_format: str,
@@ -143,12 +143,12 @@ class VideoSliceDescriber:
 
         if len(scenes) <= 1:
             logger.info("视频只有一个场景，无需切片，直接描述")
-            return self._describe_single(video_path, asset_format, angles, system_prompt, prompt)
+            return await self._describe_single(video_path, asset_format, angles, system_prompt, prompt)
 
         # 2. 描述每个片段
         segment_descriptions = []
         for i, scene in enumerate(scenes):
-            seg_desc = self._describe_segment(
+            seg_desc = await self._describe_segment(
                 video_path=video_path,
                 scene=scene,
                 index=i,
@@ -167,7 +167,7 @@ class VideoSliceDescriber:
             "segments": segment_descriptions,
         }
 
-    def _describe_single(
+    async def _describe_single(
         self,
         video_path: str,
         asset_format: str,
@@ -177,7 +177,7 @@ class VideoSliceDescriber:
     ) -> dict[str, Any]:
         """描述整个视频（不分片）。"""
         try:
-            raw_text, _ = self._call_llm(system_prompt, prompt, asset_format, video_path)
+            raw_text, _ = await self._call_llm(system_prompt, prompt, asset_format, video_path)
             cleaned = _clean_llm_output(raw_text)
             parsed = json.loads(cleaned) if cleaned.startswith("{") else {"整体": {"text": cleaned, "tags": []}}
         except Exception as e:
@@ -195,7 +195,7 @@ class VideoSliceDescriber:
             ],
         }
 
-    def _describe_segment(
+    async def _describe_segment(
         self,
         video_path: str,
         scene: SceneRange,
@@ -224,7 +224,7 @@ class VideoSliceDescriber:
 
         # 调 LLM 描述
         try:
-            raw_text, _ = self._call_llm(system_prompt, time_prompt, asset_format, segment_path)
+            raw_text, _ = await self._call_llm(system_prompt, time_prompt, asset_format, segment_path)
             cleaned = _clean_llm_output(raw_text)
             parsed = json.loads(cleaned) if cleaned.startswith("{") else {"整体": {"text": cleaned, "tags": []}}
         except Exception as e:
