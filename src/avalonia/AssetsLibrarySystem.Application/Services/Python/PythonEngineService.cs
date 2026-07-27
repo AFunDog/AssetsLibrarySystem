@@ -112,14 +112,29 @@ public sealed class PythonEngineService : IBackendLauncher, IDisposable
             try
             {
                 PythonEngine.EndAllowThreads(_threadState);
-                PythonEngine.Shutdown();
             }
             catch (Exception ex)
             {
-                Log.Warning(ex, "PythonEngine 关闭时异常");
+                Log.Warning(ex, "PythonEngine EndAllowThreads 异常");
             }
+
+            try
+            {
+                // PythonEngine.Shutdown() 在某些环境下可能挂起或崩溃。
+                // 使用超时任务避免阻塞进程退出。
+                var shutdownTask = Task.Run(() => PythonEngine.Shutdown());
+                if (!shutdownTask.Wait(TimeSpan.FromSeconds(5)))
+                {
+                    Log.Warning("PythonEngine.Shutdown 超时（5s），跳过关闭");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "PythonEngine.Shutdown 异常（已忽略）");
+            }
+
             _isInitialized = false;
-            Log.Information("PythonEngine 已关闭");
+            Log.Information("PythonEngine 关闭处理完成");
         }
     }
 
