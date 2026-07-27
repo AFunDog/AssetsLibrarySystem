@@ -93,8 +93,11 @@ class VideoSliceDescriber:
     2. 从片段描述合成整体摘要
 
     Args:
-        call_llm: 调用 LLM 的异步回调函数。
-        scene_detector: 场景检测器实例。为 None 时自动创建。
+        call_llm: 调用 LLM 的异步回调函数，用于描述视频片段。
+        summarize_fn: 可选，用于总结累积摘要的异步回调。
+                      接收 (现有摘要 + 新片段描述)，返回 ≤300 字的自然语言总结。
+                      为 None 时使用简单的拼接截断方案。
+        scene_detector: 场景检测器实例。
         slice_threshold: 切片阈值（秒），超过此值时长的视频才启用切片。
         min_seconds: 最小场景时长（秒），相邻过短场景会被合并。默认 5.0。
         temp_dir: 临时文件目录。
@@ -103,12 +106,14 @@ class VideoSliceDescriber:
     def __init__(
         self,
         call_llm: Callable[..., Awaitable[tuple[str, Any]]],
+        summarize_fn: Callable[[str], Awaitable[str]] | None = None,
         scene_detector: VideoSceneDetector | None = None,
         slice_threshold: float = DEFAULT_SLICE_THRESHOLD_SECONDS,
         min_seconds: float = 5.0,
         temp_dir: str | Path | None = None,
     ) -> None:
         self._call_llm = call_llm
+        self._summarize_fn = summarize_fn
         self._scene_detector = scene_detector or VideoSceneDetector(min_seconds=min_seconds)
         self._slice_threshold = slice_threshold
         self._temp_dir = Path(temp_dir) if temp_dir else Path(tempfile.gettempdir())
@@ -175,16 +180,19 @@ class VideoSliceDescriber:
 
             seg_brief = "；".join(seg_texts) if seg_texts else ""
             if seg_brief:
-                # 累积摘要：只保留关键信息，限制长度避免膨胀
-                seg_line = f"片段{i+1}({scene.start_sec:.1f}s-{scene.end_sec:.1f}s)：{seg_brief[:200]}"
-                if cumulative_summary:
-                    cumulative_summary = f"{cumulative_summary}\n{seg_line}"
+                if self._summarize_fn:
+                    # 用 LLM 总结累积摘要
+                    new_entry = f"片段{i+1}({scene.start_sec:.1f}s-{scene.end_sec:.1f}s)：{seg_brief[:200]}"
+                    input_text = f"{cumulative_summary}\n{new_entry}" if cumulative_summary else new_entry
+                    try:
+                        cumulative_summary = await self._summarize_fn(input_text)
+                    except Exception as e:
+                        logger.warning("摘要总结失败，使用拼接方案: %s", e)
+                        cumulative_summary = self._append_to_summary(cumulative_summary, new_entry, i, scene)
                 else:
-                    cumulative_summary = seg_line
-                # 累积摘要超过 800 字时，保留后半部分（最近的信息更重要）
-                if len(cumulative_summary) > 800:
-                    cutoff = cumulative_summary.rfind("\n", len(cumulative_summary) - 600)
-                    cumulative_summary = cumulative_summary[cutoff + 1:] if cutoff > 0 else cumulative_summary[-600:]
+                    # 无 summarize_fn，使用拼接截断方案
+                    new_entry = f"片段{i+1}({scene.start_sec:.1f}s-{scene.end_sec:.1f}s)：{seg_brief[:200]}"
+                    cumulative_summary = self._append_to_summary(cumulative_summary, new_entry, i, scene)
 
                 previous_context = f"上一片段 ({scene.start_sec:.1f}s-{scene.end_sec:.1f}s)：{seg_brief[:300]}"
             else:
@@ -280,6 +288,20 @@ class VideoSliceDescriber:
             "end_time": scene.end_sec,
             **parsed,
         }
+
+    @staticmethod
+    def _append_to_summary(
+        current_summary: str,
+        new_entry: str,
+        index: int,
+        scene: SceneRange,
+    ) -> str:
+        """拼接累积摘要，超过 800 字时截断保留最近内容"""
+        result = f"{current_summary}\n{new_entry}" if current_summary else new_entry
+        if len(result) > 800:
+            cutoff = result.rfind("\n", len(result) - 600)
+            result = result[cutoff + 1:] if cutoff > 0 else result[-600:]
+        return result
 
     def _synthesize_overall(
         self,

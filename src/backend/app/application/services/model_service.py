@@ -138,6 +138,7 @@ class ModelService:
         ):
             slice_describer = VideoSliceDescriber(
                 call_llm=self._call_slice_llm,
+                summarize_fn=self._summarize_text,
                 slice_threshold=payload.slice_threshold,
                 min_seconds=5.0,
                 temp_dir=self._temp_dir,
@@ -304,6 +305,43 @@ class ModelService:
             asset_path,
             call_model,
         )
+
+    async def _summarize_text(self, text: str) -> str:
+        """将累积摘要总结为 ≤300 字的自然语言段落。"""
+        if not text.strip():
+            return ""
+
+        provider_manager = self._get_provider_manager()
+        provider_config = provider_manager.get("视频")
+
+        summary_prompt = (
+            "请将以下视频片段描述总结为一段通顺的自然语言段落，不超过300字。\n"
+            "要求：\n"
+            "- 保持人物身份和事件逻辑连贯\n"
+            "- 删除重复冗余的描述\n"
+            "- 按时间顺序组织\n"
+            "- 只输出总结文本，不要输出 JSON 或其他格式\n\n"
+            f"{text}"
+        )
+
+        try:
+            multimodal_content = [{"text": summary_prompt}]
+            response = await asyncio.to_thread(
+                self._dashscope_client.call_multimodal,
+                provider_config,
+                provider_config.model,
+                "你是一个视频内容总结助手。",
+                multimodal_content,
+                {"type": "text"},  # 不要 JSON 格式
+            )
+            raw = self._extract_response_text(response)
+            cleaned = raw.strip().strip('"').strip()
+            if len(cleaned) > 300:
+                cleaned = cleaned[:297] + "..."
+            return cleaned
+        except Exception as e:
+            logger.warning("文本总结失败，返回原文片段: %s", e)
+            return text[:300]
 
     async def _call_dashscope(
         self,
