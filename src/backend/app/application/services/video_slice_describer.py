@@ -146,8 +146,9 @@ class VideoSliceDescriber:
             logger.info("视频只有一个场景，无需切片，直接描述")
             return await self._describe_single(video_path, asset_format, angles, system_prompt, prompt)
 
-        # 2. 描述每个片段
+        # 2. 描述每个片段（带上下文传递）
         segment_descriptions = []
+        previous_context = ""
         for i, scene in enumerate(scenes):
             seg_desc = await self._describe_segment(
                 video_path=video_path,
@@ -157,7 +158,23 @@ class VideoSliceDescriber:
                 angles=angles,
                 system_prompt=system_prompt,
                 prompt=prompt,
+                previous_context=previous_context,
             )
+            # 提取当前片段的描述文本作为下一片的上下文
+            seg_texts = []
+            for angle in angles:
+                key = angle["key"]
+                if key in seg_desc:
+                    value = seg_desc[key]
+                    if isinstance(value, dict):
+                        text = value.get("text", "")
+                        if text:
+                            seg_texts.append(f"{key}: {text}")
+            if seg_texts:
+                previous_context = f"上一片段 ({scene.start_sec:.1f}s-{scene.end_sec:.1f}s)：{'；'.join(seg_texts)}"
+            else:
+                previous_context = ""
+
             segment_descriptions.append(seg_desc)
 
         # 3. 合成整体摘要
@@ -205,6 +222,7 @@ class VideoSliceDescriber:
         angles: list[dict[str, Any]],
         system_prompt: str,
         prompt: str,
+        previous_context: str = "",
     ) -> dict[str, Any]:
         """描述单个视频片段。"""
         # 提取片段
@@ -217,11 +235,13 @@ class VideoSliceDescriber:
             logger.warning("片段提取失败，使用原视频: seg=%d, error=%s", index, e)
             segment_path = video_path
 
-        # 构建带时间戳的 prompt
-        time_prompt = (
-            f"[时间范围: {scene.start_sec:.1f}s - {scene.end_sec:.1f}s] "
-            f"{prompt}".strip()
-        )
+        # 构建带时间戳和上下文的 prompt
+        time_prompt = f"[时间范围: {scene.start_sec:.1f}s - {scene.end_sec:.1f}s]"
+        if previous_context:
+            time_prompt += f"\n[上一片段描述: {previous_context}]"
+            time_prompt += "\n[注意：当前画面是最高优先级证据，请基于当前片段内容进行描述，不要为了与前文一致而忽略当前画面。]"
+        if prompt:
+            time_prompt += f"\n{prompt}"
 
         # 调 LLM 描述
         try:
