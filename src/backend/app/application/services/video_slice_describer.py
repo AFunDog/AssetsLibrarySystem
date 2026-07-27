@@ -93,10 +93,10 @@ class VideoSliceDescriber:
     2. 从片段描述合成整体摘要
 
     Args:
-        call_llm: 调用 LLM 的异步回调函数，接收 (system_prompt, prompt, asset_format, asset_path)
-                  返回 (output_text, token_usage) 的协程。
-        scene_detector: 场景检测器实例。
+        call_llm: 调用 LLM 的异步回调函数。
+        scene_detector: 场景检测器实例。为 None 时自动创建。
         slice_threshold: 切片阈值（秒），超过此值时长的视频才启用切片。
+        min_seconds: 最小场景时长（秒），相邻过短场景会被合并。默认 5.0。
         temp_dir: 临时文件目录。
     """
 
@@ -105,10 +105,11 @@ class VideoSliceDescriber:
         call_llm: Callable[..., Awaitable[tuple[str, Any]]],
         scene_detector: VideoSceneDetector | None = None,
         slice_threshold: float = DEFAULT_SLICE_THRESHOLD_SECONDS,
+        min_seconds: float = 5.0,
         temp_dir: str | Path | None = None,
     ) -> None:
         self._call_llm = call_llm
-        self._scene_detector = scene_detector or VideoSceneDetector()
+        self._scene_detector = scene_detector or VideoSceneDetector(min_seconds=min_seconds)
         self._slice_threshold = slice_threshold
         self._temp_dir = Path(temp_dir) if temp_dir else Path(tempfile.gettempdir())
 

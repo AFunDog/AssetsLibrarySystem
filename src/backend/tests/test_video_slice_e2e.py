@@ -54,7 +54,7 @@ def create_test_video(duration: int = 70) -> str:
     return str(output)
 
 
-async def test_video(video_path: str, enable_slicing: bool):
+async def test_video(video_path: str, enable_slicing: bool, full_json: bool = False):
     """运行视频描述测试"""
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "backend"))
     from app.application.services.model_service import ModelService
@@ -83,21 +83,37 @@ async def test_video(video_path: str, enable_slicing: bool):
     resp = await svc.generate_text(req)
     parsed = json.loads(resp.output_text)
 
-    print(f"模式: {resp.mode}")
-    print(f"Token: {resp.token_usage.total_tokens if resp.token_usage else 'N/A'}")
+    if full_json:
+        print(json.dumps(parsed, ensure_ascii=False, indent=2))
+        return parsed
 
-    if "segments" in parsed:
-        segments = parsed["segments"]
-        print(f"\n场景数: {len(segments)}")
-        for i, seg in enumerate(segments):
-            overall = seg.get("整体", {})
-            text = overall.get("text", "") if isinstance(overall, dict) else ""
-            print(f"  [{i+1}] {seg['start_time']:.1f}s-{seg['end_time']:.1f}s: {text[:80]}")
+    if not full_json:
+        print(f"模式: {resp.mode}")
+        print(f"Token: {resp.token_usage.total_tokens if resp.token_usage else 'N/A'}")
 
-    overall = parsed.get("整体", {})
-    if isinstance(overall, dict):
-        print(f"\n整体摘要: {overall.get('text', '')[:150]}")
-        print(f"整体标签: {overall.get('tags', [])}")
+        if "segments" in parsed:
+            segments = parsed["segments"]
+            empty_count = sum(
+                1 for seg in segments
+                if not any(
+                    isinstance(v, dict) and v.get("text")
+                    for v in seg.values() if isinstance(v, dict)
+                )
+            )
+            print(f"\n场景数: {len(segments)} (其中 {empty_count} 个无描述)")
+            for i, seg in enumerate(segments):
+                # 找第一个有 text 的角度
+                desc = ""
+                for v in seg.values():
+                    if isinstance(v, dict) and v.get("text"):
+                        desc = v["text"][:80]
+                        break
+                print(f"  [{i+1}] {seg['start_time']:.1f}s-{seg['end_time']:.1f}s: {desc or '(空)'}")
+
+        overall = parsed.get("整体", {})
+        if isinstance(overall, dict):
+            print(f"\n整体摘要: {overall.get('text', '')[:150]}")
+            print(f"整体标签: {overall.get('tags', [])}")
 
     return parsed
 
@@ -107,17 +123,16 @@ async def main():
     parser.add_argument("--video", help="测试视频路径（默认自动创建）")
     parser.add_argument("--duration", type=int, default=70, help="测试视频时长（秒）")
     parser.add_argument("--no-slice", action="store_true", help="跳过切片测试")
+    parser.add_argument("--full-json", action="store_true", help="输出完整 JSON")
     args = parser.parse_args()
 
     video_path = args.video or create_test_video(args.duration)
 
-    # 非切片测试（用于对比）
-    if args.duration < 60:
-        await test_video(video_path, enable_slicing=False)
-
-    # 切片测试
     if not args.no_slice and args.duration >= 30:
-        await test_video(video_path, enable_slicing=True)
+        await test_video(video_path, enable_slicing=True, full_json=args.full_json)
+
+    if args.duration < 60:
+        await test_video(video_path, enable_slicing=False, full_json=args.full_json)
 
     print("\n✅ 测试完成")
 

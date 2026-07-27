@@ -139,6 +139,7 @@ class ModelService:
             slice_describer = VideoSliceDescriber(
                 call_llm=self._call_slice_llm,
                 slice_threshold=payload.slice_threshold,
+                min_seconds=5.0,
                 temp_dir=self._temp_dir,
             )
             if slice_describer.should_slice(payload.asset_path):
