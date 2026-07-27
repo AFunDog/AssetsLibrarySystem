@@ -1,0 +1,160 @@
+<h2>素材详情面板 — 布局方案</h2>
+<p class="subtitle">目前素材详情只有一行原始 JSON 文本，需要增加子类型和按角度查看描述</p>
+
+<div class="section">
+  <h3>当前的样子</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="padding:16px;font-family:sans-serif;font-size:13px;line-height:1.6">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+        <span><strong>background_001.png</strong></span>
+        <span class="label" style="background:#e8e8e8;padding:2px 8px;border-radius:4px">图片</span>
+      </div>
+      <div style="background:#f5f5f5;padding:10px;border-radius:6px;font-size:12px;font-family:monospace;white-space:pre-wrap;word-break:break-all;max-height:120px;overflow:auto">
+        {"全面":{"text":"画面主体是一名站在街道上的女性角色...","tags":["人物","街道"]}}
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <div class="mock-button" style="flex:1">描述</div>
+        <div class="mock-button" style="flex:1">向量化</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案 A：Tab 页切换</h3>
+  <p class="subtitle">素材信息、描述角度、时间线三个 Tab 切换</p>
+  <div class="mockup">
+    <div class="mockup-body" style="padding:16px;font-family:sans-serif;font-size:13px;line-height:1.6">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+        <span><strong>7月26日.mp4</strong></span>
+        <span style="display:flex;gap:6px">
+          <span class="label" style="background:#e8e8e8;padding:2px 8px;border-radius:4px">视频</span>
+          <span class="label" style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:4px">动画</span>
+        </span>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;border-bottom:1px solid #e5e5e5">
+        <span style="padding:6px 12px;border-bottom:2px solid #3b82f6;font-weight:600;cursor:pointer">信息</span>
+        <span style="padding:6px 12px;color:#888;cursor:pointer">角度描述</span>
+        <span style="padding:6px 12px;color:#888;cursor:pointer">时间线</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:#f8fafc;padding:10px;border-radius:6px;border:1px solid #e5e5e5">
+          <div class="label" style="margin-bottom:4px">类型</div>
+          <div>视频</div>
+        </div>
+        <div style="background:#f8fafc;padding:10px;border-radius:6px;border:1px solid #e5e5e5">
+          <div class="label" style="margin-bottom:4px">子类型</div>
+          <div style="display:flex;gap:4px">
+            <span>动画</span>
+            <span style="color:#3b82f6;cursor:pointer;font-size:11px">✏️</span>
+          </div>
+        </div>
+        <div style="background:#f8fafc;padding:10px;border-radius:6px;border:1px solid #e5e5e5">
+          <div class="label" style="margin-bottom:4px">时长</div>
+          <div>146.8s</div>
+        </div>
+        <div style="background:#f8fafc;padding:10px;border-radius:6px;border:1px solid #e5e5e5">
+          <div class="label" style="margin-bottom:4px">状态</div>
+          <div>已描述</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <div class="mock-button" style="flex:1">描述</div>
+        <div class="mock-button" style="flex:1">向量化</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案 B：左侧信息 + 右侧角度列表</h3>
+  <p class="subtitle">基本信息在左，角度描述在右</p>
+  <div class="mockup">
+    <div class="mockup-body" style="padding:16px;font-family:sans-serif;font-size:13px;line-height:1.6">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+        <span><strong>7月26日.mp4</strong></span>
+        <span style="display:flex;gap:6px">
+          <span class="label" style="background:#e8e8e8;padding:2px 8px;border-radius:4px">视频</span>
+          <span class="label" style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:4px">动画</span>
+        </span>
+      </div>
+      <div style="display:grid;grid-template-columns:200px 1fr;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="background:#f8fafc;padding:8px;border-radius:4px;border:1px solid #e5e5e5">
+            <div class="label">类型</div>
+            <div>视频</div>
+          </div>
+          <div style="background:#f8fafc;padding:8px;border-radius:4px;border:1px solid #e5e5e5">
+            <div class="label">子类型</div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <span>动画</span>
+              <span style="color:#3b82f6;cursor:pointer;font-size:11px">✏️</span>
+            </div>
+          </div>
+          <div style="background:#f8fafc;padding:8px;border-radius:4px;border:1px solid #e5e5e5">
+            <div class="label">时长</div>
+            <div>146.8s</div>
+          </div>
+          <div style="background:#f8fafc;padding:8px;border-radius:4px;border:1px solid #e5e5e5">
+            <div class="label">状态</div>
+            <div>已描述</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="background:#f8fafc;padding:10px;border-radius:6px;border:1px solid #e5e5e5">
+            <div style="display:flex;justify-content:space-between">
+              <span class="label">🎬 时间线</span>
+              <span class="label">300 字</span>
+            </div>
+            <div style="font-size:12px;margin-top:4px;color:#333">00:00-00:08：雨天街景，少女站在窗前...</div>
+          </div>
+          <div style="background:#f8fafc;padding:10px;border-radius:6px;border:1px solid #e5e5e5">
+            <div style="display:flex;justify-content:space-between">
+              <span class="label">👤 人物</span>
+              <span class="label">160 字</span>
+            </div>
+            <div style="font-size:12px;margin-top:4px;color:#333">银发双马尾少女、棕发少女、紫发少女...</div>
+          </div>
+          <div style="background:#f8fafc;padding:10px;border-radius:6px;border:1px solid #e5e5e5">
+            <div style="display:flex;justify-content:space-between">
+              <span class="label">📷 场景</span>
+              <span class="label">140 字</span>
+            </div>
+            <div style="font-size:12px;margin-top:4px;color:#333">昏暗的乐队排练室，架子鼓、吉他...</div>
+          </div>
+          <div style="background:#f8fafc;padding:10px;border-radius:6px;border:1px solid #e5e5e5">
+            <div style="display:flex;justify-content:space-between">
+              <span class="label">💪 动作</span>
+              <span class="label">180 字</span>
+            </div>
+            <div style="font-size:12px;margin-top:4px;color:#333">少女流泪、递纸条、拥抱...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Tab 页切换</h3>
+      <p>信息/角度描述/时间线 三个 Tab，每个 Tab 内容独立，适合角度多的情况</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>左侧信息 + 右侧角度列表</h3>
+      <p>基本信息在左，角度描述在右，一目了然，不需要切换 Tab</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>其他想法</h3>
+      <p>我有不同的布局想法</p>
+    </div>
+  </div>
+</div>

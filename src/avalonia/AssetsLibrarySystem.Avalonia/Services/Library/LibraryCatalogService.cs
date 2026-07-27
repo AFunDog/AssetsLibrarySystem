@@ -10,6 +10,7 @@ using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetLibrary;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
+using AssetsLibrarySystem.Application.Services.Infrastructure;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Serilog;
 
@@ -19,6 +20,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
 {
     private IAssetLibraryService? AssetLibraryService { get; }
     private IAssetDescriptionStore? AssetDescriptionStore { get; }
+    private IAssetDatabase? AssetDatabase { get; }
     private IBackgroundTaskService? BackgroundTaskService { get; }
     private ActivityFeedService ActivityFeedService { get; }
     private List<ManagedAssetRecord> AllAssets { get; } = [];
@@ -26,18 +28,20 @@ public sealed partial class LibraryCatalogService : ObservableObject
     private bool IsLibraryScanRunning { get; set; }
 
     public LibraryCatalogService()
-        : this(null, null, null, new ActivityFeedService())
+        : this(null, null, null, null, new ActivityFeedService())
     {
     }
 
     public LibraryCatalogService(
         IAssetLibraryService? assetLibraryService,
         IAssetDescriptionStore? assetDescriptionStore,
+        IAssetDatabase? assetDatabase,
         IBackgroundTaskService? backgroundTaskService,
         ActivityFeedService activityFeedService)
     {
         AssetLibraryService = assetLibraryService;
         AssetDescriptionStore = assetDescriptionStore;
+        AssetDatabase = assetDatabase;
         BackgroundTaskService = backgroundTaskService;
         ActivityFeedService = activityFeedService;
 
@@ -150,6 +154,11 @@ public sealed partial class LibraryCatalogService : ObservableObject
 
     [ObservableProperty]
     public partial string SelectedAssetDescriptionText { get; set; }
+
+    [ObservableProperty]
+    public partial string SelectedAssetSubtype { get; set; } = "";
+
+    public ObservableCollection<AngleDescriptionRecord> SelectedAssetDescriptionAngles { get; } = [];
 
     [ObservableProperty]
     public partial string DescriptionSelectionSummary { get; set; }

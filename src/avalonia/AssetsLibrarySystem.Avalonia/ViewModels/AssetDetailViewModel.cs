@@ -1,4 +1,6 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -23,6 +25,7 @@ public sealed partial class AssetDetailViewModel : ObservableObject
     public string SelectedAssetLibrary => LibraryCatalogService.SelectedAssetLibrary;
     public string SelectedAssetPath => LibraryCatalogService.SelectedAssetPath;
     public string SelectedAssetType => LibraryCatalogService.SelectedAssetType;
+    public string SelectedAssetSubtype => LibraryCatalogService.SelectedAssetSubtype;
     public string SelectedAssetStage => LibraryCatalogService.SelectedAssetStage;
     public string SelectedAssetAiState => LibraryCatalogService.SelectedAssetAiState;
     public string SelectedAssetDetail => LibraryCatalogService.SelectedAssetDetail;
@@ -34,6 +37,8 @@ public sealed partial class AssetDetailViewModel : ObservableObject
     public string SelectedAssetDescriptionTokenUsage => LibraryCatalogService.SelectedAssetDescriptionTokenUsage;
     public string SelectedAssetDescriptionPrompt => LibraryCatalogService.SelectedAssetDescriptionPrompt;
     public string SelectedAssetDescriptionSystemPrompt => LibraryCatalogService.SelectedAssetDescriptionSystemPrompt;
+    public ObservableCollection<AngleDescriptionRecord> SelectedAssetDescriptionAngles
+        => LibraryCatalogService.SelectedAssetDescriptionAngles;
 
     private void OnCatalogPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

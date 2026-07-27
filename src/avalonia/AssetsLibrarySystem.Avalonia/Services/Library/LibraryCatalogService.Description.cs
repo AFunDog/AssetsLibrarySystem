@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
@@ -83,6 +84,12 @@ public sealed partial class LibraryCatalogService
         SelectedAssetDescriptionText = document.PrimaryDescription;
         SelectedAssetAiState = SelectedAssetDescriptionState;
         SelectedAssetDetail = document.PrimaryDescription;
+
+        // 更新子类型和角度描述
+        if (document.Subtype is not null)
+            SelectedAssetSubtype = document.Subtype;
+        if (SelectedAsset is not null)
+            RefreshDescriptionAngles(SelectedAsset, document.Description);
     }
 
     private void ResetSelectedAssetDescription()
@@ -133,5 +140,54 @@ public sealed partial class LibraryCatalogService
         return usage.ImageTokens is null && usage.VideoTokens is null && usage.AudioTokens is null
             ? baseText
             : $"{baseText}; image={usage.ImageTokens ?? 0}, video={usage.VideoTokens ?? 0}, audio={usage.AudioTokens ?? 0}";
+    }
+
+    private void RefreshDescriptionAngles(ManagedAssetRecord asset, string? descriptionJson)
+    {
+        SelectedAssetDescriptionAngles.Clear();
+        if (string.IsNullOrWhiteSpace(descriptionJson))
+            return;
+
+        var subtype = SelectedAssetSubtype;
+        if (string.IsNullOrWhiteSpace(subtype))
+        {
+            subtype = "默认";
+        }
+
+        try
+        {
+            var segments = StructuredDescriptionHelper.ExtractSegments(descriptionJson);
+            var profile = new AngleProfileManager(
+                System.IO.Path.Combine(AppContext.BaseDirectory, "angle_profiles.yaml"))
+                .GetProfile(asset.AssetType, subtype);
+
+            foreach (var segment in segments)
+            {
+                var angleDef = profile.Angles.FirstOrDefault(
+                    a => a.Key == segment.NormalizedAngleType);
+                SelectedAssetDescriptionAngles.Add(new AngleDescriptionRecord(
+                    AngleKey: segment.NormalizedAngleType,
+                    Label: angleDef?.Label ?? segment.NormalizedAngleType,
+                    Text: segment.NormalizedText,
+                    Tags: [],
+                    MaxLength: angleDef?.MaxLength ?? 120));
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("解析角度描述失败: {Error}", ex.Message);
+        }
+    }
+
+    public async Task UpdateSubtypeAsync(string newSubtype)
+    {
+        if (SelectedAsset is null || AssetDatabase is null)
+            return;
+
+        await AssetDatabase.UpdateSubtypeAsync(SelectedAsset.DatabaseId, newSubtype);
+        SelectedAssetSubtype = newSubtype;
+        RefreshDescriptionAngles(SelectedAsset, SelectedAssetDescriptionText);
+        Log.Information("素材子类型已更新: assetId={AssetId}, subtype={Subtype}",
+            SelectedAsset.DatabaseId, newSubtype);
     }
 }

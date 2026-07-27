@@ -13,4 +13,6 @@ public interface IAssetDatabase
     Task<SqliteConnection> OpenConnectionAsync(CancellationToken ct = default);
 
     SqliteConnection OpenConnection();
+
+    Task UpdateSubtypeAsync(long assetId, string subtype, CancellationToken ct = default);
 }

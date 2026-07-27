@@ -58,6 +58,16 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
         return connection;
     }
 
+    public async Task UpdateSubtypeAsync(long assetId, string subtype, CancellationToken ct = default)
+    {
+        await using var connection = await OpenConnectionAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE asset_metadata SET subtype = $subtype WHERE asset_id = $assetId";
+        command.Parameters.AddWithValue("$subtype", subtype);
+        command.Parameters.AddWithValue("$assetId", assetId);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
     private async Task<SqliteConnection> OpenConnectionWithoutSchemaAsync(CancellationToken ct, bool configureStoragePragmas)
     {
         var connection = CreateConnection();

@@ -1,0 +1,4 @@
+{"type":"click","text":"A\n    \n      Tab 页切换\n      信息/角度描述/时间线 三个 Tab，每个 Tab 内容独立，适合角度多的情况","choice":"a","id":null,"timestamp":1785158358890}
+{"type":"click","text":"B\n    \n      左侧信息 + 右侧角度列表\n      基本信息在左，角度描述在右，一目了然，不需要切换 Tab","choice":"b","id":null,"timestamp":1785158379042}
+{"type":"click","text":"B\n    \n      左侧信息 + 右侧角度列表\n      基本信息在左，角度描述在右，一目了然，不需要切换 Tab","choice":"b","id":null,"timestamp":1785158384978}
+{"type":"click","text":"B\n    \n      左侧信息 + 右侧角度列表\n      基本信息在左，角度描述在右，一目了然，不需要切换 Tab","choice":"b","id":null,"timestamp":1785158385219}

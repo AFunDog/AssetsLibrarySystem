@@ -132,6 +132,9 @@ public sealed class AssetDescriptionStoreTests : IAsyncDisposable
             return connection;
         }
 
+        public Task UpdateSubtypeAsync(long assetId, string subtype, CancellationToken ct = default)
+            => Task.CompletedTask;
+
         private async Task<SqliteConnection> OpenConnectionCoreAsync(CancellationToken ct)
         {
             var connection = new SqliteConnection($"Data Source={DatabasePath}");
