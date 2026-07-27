@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
@@ -86,8 +88,13 @@ public sealed partial class LibraryCatalogService
         SelectedAssetDetail = document.PrimaryDescription;
 
         // 更新子类型和角度描述
-        if (document.Subtype is not null)
-            SelectedAssetSubtype = document.Subtype;
+        var subtype = document.Subtype;
+        if (string.IsNullOrWhiteSpace(subtype) && SelectedAsset is not null)
+            subtype = SelectedAsset.Subtype;
+        if (string.IsNullOrWhiteSpace(subtype))
+            subtype = "默认";
+        SelectedAssetSubtype = subtype;
+
         if (SelectedAsset is not null)
             RefreshDescriptionAngles(SelectedAsset, document.Description);
     }
@@ -150,26 +157,51 @@ public sealed partial class LibraryCatalogService
 
         var subtype = SelectedAssetSubtype;
         if (string.IsNullOrWhiteSpace(subtype))
-        {
             subtype = "默认";
-        }
 
         try
         {
+            // 解析 JSON 获取每个角度的 tags
+            var tagsByAngle = new Dictionary<string, string[]>(StringComparer.Ordinal);
+            try
+            {
+                using var doc = JsonDocument.Parse(descriptionJson);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        if (prop.Value.ValueKind == JsonValueKind.Object
+                            && prop.Value.TryGetProperty("tags", out var tagsEl)
+                            && tagsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            tagsByAngle[prop.Name] = tagsEl.EnumerateArray()
+                                .Where(t => t.ValueKind == JsonValueKind.String)
+                                .Select(t => t.GetString() ?? "")
+                                .Where(t => !string.IsNullOrEmpty(t))
+                                .ToArray()!;
+                        }
+                    }
+                }
+            }
+            catch (JsonException)
+            {
+                // tags 解析失败不影响主体描述
+            }
+
             var segments = StructuredDescriptionHelper.ExtractSegments(descriptionJson);
-            var profile = new AngleProfileManager(
-                System.IO.Path.Combine(AppContext.BaseDirectory, "angle_profiles.yaml"))
-                .GetProfile(asset.AssetType, subtype);
+            var profile = AngleProfileManager?.GetProfile(asset.AssetType, subtype)
+                ?? new AngleProfileManager(ResolveYamlPath()).GetProfile(asset.AssetType, subtype);
 
             foreach (var segment in segments)
             {
                 var angleDef = profile.Angles.FirstOrDefault(
                     a => a.Key == segment.NormalizedAngleType);
+                var tags = tagsByAngle.GetValueOrDefault(segment.NormalizedAngleType, []);
                 SelectedAssetDescriptionAngles.Add(new AngleDescriptionRecord(
                     AngleKey: segment.NormalizedAngleType,
                     Label: angleDef?.Label ?? segment.NormalizedAngleType,
                     Text: segment.NormalizedText,
-                    Tags: [],
+                    Tags: tags,
                     MaxLength: angleDef?.MaxLength ?? 120));
             }
         }
@@ -177,6 +209,28 @@ public sealed partial class LibraryCatalogService
         {
             Log.Debug("解析角度描述失败: {Error}", ex.Message);
         }
+    }
+
+    private static string ResolveYamlPath()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        var yamlPath = System.IO.Path.Combine(baseDir, "angle_profiles.yaml");
+        if (System.IO.File.Exists(yamlPath))
+            return yamlPath;
+
+        // 回退到源码目录
+        var current = new System.IO.DirectoryInfo(baseDir);
+        while (current is not null)
+        {
+            var candidate = System.IO.Path.Combine(
+                current.FullName, "src", "avalonia",
+                "AssetsLibrarySystem.Application", "angle_profiles.yaml");
+            if (System.IO.File.Exists(candidate))
+                return candidate;
+            current = current.Parent;
+        }
+
+        return yamlPath;
     }
 
     public async Task UpdateSubtypeAsync(string newSubtype)

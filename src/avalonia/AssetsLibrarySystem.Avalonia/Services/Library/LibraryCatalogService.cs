@@ -21,6 +21,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
     private IAssetLibraryService? AssetLibraryService { get; }
     private IAssetDescriptionStore? AssetDescriptionStore { get; }
     private IAssetDatabase? AssetDatabase { get; }
+    private AngleProfileManager? AngleProfileManager { get; }
     private IBackgroundTaskService? BackgroundTaskService { get; }
     private ActivityFeedService ActivityFeedService { get; }
     private List<ManagedAssetRecord> AllAssets { get; } = [];
@@ -28,7 +29,7 @@ public sealed partial class LibraryCatalogService : ObservableObject
     private bool IsLibraryScanRunning { get; set; }
 
     public LibraryCatalogService()
-        : this(null, null, null, null, new ActivityFeedService())
+        : this(null, null, null, null, null, new ActivityFeedService())
     {
     }
 
@@ -36,12 +37,14 @@ public sealed partial class LibraryCatalogService : ObservableObject
         IAssetLibraryService? assetLibraryService,
         IAssetDescriptionStore? assetDescriptionStore,
         IAssetDatabase? assetDatabase,
+        AngleProfileManager? angleProfileManager,
         IBackgroundTaskService? backgroundTaskService,
         ActivityFeedService activityFeedService)
     {
         AssetLibraryService = assetLibraryService;
         AssetDescriptionStore = assetDescriptionStore;
         AssetDatabase = assetDatabase;
+        AngleProfileManager = angleProfileManager;
         BackgroundTaskService = backgroundTaskService;
         ActivityFeedService = activityFeedService;
 
