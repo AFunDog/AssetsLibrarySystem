@@ -58,6 +58,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             .ToArray();
 
         // 5. 发送请求
+        var slicing = profile.Slicing;
         var request = new BackendModelGenerateRequest(
             AssetFormat: asset.AssetType,
             AssetPath: asset.LocalPath,
@@ -65,7 +66,11 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             SystemPrompt: string.IsNullOrWhiteSpace(finalSystemPrompt) ? null : finalSystemPrompt.Trim(),
             MockResponse: false,
             Subtype: subtype,
-            Angles: angleDtos);
+            Angles: angleDtos,
+            EnableSlicing: slicing?.Enabled == true,
+            SliceThreshold: slicing?.SliceThresholdSeconds ?? 60.0,
+            MinSceneLen: slicing?.MinSceneLength ?? 15,
+            AdaptiveThreshold: slicing?.AdaptiveThreshold ?? 3.0);
 
         var backendResponse = await BackendModelClient.GenerateAsync(backendBaseUrl, request, ct).ConfigureAwait(false);
 

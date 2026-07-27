@@ -64,7 +64,11 @@ public sealed record BackendModelGenerateRequest(
     string? SystemPrompt,
     bool MockResponse,
     string? Subtype = null,
-    AngleDefinitionDto[]? Angles = null);
+    AngleDefinitionDto[]? Angles = null,
+    bool EnableSlicing = false,
+    double SliceThreshold = 60.0,
+    int MinSceneLen = 15,
+    double AdaptiveThreshold = 3.0);
 
 public sealed record BackendModelGenerateResponse(
     string ProviderSlot,

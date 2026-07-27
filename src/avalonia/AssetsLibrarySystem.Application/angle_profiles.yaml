@@ -98,6 +98,11 @@ angle_definitions:
       - 动作
       - 镜头
       - 整体
+    slicing:
+      enabled: true
+      slice_threshold: 60
+      min_scene_len: 15
+      adaptive_threshold: 3.0
   动画:
     label: 动画/CG
     angles:
@@ -105,6 +110,11 @@ angle_definitions:
       - 场景
       - 动作
       - 整体
+    slicing:
+      enabled: true
+      slice_threshold: 60
+      min_scene_len: 15
+      adaptive_threshold: 3.0
   游戏录制:
     label: 游戏录制
     angles:
@@ -112,6 +122,11 @@ angle_definitions:
       - 场景
       - 动作
       - 整体
+    slicing:
+      enabled: true
+      slice_threshold: 60
+      min_scene_len: 15
+      adaptive_threshold: 3.0
   默认:
     label: 通用视频
     angles:

@@ -16,13 +16,23 @@ public sealed record AngleDefinition(
     int MaxLength = 120);
 
 /// <summary>
+/// 视频切片配置
+/// </summary>
+public sealed record VideoSlicingConfig(
+    bool Enabled = true,
+    double SliceThresholdSeconds = 60.0,
+    int MinSceneLength = 15,
+    double AdaptiveThreshold = 3.0);
+
+/// <summary>
 /// 子类型的角度配置
 /// </summary>
 public sealed record SubtypeProfile(
     string AssetType,
     string Subtype,
     string Label,
-    IReadOnlyList<AngleDefinition> Angles);
+    IReadOnlyList<AngleDefinition> Angles,
+    VideoSlicingConfig? Slicing = null);
 
 /// <summary>
 /// 角度配置管理器。
@@ -119,12 +129,14 @@ public sealed class AngleProfileManager
 
                 var label = subObj.GetString("label") ?? subtypeName;
                 var angles = ResolveAngles(subObj.GetList("angles"));
+                var slicing = ParseSlicingConfig(subObj.GetDict("slicing"));
 
                 subtypeDict[subtypeName] = new SubtypeProfile(
                     AssetType: assetType,
                     Subtype: subtypeName,
                     Label: label,
-                    Angles: angles);
+                    Angles: angles,
+                    Slicing: slicing);
             }
 
             result[assetType] = subtypeDict;
@@ -162,6 +174,18 @@ public sealed class AngleProfileManager
 
         return result;
     }
+
+    private static VideoSlicingConfig? ParseSlicingConfig(Dictionary<object, object>? raw)
+    {
+        if (raw is null)
+            return null;
+
+        return new VideoSlicingConfig(
+            Enabled: raw.GetBool("enabled") ?? true,
+            SliceThresholdSeconds: raw.GetDouble("slice_threshold") ?? 60.0,
+            MinSceneLength: raw.GetInt("min_scene_len") ?? 15,
+            AdaptiveThreshold: raw.GetDouble("adaptive_threshold") ?? 3.0);
+    }
 }
 
 file static class DictExtensions
@@ -187,6 +211,31 @@ file static class DictExtensions
     {
         if (dict.TryGetValue(key, out var value) && value is List<object> list)
             return list;
+        return null;
+    }
+
+    public static bool? GetBool(this Dictionary<object, object> dict, string key)
+    {
+        if (dict.TryGetValue(key, out var value))
+        {
+            try { return Convert.ToBoolean(value); } catch { }
+        }
+        return null;
+    }
+
+    public static double? GetDouble(this Dictionary<object, object> dict, string key)
+    {
+        if (dict.TryGetValue(key, out var value))
+        {
+            try { return Convert.ToDouble(value); } catch { }
+        }
+        return null;
+    }
+
+    public static Dictionary<object, object>? GetDict(this Dictionary<object, object> dict, string key)
+    {
+        if (dict.TryGetValue(key, out var value) && value is Dictionary<object, object> d)
+            return d;
         return null;
     }
 }

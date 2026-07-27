@@ -76,6 +76,11 @@ public sealed class PythonModelService : IBackendModelClient
             kw["angles"] = Runtime.None;
         }
 
+        kw["enable_slicing"] = new PyInt(request.EnableSlicing ? 1 : 0);
+        kw["slice_threshold"] = new PyFloat(request.SliceThreshold);
+        kw["min_scene_len"] = new PyInt(request.MinSceneLen);
+        kw["adaptive_threshold"] = new PyFloat(request.AdaptiveThreshold);
+
         return schemas.ModelGenerateRequest.Invoke(Array.Empty<PyObject>(), kw);
     }
 
