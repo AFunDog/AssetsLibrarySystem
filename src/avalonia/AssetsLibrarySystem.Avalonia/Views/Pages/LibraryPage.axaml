@@ -228,38 +228,74 @@
                     </Border>
                 </Grid>
 
-                <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="8">
+                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="8">
                     <Border Classes="page-card">
-                        <StackPanel Spacing="8">
-                            <TextBlock Classes="eyebrow" Text="已选素材" />
-                            <TextBlock Classes="section-title" Text="{Binding SelectedAssetName}" />
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="4">
-                                <Border Classes="sub-card">
-                                    <StackPanel Spacing="2">
+                        <Grid ColumnDefinitions="200,*" ColumnSpacing="12">
+                            <!-- 左侧：基本信息 -->
+                            <Border Classes="sub-card">
+                                <StackPanel Spacing="8">
+                                    <StackPanel>
                                         <TextBlock Classes="eyebrow" Text="类型" />
                                         <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                   Text="{Binding SelectedAssetType}" />
+                                                   FontSize="24" FontWeight="SemiLight"
+                                                   Text="{Binding AssetDetail.SelectedAssetType}" />
                                     </StackPanel>
-                                </Border>
-                                <Border Grid.Column="1" Classes="sub-card">
-                                    <StackPanel Spacing="2">
+                                    <StackPanel>
+                                        <TextBlock Classes="eyebrow" Text="子类型" />
+                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                   Text="{Binding AssetDetail.SelectedAssetSubtype}" />
+                                    </StackPanel>
+                                    <StackPanel>
                                         <TextBlock Classes="eyebrow" Text="状态" />
                                         <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                                    TextWrapping="Wrap"
-                                                   Text="{Binding SelectedAssetAiState}" />
+                                                   Text="{Binding AssetDetail.SelectedAssetAiState}" />
                                     </StackPanel>
-                                </Border>
-                            </Grid>
-
-                            <Border Classes="sub-card">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Classes="eyebrow" Text="描述" />
-                                    <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                               TextWrapping="Wrap"
-                                               Text="{Binding SelectedAssetDescriptionText}" />
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                            <!-- 右侧：角度描述列表 -->
+                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetDescriptionAngles}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Classes="sub-card" Margin="0,0,0,8">
+                                                <StackPanel Spacing="6">
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <TextBlock Text="{Binding Label}"
+                                                                   FontWeight="SemiBold" FontSize="14"
+                                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                                        <TextBlock Classes="eyebrow" Grid.Column="1" />
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding Text}"
+                                                               TextWrapping="Wrap"
+                                                               FontSize="13"
+                                                               Foreground="{DynamicResource AppTextBrush}" />
+                                                    <WrapPanel>
+                                                        <ItemsControl ItemsSource="{Binding Tags}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                                                            CornerRadius="4" Padding="8,4" Margin="2">
+                                                                        <TextBlock Text="{Binding}"
+                                                                                   FontSize="12"
+                                                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
                     </Border>
 
                     <Border Grid.Row="1" Classes="page-card">
