@@ -49,7 +49,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         var finalSystemPrompt = systemPrompt;
         if (string.IsNullOrWhiteSpace(finalSystemPrompt))
         {
-            finalSystemPrompt = BuildDynamicSystemPrompt(asset.AssetType, profile.Angles);
+            finalSystemPrompt = AngleProfileManager.BuildSystemPrompt(asset.AssetType, profile.Angles);
         }
 
         // 4. 构建角度 DTO
