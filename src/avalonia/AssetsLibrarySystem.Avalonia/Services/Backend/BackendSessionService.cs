@@ -13,7 +13,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace AssetsLibrarySystem.Avalonia.Services.Backend;
 
-public sealed partial class BackendSessionService : ObservableObject
+public sealed partial class BackendSessionService : ObservableObject, IBackendSessionService
 {
     private PythonEngineService? PythonEngine { get; }
     private IBackgroundTaskService? BackgroundTaskService { get; }
@@ -23,6 +23,8 @@ public sealed partial class BackendSessionService : ObservableObject
         : this(null, null, new ActivityFeedService(), new UserSettingsService(), null)
     {
     }
+
+    public event Action? BackendStatusChanged;
 
     public BackendSessionService(
         PythonEngineService? pythonEngine,
@@ -85,6 +87,7 @@ public sealed partial class BackendSessionService : ObservableObject
             SearchModelStatusTitle = "设计时模式";
             SearchModelStatusStage = "本地预览";
             SearchModelStatusDetail = "Python 引擎未连接。";
+            BackendStatusChanged?.Invoke();
             return Task.CompletedTask;
         }
 
@@ -110,6 +113,7 @@ public sealed partial class BackendSessionService : ObservableObject
             Log.Information("Python 引擎初始化完成");
             ActivityFeedService.Add("Python 引擎就绪（嵌入模式）");
             CompleteTask(taskId, "Python 引擎就绪", BackendStatusDetail);
+            BackendStatusChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -119,6 +123,7 @@ public sealed partial class BackendSessionService : ObservableObject
             Log.Error(ex, "Python 引擎初始化失败。");
             ActivityFeedService.Add($"Python 引擎初始化失败：{ex.Message}");
             FailTask(taskId, "引擎初始化失败", ex.Message);
+            BackendStatusChanged?.Invoke();
         }
     }
 
