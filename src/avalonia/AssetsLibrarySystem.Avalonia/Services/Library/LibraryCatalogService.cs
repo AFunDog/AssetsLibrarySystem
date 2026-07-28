@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
@@ -16,7 +17,7 @@ using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.Services.Library;
 
-public sealed partial class LibraryCatalogService : ObservableObject
+public sealed partial class LibraryCatalogService : ObservableObject, ILibraryCatalogService
 {
     private IAssetLibraryService? AssetLibraryService { get; }
     private IAssetDescriptionStore? AssetDescriptionStore { get; }
@@ -545,5 +546,63 @@ public sealed partial class LibraryCatalogService : ObservableObject
 
         ActivityFeedService.Add($"描述已手动更新：{SelectedAsset.Name}");
         Log.Information("素材描述已手动更新: assetId={AssetId}", SelectedAsset.DatabaseId);
+    }
+
+    // ===== ILibraryCatalogService 实现 =====
+
+    public async Task<IReadOnlyList<LibraryWorkspace>> GetLibrariesAsync(CancellationToken ct = default)
+    {
+        if (AssetLibraryService is null)
+            return [];
+        return await AssetLibraryService.GetLibrariesAsync(ct);
+    }
+
+    public async Task<LibraryWorkspace> AddLibraryAsync(string folderPath, CancellationToken ct = default)
+    {
+        if (AssetLibraryService is null)
+            throw new InvalidOperationException("素材库服务未注册。");
+        return await AssetLibraryService.AddLibraryAsync(folderPath, ct);
+    }
+
+    public async Task<IReadOnlyList<ManagedAssetRecord>> ScanLibraryAsync(LibraryWorkspace library, CancellationToken ct = default)
+    {
+        if (AssetLibraryService is null)
+            return [];
+        return await AssetLibraryService.ScanLibraryAsync(library, ct);
+    }
+
+    public Task DeleteLibraryAsync(long libraryId, CancellationToken ct = default)
+    {
+        if (AssetLibraryService is null)
+            throw new InvalidOperationException("素材库服务未注册。");
+        return AssetLibraryService.DeleteLibraryAsync(libraryId, ct);
+    }
+
+    public Task UpdateLibraryAsync(long libraryId, string newName, CancellationToken ct = default)
+    {
+        if (AssetLibraryService is null)
+            throw new InvalidOperationException("素材库服务未注册。");
+        return AssetLibraryService.UpdateLibraryAsync(libraryId, newName, ct);
+    }
+
+    public Task DeleteAssetAsync(long assetId, CancellationToken ct = default)
+    {
+        if (AssetLibraryService is null)
+            throw new InvalidOperationException("素材库服务未注册。");
+        return AssetLibraryService.DeleteAssetAsync(assetId, ct);
+    }
+
+    public Task UpdateAssetTagsAsync(long assetId, string[] tags, CancellationToken ct = default)
+    {
+        if (AssetLibraryService is null)
+            throw new InvalidOperationException("素材库服务未注册。");
+        return AssetLibraryService.UpdateAssetTagsAsync(assetId, tags, ct);
+    }
+
+    public Task UpdateAssetNameAsync(long assetId, string newName, CancellationToken ct = default)
+    {
+        if (AssetLibraryService is null)
+            throw new InvalidOperationException("素材库服务未注册。");
+        return AssetLibraryService.UpdateAssetNameAsync(assetId, newName, ct);
     }
 }
