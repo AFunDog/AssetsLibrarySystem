@@ -186,6 +186,16 @@
                                                     <MenuItem Header="删除描述记录"
                                                               Click="DeleteDescriptionForNode_Click"
                                                               CommandParameter="{Binding}" />
+                                                    <Separator />
+                                                    <MenuItem Header="编辑标签"
+                                                              Click="EditTags_Click"
+                                                              CommandParameter="{Binding}" />
+                                                    <MenuItem Header="重命名"
+                                                              Click="RenameNode_Click"
+                                                              CommandParameter="{Binding}" />
+                                                    <MenuItem Header="删除"
+                                                              Click="DeleteNode_Click"
+                                                              CommandParameter="{Binding}" />
                                                 </ContextMenu>
                                             </Button.ContextMenu>
                                             <StackPanel Spacing="8">
@@ -251,11 +261,69 @@
                                                    TextWrapping="Wrap"
                                                    Text="{Binding AssetDetail.SelectedAssetAiState}" />
                                     </StackPanel>
+                                    <!-- 标签编辑 -->
+                                    <StackPanel>
+                                        <TextBlock Classes="eyebrow" Text="标签" />
+                                        <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetTags}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{DynamicResource AppAccentSurfaceBrush}"
+                                                            CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                                            <TextBlock Text="{Binding .}"
+                                                                       FontSize="12"
+                                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                                            <Button Grid.Column="1"
+                                                                    Background="Transparent"
+                                                                    BorderBrush="Transparent"
+                                                                    BorderThickness="0"
+                                                                    Padding="2"
+                                                                    FontSize="10"
+                                                                    Command="{Binding $parent[ItemsControl].DataContext.RemoveTagCommand}"
+                                                                    CommandParameter="{Binding .}"
+                                                                    Content="×"
+                                                                    ToolTip.Tip="删除标签" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4" Margin="0,4,0,0">
+                                            <TextBox Text="{Binding AssetDetail.NewTagText}"
+                                                     PlaceholderText="添加标签..."
+                                                     Classes="compact-input" />
+                                            <Button Grid.Column="1"
+                                                    Classes="primary-action"
+                                                    Command="{Binding AssetDetail.AddTagCommand}"
+                                                    Content="添加" />
+                                        </Grid>
+                                    </StackPanel>
+                                    <!-- 操作按钮 -->
+                                    <StackPanel Spacing="4" Margin="0,8,0,0">
+                                        <Button Classes="secondary-action"
+                                                Command="{Binding AssetDetail.DeleteAssetCommand}"
+                                                Content="删除素材"
+                                                ToolTip.Tip="删除当前素材及其描述和向量记录" />
+                                        <Button Classes="secondary-action"
+                                                Command="{Binding AssetDetail.DeleteLibraryCommand}"
+                                                Content="删除素材库"
+                                                ToolTip.Tip="删除当前素材库及其所有素材" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                             <!-- 右侧：角度描述列表 -->
                             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
-                                <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetDescriptionAngles}">
+                                <StackPanel Spacing="8">
+                                    <Button Classes="secondary-action"
+                                            Command="{Binding AssetDetail.SaveDescriptionCommand}"
+                                            Content="保存描述修改"
+                                            IsEnabled="{Binding AssetDetail.EditDescriptionText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetDescriptionAngles}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Border Classes="sub-card" Margin="0,0,0,8">
@@ -294,6 +362,7 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                </StackPanel>
                             </ScrollViewer>
                         </Grid>
                     </Border>
