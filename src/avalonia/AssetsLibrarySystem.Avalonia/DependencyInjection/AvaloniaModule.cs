@@ -1,5 +1,6 @@
 using System;
 using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Application.Services.AssetLibrary;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
@@ -28,11 +29,11 @@ public sealed class AvaloniaServiceModule : Module
             .SingleInstance();
 
         builder.RegisterType<BackendSessionService>()
-            .AsSelf()
+            .As<IBackendSessionService>()
             .SingleInstance();
 
         builder.RegisterType<LibraryCatalogService>()
-            .AsSelf()
+            .As<ILibraryCatalogService>()
             .SingleInstance();
 
         builder.RegisterType<UserSettingsService>()
