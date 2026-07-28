@@ -123,24 +123,24 @@
                                         Click="AddLibraryFolder_Click"
                                         Content="添加目录" />
                                 <Button Classes="secondary-action"
-                                        Command="{Binding ScanSelectedLibraryCommand}"
+                                        Command="{Binding Workspace.ScanSelectedLibraryCommand}"
                                         Content="扫描当前" />
                                 <Button Classes="secondary-action"
-                                        Command="{Binding NavigateUpCommand}"
-                                        IsEnabled="{Binding CanNavigateUp}"
+                                        Command="{Binding Workspace.NavigateUpCommand}"
+                                        IsEnabled="{Binding Workspace.CanNavigateUp}"
                                         Content="上一级" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="2">
                                 <TextBlock Classes="eyebrow" Text="资源管理器" />
-                                <TextBlock Classes="section-title" Text="{Binding ExplorerTitle}" />
-                                <TextBlock Classes="section-subtitle" Text="{Binding ExplorerSummary}" />
+                                <TextBlock Classes="section-title" Text="{Binding Workspace.ExplorerTitle}" />
+                                <TextBlock Classes="section-subtitle" Text="{Binding Workspace.ExplorerSummary}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="2">
                                 <TextBlock Classes="eyebrow" Text="当前位置" HorizontalAlignment="Right" />
                                 <TextBlock Foreground="{DynamicResource AppAccentBrush}"
                                            TextWrapping="Wrap"
                                            TextAlignment="Right"
-                                           Text="{Binding ExplorerPath}" />
+                                           Text="{Binding Workspace.ExplorerPath}" />
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -154,7 +154,7 @@
                     <Border Grid.Row="2" Classes="page-card">
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding CurrentExplorerItems}">
+                            <ItemsControl ItemsSource="{Binding Workspace.CurrentExplorerItems}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel 

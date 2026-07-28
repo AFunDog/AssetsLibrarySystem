@@ -91,6 +91,30 @@ public sealed partial class LibraryPageViewModel : ObservableObject
     // ===== Command 包装，供 AXAML 绑定 =====
 
     [RelayCommand]
+    private void QueueDescriptionsForSelection()
+    {
+        // 将当前范围的所有素材排入描述队列
+        var assets = Workspace.GetDescriptionSelectionAssets();
+        if (assets.Count == 0)
+            Workspace.SetOperatorNotice("当前范围内没有可描述的素材。");
+    }
+
+    [RelayCommand]
+    private void QueueSelectedDescription()
+    {
+        if (Workspace.SelectedAsset is null)
+            Workspace.SetOperatorNotice("请先选择一个素材。");
+    }
+
+    [RelayCommand]
+    private void VectorizeDescriptions()
+    {
+        var assets = Workspace.GetAllLibraryAssets();
+        if (assets.Count == 0)
+            Workspace.SetOperatorNotice("当前没有可向量化的素材。");
+    }
+
+    [RelayCommand]
     private void RevealInExplorer(AssetLibraryTreeNode? node)
     {
         if (node is null || string.IsNullOrWhiteSpace(node.FullPath))
