@@ -202,6 +202,53 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         }, ct);
     }
 
+    public async Task UpdateDescriptionAsync(long assetId, string newDescription, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newDescription);
+        await AssetDatabase.EnsureSchemaAsync(ct);
+        await WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(token).ConfigureAwait(false);
+
+            // 更新描述文本，同时更新 generated_at 使向量化检测认为描述已更新
+            await using var cmd1 = connection.CreateCommand();
+            cmd1.Transaction = transaction;
+            cmd1.CommandText = """
+                UPDATE asset_descriptions
+                SET description = $description,
+                    generated_at = $generated_at,
+                    metadata_status = 'edited'
+                WHERE asset_id = $asset_id;
+                """;
+            AddParameter(cmd1, "$asset_id", assetId);
+            AddParameter(cmd1, "$description", newDescription.Trim());
+            AddParameter(cmd1, "$generated_at", DateTimeOffset.UtcNow.ToString("O"));
+            var affected = await cmd1.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+            if (affected == 0)
+            {
+                await transaction.RollbackAsync(token).ConfigureAwait(false);
+                throw new InvalidOperationException($"素材描述 (asset_id={assetId}) 不存在。");
+            }
+
+            // 标记向量为 pending，触发后续重新向量化
+            await using var cmd2 = connection.CreateCommand();
+            cmd2.Transaction = transaction;
+            cmd2.CommandText = """
+                UPDATE asset_metadata
+                SET vector_state = 'pending',
+                    updated_at = $updated_at
+                WHERE asset_id = $asset_id;
+                """;
+            AddParameter(cmd2, "$asset_id", assetId);
+            AddParameter(cmd2, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
+            await cmd2.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+            await transaction.CommitAsync(token).ConfigureAwait(false);
+        }, ct);
+    }
+
     private static AssetDescriptionDocument ReadDocument(SqliteDataReader reader)
     {
         return new AssetDescriptionDocument(

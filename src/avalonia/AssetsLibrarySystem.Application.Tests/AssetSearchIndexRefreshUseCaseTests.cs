@@ -201,6 +201,11 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             return Task.FromResult(DeleteResult);
         }
 
+        public Task UpdateDescriptionAsync(long assetId, string newDescription, CancellationToken ct = default)
+        {
+            throw new NotSupportedException();
+        }
+
         public Task<bool> NeedsVectorizationAsync(
             string assetId,
             string? descriptionContentHash = null,

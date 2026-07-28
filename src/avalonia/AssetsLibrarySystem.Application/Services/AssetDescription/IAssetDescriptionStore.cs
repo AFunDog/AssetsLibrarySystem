@@ -15,4 +15,7 @@ public interface IAssetDescriptionStore
     Task<AssetDescriptionDocument?> TryGetForAssetAsync(ManagedAssetRecord asset, CancellationToken ct = default);
 
     Task<bool> DeleteAsync(long assetId, CancellationToken ct = default);
+
+    /// <summary>手动更新素材描述文本，标记向量为过期状态</summary>
+    Task UpdateDescriptionAsync(long assetId, string newDescription, CancellationToken ct = default);
 }
