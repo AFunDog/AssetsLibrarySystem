@@ -122,4 +122,52 @@ public partial class LibraryPage : UserControl
 
         viewModel.SelectedAssetTreeNode = node;
     }
+
+    private async void EditTags_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem ||
+            menuItem.CommandParameter is not AssetLibraryTreeNode node ||
+            DataContext is not LibraryPageViewModel viewModel)
+        {
+            return;
+        }
+
+        // 切换到该素材，标签编辑在详情面板中完成
+        viewModel.SelectedAssetTreeNode = node;
+    }
+
+    private async void RenameNode_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem ||
+            menuItem.CommandParameter is not AssetLibraryTreeNode node ||
+            DataContext is not LibraryPageViewModel viewModel)
+        {
+            return;
+        }
+
+        // 切换到该节点，重命名在详情面板中完成
+        viewModel.SelectedAssetTreeNode = node;
+        viewModel.AssetDetail.RenameText = node.DisplayName;
+    }
+
+    private async void DeleteNode_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem ||
+            menuItem.CommandParameter is not AssetLibraryTreeNode node ||
+            DataContext is not LibraryPageViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SelectedAssetTreeNode = node;
+        if (node.Kind == AssetLibraryTreeNodeKind.File && node.Asset is not null)
+        {
+            await viewModel.AssetDetail.DeleteAssetCommand.ExecuteAsync(null);
+        }
+        else if (node.Kind == AssetLibraryTreeNodeKind.Library && node.Library is not null)
+        {
+            viewModel.SelectLibrary(node.Library);
+            await viewModel.AssetDetail.DeleteLibraryCommand.ExecuteAsync(null);
+        }
+    }
 }
