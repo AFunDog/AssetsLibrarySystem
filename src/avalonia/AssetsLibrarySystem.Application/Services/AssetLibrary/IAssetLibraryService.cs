@@ -12,4 +12,21 @@ public interface IAssetLibraryService
     Task<LibraryWorkspace> AddLibraryAsync(string folderPath, CancellationToken ct = default);
 
     Task<IReadOnlyList<ManagedAssetRecord>> ScanLibraryAsync(LibraryWorkspace library, CancellationToken ct = default);
+
+    // === 新增：CRUD 操作 ===
+
+    /// <summary>删除素材库及其所有关联数据（素材、描述、向量）</summary>
+    Task DeleteLibraryAsync(long libraryId, CancellationToken ct = default);
+
+    /// <summary>更新素材库名称</summary>
+    Task UpdateLibraryAsync(long libraryId, string newName, CancellationToken ct = default);
+
+    /// <summary>删除单个素材及其关联数据（描述、向量）</summary>
+    Task DeleteAssetAsync(long assetId, CancellationToken ct = default);
+
+    /// <summary>更新素材标签（持久化到 asset_metadata.tags_json）</summary>
+    Task UpdateAssetTagsAsync(long assetId, string[] tags, CancellationToken ct = default);
+
+    /// <summary>更新素材名称（同步更新 assets 和 asset_descriptions）</summary>
+    Task UpdateAssetNameAsync(long assetId, string newName, CancellationToken ct = default);
 }

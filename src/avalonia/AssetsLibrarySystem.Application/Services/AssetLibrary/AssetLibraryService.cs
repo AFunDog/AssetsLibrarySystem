@@ -744,6 +744,23 @@ public sealed class AssetLibraryService : IAssetLibraryService
         command.Parameters.AddWithValue(name, value ?? DBNull.Value);
     }
 
+    // ===== CRUD Operations（存根，Task 2 替换为真实实现） =====
+
+    public Task DeleteLibraryAsync(long libraryId, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public Task UpdateLibraryAsync(long libraryId, string newName, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public Task DeleteAssetAsync(long assetId, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public Task UpdateAssetTagsAsync(long assetId, string[] tags, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public Task UpdateAssetNameAsync(long assetId, string newName, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
     private sealed record AssetDbRecord(
         long Id,
         string AssetUid,
