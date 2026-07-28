@@ -1,6 +1,6 @@
 using System;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using AssetsLibrarySystem.Avalonia.Views;
 
 namespace AssetsLibrarySystem.Avalonia.Services.Shell;
 
@@ -13,8 +13,8 @@ public interface IShellWindowService
     bool IsQuickSearchWindowVisible { get; }
 
     void AttachDesktop(IClassicDesktopStyleApplicationLifetime desktop);
-    void AttachMainWindow(MainWindow window);
-    void AttachQuickSearchWindow(QuickSearchWindow window);
+    void AttachMainWindow(Window window);
+    void AttachQuickSearchWindow(Window window);
 
     void SetShuttingDown(bool isShuttingDown);
     void RequestShutdown();

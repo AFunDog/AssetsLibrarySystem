@@ -42,17 +42,13 @@ public partial class App : global::Avalonia.Application
 
             ShellViewModel = Container!.Resolve<DesktopShellViewModel>();
             DataContext = ShellViewModel;
-            shellWindowService.AttachDesktop(desktop);
 
-            var mainWindow = new MainWindow
-            {
-                DataContext = viewModel,
-            };
+            // 从 DI 容器解析窗口
+            var mainWindow = Container!.Resolve<MainWindow>();
+            mainWindow.DataContext = viewModel;
 
-            var quickSearchWindow = new QuickSearchWindow
-            {
-                DataContext = quickSearchViewModel,
-            };
+            var quickSearchWindow = Container!.Resolve<QuickSearchWindow>();
+            quickSearchWindow.DataContext = quickSearchViewModel;
 
             desktop.MainWindow = mainWindow;
             shellWindowService.AttachMainWindow(mainWindow);

@@ -50,6 +50,14 @@ public sealed class AvaloniaShellModule : Module
         builder.RegisterType<ShellWindowService>()
             .As<IShellWindowService>()
             .SingleInstance();
+
+        // 注册窗口类型，由 DI 自动装配
+        builder.RegisterType<Views.MainWindow>()
+            .AsSelf()
+            .SingleInstance();
+        builder.RegisterType<Views.QuickSearchWindow>()
+            .AsSelf()
+            .SingleInstance();
     }
 }
 

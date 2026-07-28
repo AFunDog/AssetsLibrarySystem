@@ -9,8 +9,8 @@ namespace AssetsLibrarySystem.Avalonia.Services.Shell;
 public sealed class ShellWindowService : IShellWindowService
 {
     private IClassicDesktopStyleApplicationLifetime? Desktop { get; set; }
-    private MainWindow? MainWindow { get; set; }
-    private QuickSearchWindow? QuickSearchWindow { get; set; }
+    private Window? MainWindow { get; set; }
+    private Window? QuickSearchWindow { get; set; }
     private bool IsShuttingDown { get; set; }
 
     public event Action<bool>? MainWindowVisibilityChanged;
@@ -25,7 +25,7 @@ public sealed class ShellWindowService : IShellWindowService
         Log.Debug("已绑定桌面生命周期。");
     }
 
-    public void AttachMainWindow(MainWindow window)
+    public void AttachMainWindow(Window window)
     {
         MainWindow = window;
         window.Closing += MainWindow_Closing;
@@ -33,7 +33,7 @@ public sealed class ShellWindowService : IShellWindowService
         MainWindowVisibilityChanged?.Invoke(IsMainWindowVisible);
     }
 
-    public void AttachQuickSearchWindow(QuickSearchWindow window)
+    public void AttachQuickSearchWindow(Window window)
     {
         QuickSearchWindow = window;
         window.Closing += QuickSearchWindow_Closing;
@@ -65,7 +65,8 @@ public sealed class ShellWindowService : IShellWindowService
     {
         Log.Debug("请求显示快速检索窗口。");
         ShowWindow(QuickSearchWindow);
-        QuickSearchWindow?.FocusSearchBox();
+        if (QuickSearchWindow is Views.QuickSearchWindow qsw)
+            qsw.FocusSearchBox();
         QuickSearchWindowVisibilityChanged?.Invoke(IsQuickSearchWindowVisible);
     }
 
@@ -91,7 +92,8 @@ public sealed class ShellWindowService : IShellWindowService
     public void FocusQuickSearchWindow()
     {
         Log.Debug("请求聚焦快速检索窗口。");
-        QuickSearchWindow?.FocusSearchBox();
+        if (QuickSearchWindow is Views.QuickSearchWindow qsw)
+            qsw.FocusSearchBox();
     }
 
     public void HideMainWindow()
