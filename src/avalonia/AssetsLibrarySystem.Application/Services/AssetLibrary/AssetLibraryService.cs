@@ -744,22 +744,117 @@ public sealed class AssetLibraryService : IAssetLibraryService
         command.Parameters.AddWithValue(name, value ?? DBNull.Value);
     }
 
-    // ===== CRUD Operations（存根，Task 2 替换为真实实现） =====
+    // ===== CRUD Operations =====
 
     public Task DeleteLibraryAsync(long libraryId, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    {
+        return WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM libraries WHERE id = $id;";
+            AddParameter(command, "$id", libraryId);
+            var affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            if (affected == 0)
+                throw new InvalidOperationException($"素材库 (id={libraryId}) 不存在。");
+        }, ct).AsTask();
+    }
 
     public Task UpdateLibraryAsync(long libraryId, string newName, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        return WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE libraries
+                SET name = $name, updated_at = $updated_at
+                WHERE id = $id;
+                """;
+            AddParameter(command, "$id", libraryId);
+            AddParameter(command, "$name", newName.Trim());
+            AddParameter(command, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
+            var affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            if (affected == 0)
+                throw new InvalidOperationException($"素材库 (id={libraryId}) 不存在。");
+        }, ct).AsTask();
+    }
 
     public Task DeleteAssetAsync(long assetId, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    {
+        return WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM assets WHERE id = $id;";
+            AddParameter(command, "$id", assetId);
+            var affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            if (affected == 0)
+                throw new InvalidOperationException($"素材 (id={assetId}) 不存在。");
+        }, ct).AsTask();
+    }
 
     public Task UpdateAssetTagsAsync(long assetId, string[] tags, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    {
+        var tagsJson = JsonSerializer.Serialize(tags ?? [], JsonOptions);
+        return WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE asset_metadata
+                SET tags_json = $tags_json, updated_at = $updated_at
+                WHERE asset_id = $asset_id;
+                """;
+            AddParameter(command, "$asset_id", assetId);
+            AddParameter(command, "$tags_json", tagsJson);
+            AddParameter(command, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
+            var affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            if (affected == 0)
+                throw new InvalidOperationException($"素材元数据 (asset_id={assetId}) 不存在。");
+        }, ct).AsTask();
+    }
 
     public Task UpdateAssetNameAsync(long assetId, string newName, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        var trimmedName = newName.Trim();
+        return WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(token).ConfigureAwait(false);
+
+            // 更新 assets 表
+            await using var cmd1 = connection.CreateCommand();
+            cmd1.Transaction = transaction;
+            cmd1.CommandText = """
+                UPDATE assets
+                SET asset_name = $name, updated_at = $updated_at
+                WHERE id = $id;
+                """;
+            AddParameter(cmd1, "$id", assetId);
+            AddParameter(cmd1, "$name", trimmedName);
+            AddParameter(cmd1, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
+            var affected = await cmd1.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+            if (affected == 0)
+            {
+                await transaction.RollbackAsync(token).ConfigureAwait(false);
+                throw new InvalidOperationException($"素材 (id={assetId}) 不存在。");
+            }
+
+            // 同步更新 asset_descriptions 表
+            await using var cmd2 = connection.CreateCommand();
+            cmd2.Transaction = transaction;
+            cmd2.CommandText = "UPDATE asset_descriptions SET asset_name = $name WHERE asset_id = $asset_id;";
+            AddParameter(cmd2, "$asset_id", assetId);
+            AddParameter(cmd2, "$name", trimmedName);
+            await cmd2.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+            await transaction.CommitAsync(token).ConfigureAwait(false);
+        }, ct).AsTask();
+    }
 
     private sealed record AssetDbRecord(
         long Id,
