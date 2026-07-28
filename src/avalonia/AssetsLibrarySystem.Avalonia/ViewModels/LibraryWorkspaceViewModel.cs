@@ -184,6 +184,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         RebuildMetrics();
     }
 
+    [RelayCommand]
     public async Task ScanSelectedLibraryAsync()
     {
         if (SelectedLibrary is null) return;

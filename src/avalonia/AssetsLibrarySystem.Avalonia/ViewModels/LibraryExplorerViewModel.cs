@@ -21,7 +21,12 @@ public sealed partial class LibraryExplorerViewModel : ObservableObject
         Workspace = workspace;
         Workspace.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
-        ScanSelectedLibraryCommand = new AsyncRelayCommand(() => Workspace.ScanSelectedLibraryAsync());
+        ScanSelectedLibraryCommand = new AsyncRelayCommand(() =>
+        {
+            if (Workspace.ScanSelectedLibraryCommand.CanExecute(null))
+                return Workspace.ScanSelectedLibraryCommand.ExecuteAsync(null);
+            return Task.CompletedTask;
+        });
         OpenLibraryCommand = new RelayCommand<LibraryWorkspace?>(Workspace.SelectLibrary);
         OpenExplorerItemCommand = new RelayCommand<AssetLibraryTreeNode?>(node => Workspace.SelectedAssetTreeNode = node);
         NavigateUpCommand = new RelayCommand(() => Workspace.NavigateUpCommand.Execute(null));

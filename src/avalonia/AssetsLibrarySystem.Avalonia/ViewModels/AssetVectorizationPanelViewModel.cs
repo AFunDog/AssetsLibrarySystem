@@ -6,8 +6,6 @@ using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.UseCases.AssetOperations;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
-using AssetsLibrarySystem.Avalonia.Services.Backend;
-using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Serilog;

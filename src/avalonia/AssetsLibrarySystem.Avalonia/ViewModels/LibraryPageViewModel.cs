@@ -5,8 +5,6 @@ using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
-using AssetsLibrarySystem.Avalonia.Services.Backend;
-using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Input;
