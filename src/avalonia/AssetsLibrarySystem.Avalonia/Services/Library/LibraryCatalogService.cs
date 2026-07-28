@@ -421,4 +421,129 @@ public sealed partial class LibraryCatalogService : ObservableObject
         OperatorNotice = message;
         Log.Debug("操作提示更新: {Message}", message);
     }
+
+    // ===== CRUD Operations =====
+
+    public async Task DeleteSelectedLibraryAsync()
+    {
+        if (SelectedLibrary is null)
+        {
+            SetOperatorNotice("请先选择一个素材库。");
+            return;
+        }
+        if (AssetLibraryService is null)
+        {
+            SetOperatorNotice("素材库服务未注册。");
+            return;
+        }
+
+        var libraryId = SelectedLibrary.Id;
+        var libraryName = SelectedLibrary.Name;
+
+        // 删除本地缓存
+        AllAssets.RemoveAll(a => a.LibraryName == libraryName);
+        var libraryNode = AssetTreeRoots.FirstOrDefault(n => n.Library?.Id == libraryId);
+        if (libraryNode is not null)
+            AssetTreeRoots.Remove(libraryNode);
+
+        await AssetLibraryService.DeleteLibraryAsync(libraryId);
+        Libraries.Remove(SelectedLibrary);
+        SelectedLibrary = null;
+        SelectedAsset = null;
+        SelectedAssetTreeNode = null;
+        SetEmptyWorkspaceState();
+        RebuildMetrics();
+
+        ActivityFeedService.Add($"素材库已删除：{libraryName}");
+        Log.Information("素材库已删除: libraryId={LibraryId}, libraryName={LibraryName}", libraryId, libraryName);
+    }
+
+    public async Task DeleteSelectedAssetAsync()
+    {
+        if (SelectedAsset is null)
+        {
+            SetOperatorNotice("请先选择一个素材。");
+            return;
+        }
+        if (AssetLibraryService is null)
+        {
+            SetOperatorNotice("素材库服务未注册。");
+            return;
+        }
+
+        var assetId = SelectedAsset.DatabaseId;
+        var assetName = SelectedAsset.Name;
+
+        await AssetLibraryService.DeleteAssetAsync(assetId);
+        AllAssets.Remove(SelectedAsset);
+        SelectedAsset = null;
+        ResetSelectedAssetDescription();
+        RebuildAssetTree();
+        RebuildMetrics();
+
+        ActivityFeedService.Add($"素材已删除：{assetName}");
+        Log.Information("素材已删除: assetId={AssetId}, assetName={AssetName}", assetId, assetName);
+    }
+
+    public async Task UpdateSelectedAssetTagsAsync(string[] tags)
+    {
+        if (SelectedAsset is null || AssetLibraryService is null)
+            return;
+
+        await AssetLibraryService.UpdateAssetTagsAsync(SelectedAsset.DatabaseId, tags);
+        SelectedAsset.Tags.Clear();
+        foreach (var tag in tags)
+            SelectedAsset.Tags.Add(tag);
+
+        ActivityFeedService.Add($"标签已更新：{SelectedAsset.Name}");
+        Log.Information("素材标签已更新: assetId={AssetId}, tags={Tags}",
+            SelectedAsset.DatabaseId, string.Join(", ", tags));
+    }
+
+    public async Task UpdateSelectedAssetNameAsync(string newName)
+    {
+        if (SelectedAsset is null || AssetLibraryService is null)
+            return;
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        await AssetLibraryService.UpdateAssetNameAsync(SelectedAsset.DatabaseId, newName.Trim());
+
+        // 重建树来刷新展示
+        RebuildAssetTree();
+        SyncSelectedAssetFields();
+
+        ActivityFeedService.Add($"素材已重命名");
+        Log.Information("素材已重命名: assetId={AssetId}, newName={NewName}",
+            SelectedAsset.DatabaseId, newName.Trim());
+    }
+
+    public async Task UpdateSelectedLibraryNameAsync(string newName)
+    {
+        if (SelectedLibrary is null || AssetLibraryService is null)
+            return;
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        var trimmedName = newName.Trim();
+        await AssetLibraryService.UpdateLibraryAsync(SelectedLibrary.Id, trimmedName);
+
+        var oldName = SelectedLibrary.Name;
+        RebuildAssetTree();
+        WorkspaceTitle = trimmedName;
+
+        ActivityFeedService.Add($"素材库已重命名：{oldName} → {trimmedName}");
+        Log.Information("素材库已重命名: libraryId={LibraryId}, oldName={OldName}, newName={NewName}",
+            SelectedLibrary.Id, oldName, trimmedName);
+    }
+
+    public async Task UpdateSelectedAssetDescriptionAsync(string newDescription)
+    {
+        if (SelectedAsset is null || AssetDescriptionStore is null)
+            return;
+
+        await AssetDescriptionStore.UpdateDescriptionAsync(SelectedAsset.DatabaseId, newDescription);
+        await LoadSelectedAssetDescriptionAsync(SelectedAsset);
+
+        ActivityFeedService.Add($"描述已手动更新：{SelectedAsset.Name}");
+        Log.Information("素材描述已手动更新: assetId={AssetId}", SelectedAsset.DatabaseId);
+    }
 }
