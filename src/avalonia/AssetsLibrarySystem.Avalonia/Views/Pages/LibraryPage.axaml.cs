@@ -15,6 +15,8 @@ public partial class LibraryPage : UserControl
         InitializeComponent();
     }
 
+    // ===== 保留在 View 层的代码（需要系统对话框交互） =====
+
     private async void AddLibraryFolder_Click(object? sender, RoutedEventArgs e)
     {
         if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storageProvider ||
@@ -23,7 +25,6 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        // 目录登记直接走系统文件夹选择器。
         var folders = await storageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = "选择素材库目录",
@@ -36,8 +37,10 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        await viewModel.AddLibraryDirectoryAsync(folderPath);
+        await viewModel.Workspace.AddLibraryDirectoryAsync(folderPath);
     }
+
+    // ===== 右键菜单事件处理器（委托到 ViewModel Command） =====
 
     private void RevealInExplorer_Click(object? sender, RoutedEventArgs e)
     {
@@ -48,7 +51,8 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        viewModel.RevealInFileExplorer(node);
+        if (viewModel.RevealInExplorerCommand.CanExecute(node))
+            viewModel.RevealInExplorerCommand.Execute(node);
     }
 
     private async void QueueDescriptionForNode_Click(object? sender, RoutedEventArgs e)
@@ -60,7 +64,7 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        await viewModel.QueueDescriptionForNodeAsync(node);
+        viewModel.Workspace.SelectedAssetTreeNode = node;
     }
 
     private async void VectorizeDescriptionsForNode_Click(object? sender, RoutedEventArgs e)
@@ -72,7 +76,7 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        await viewModel.VectorizeDescriptionsForNodeAsync(node);
+        viewModel.Workspace.SelectedAssetTreeNode = node;
     }
 
     private async void DeleteDescriptionForNode_Click(object? sender, RoutedEventArgs e)
@@ -84,7 +88,7 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        await viewModel.DeleteDescriptionForNodeAsync(node);
+        viewModel.Workspace.SelectedAssetTreeNode = node;
     }
 
     private void RevealSearchResult_Click(object? sender, RoutedEventArgs e)
@@ -96,7 +100,7 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        viewModel.RevealSearchResultInExplorer(result);
+        viewModel.SearchPanel.RevealSearchResultInExplorer(result);
     }
 
     private void SelectLibrary_Click(object? sender, RoutedEventArgs e)
@@ -108,7 +112,8 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        viewModel.SelectLibrary(library);
+        if (viewModel.SelectLibraryNodeCommand.CanExecute(library))
+            viewModel.SelectLibraryNodeCommand.Execute(library);
     }
 
     private void OpenExplorerItem_Click(object? sender, RoutedEventArgs e)
@@ -132,7 +137,6 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        // 切换到该素材，标签编辑在详情面板中完成
         viewModel.Workspace.SelectedAssetTreeNode = node;
     }
 
@@ -145,7 +149,6 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        // 切换到该节点，重命名在详情面板中完成
         viewModel.Workspace.SelectedAssetTreeNode = node;
         viewModel.AssetDetail.RenameText = node.DisplayName;
     }
@@ -162,12 +165,14 @@ public partial class LibraryPage : UserControl
         viewModel.Workspace.SelectedAssetTreeNode = node;
         if (node.Kind == AssetLibraryTreeNodeKind.File && node.Asset is not null)
         {
-            await viewModel.AssetDetail.DeleteAssetCommand.ExecuteAsync(null);
+            if (viewModel.AssetDetail.DeleteAssetCommand.CanExecute(null))
+                await viewModel.AssetDetail.DeleteAssetCommand.ExecuteAsync(null);
         }
         else if (node.Kind == AssetLibraryTreeNodeKind.Library && node.Library is not null)
         {
-            viewModel.SelectLibrary(node.Library);
-            await viewModel.AssetDetail.DeleteLibraryCommand.ExecuteAsync(null);
+            viewModel.Workspace.SelectLibrary(node.Library);
+            if (viewModel.AssetDetail.DeleteLibraryCommand.CanExecute(null))
+                await viewModel.AssetDetail.DeleteLibraryCommand.ExecuteAsync(null);
         }
     }
 }

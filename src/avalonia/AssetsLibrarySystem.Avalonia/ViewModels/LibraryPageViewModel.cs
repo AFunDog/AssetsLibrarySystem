@@ -9,6 +9,7 @@ using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
@@ -86,6 +87,31 @@ public sealed partial class LibraryPageViewModel : ObservableObject
 
     public Task DeleteDescriptionForNodeAsync(AssetLibraryTreeNode? node)
         => Task.CompletedTask;
+
+    // ===== Command 包装，供 AXAML 绑定 =====
+
+    [RelayCommand]
+    private void RevealInExplorer(AssetLibraryTreeNode? node)
+    {
+        if (node is null || string.IsNullOrWhiteSpace(node.FullPath))
+            return;
+        var path = System.IO.Path.GetFullPath(node.FullPath);
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            UseShellExecute = true,
+            Arguments = node.Kind == AssetLibraryTreeNodeKind.File
+                ? $"/select,\"{path}\""
+                : $"\"{path}\""
+        });
+    }
+
+    [RelayCommand]
+    private void SelectLibraryNode(LibraryWorkspace? library)
+    {
+        if (library is not null)
+            Workspace.SelectLibrary(library);
+    }
 
     private void BubblePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
