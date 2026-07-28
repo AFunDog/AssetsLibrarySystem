@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
@@ -18,6 +19,8 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
     private PythonEngineService? PythonEngine { get; }
     private IBackgroundTaskService? BackgroundTaskService { get; }
     private ActivityFeedService ActivityFeedService { get; }
+    private CancellationTokenSource? _initCts;
+    private Task? _initTask;
 
     public BackendSessionService()
         : this(null, null, new ActivityFeedService(), new UserSettingsService(), null)
@@ -91,12 +94,18 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
             return Task.CompletedTask;
         }
 
+        if (_initTask is not null)
+        {
+            return _initTask;
+        }
+
         Log.Information("开始初始化嵌入的 Python 引擎。");
-        _ = InitializePythonEngineAsync();
+        _initCts = new CancellationTokenSource();
+        _initTask = InitializePythonEngineAsync(_initCts.Token);
         return Task.CompletedTask;
     }
 
-    private async Task InitializePythonEngineAsync()
+    private async Task InitializePythonEngineAsync(CancellationToken ct)
     {
         var taskId = BackgroundTaskService?.BeginTask("Python 引擎", "正在初始化嵌入的 Python 运行时");
         BackendStatusTitle = "Python 引擎初始化中";
@@ -106,14 +115,20 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
 
         try
         {
-            await Task.Run(() => PythonEngine!.Initialize());
+            await Task.Run(() => PythonEngine!.Initialize(), ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
             BackendStatusTitle = "Python 引擎已就绪";
             BackendStatusStage = "就绪";
-            BackendStatusDetail = "Python 引擎嵌入在桌面端进程中，直接调用 DashScope API。";
+            BackendStatusDetail = "Python 引擎嵌入在桌面端进程中，直接调用模型 API。";
             Log.Information("Python 引擎初始化完成");
             ActivityFeedService.Add("Python 引擎就绪（嵌入模式）");
             CompleteTask(taskId, "Python 引擎就绪", BackendStatusDetail);
             BackendStatusChanged?.Invoke();
+        }
+        catch (OperationCanceledException)
+        {
+            Log.Information("Python 引擎初始化已取消（应用退出）。");
+            CompleteTask(taskId, "引擎初始化已取消", "应用已退出");
         }
         catch (Exception ex)
         {

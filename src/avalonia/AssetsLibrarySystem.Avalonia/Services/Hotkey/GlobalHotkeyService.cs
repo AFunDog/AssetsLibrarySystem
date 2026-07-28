@@ -14,7 +14,6 @@ public sealed class GlobalHotkeyService : IDisposable
     private const int WmHotkey = 0x0312;
     private const int WmQuit = 0x0012;
 
-    private ManualResetEventSlim ThreadReady { get; } = new(false);
     private Thread? WorkerThread { get; set; }
     private uint WorkerThreadId { get; set; }
     private bool IsDisposed { get; set; }
@@ -31,7 +30,6 @@ public sealed class GlobalHotkeyService : IDisposable
         if (!OperatingSystem.IsWindows())
         {
             Log.Information("当前平台不支持全局热键，已跳过注册");
-            ThreadReady.Set();
             return;
         }
 
@@ -45,7 +43,9 @@ public sealed class GlobalHotkeyService : IDisposable
         WorkerThread.SetApartmentState(ApartmentState.STA);
 #pragma warning restore CA1416
         WorkerThread.Start();
-        ThreadReady.Wait(TimeSpan.FromSeconds(5));
+
+        // 不阻塞等待线程就绪，由后台线程自行完成初始化。
+        // 如果线程启动慢，热键会在就绪后自动生效。
     }
 
     public void Dispose()
@@ -62,14 +62,18 @@ public sealed class GlobalHotkeyService : IDisposable
             PostThreadMessage(WorkerThreadId, WmQuit, IntPtr.Zero, IntPtr.Zero);
         }
 
-        WorkerThread?.Join(TimeSpan.FromSeconds(1));
-        ThreadReady.Dispose();
+        if (WorkerThread?.IsAlive == true)
+        {
+            if (!WorkerThread.Join(TimeSpan.FromSeconds(1)))
+            {
+                Log.Warning("全局热键线程未能在 1s 内退出，将随进程终止。");
+            }
+        }
     }
 
     private void RunMessageLoop()
     {
         WorkerThreadId = GetCurrentThreadId();
-        ThreadReady.Set();
 
         if (!RegisterHotKey(IntPtr.Zero, HotkeyId, ModifierControl | ModifierShift, VirtualKeySpace))
         {

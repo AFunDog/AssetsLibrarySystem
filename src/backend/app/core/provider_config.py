@@ -14,6 +14,7 @@ class ProviderConfig:
     provider: str
     model: str
     api_key: str
+    base_url: str = ""
     temperature: float = 0.2
     max_tokens: int = 1024
     reasoning_effort: str | None = None
@@ -66,6 +67,7 @@ class ProviderConfigManager:
             provider=provider,
             model=model,
             api_key=api_key,
+            base_url=str(item.get("base_url") or "").strip(),
             temperature=float(item.get("temperature") or 0.2),
             max_tokens=int(item.get("max_tokens") or 1024),
             reasoning_effort=item.get("reasoning_effort"),

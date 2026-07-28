@@ -55,7 +55,7 @@ public partial class LibraryPage : UserControl
             viewModel.RevealInExplorerCommand.Execute(node);
     }
 
-    private async void QueueDescriptionForNode_Click(object? sender, RoutedEventArgs e)
+    private void QueueDescriptionForNode_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem menuItem ||
             menuItem.CommandParameter is not AssetLibraryTreeNode node ||
@@ -67,7 +67,7 @@ public partial class LibraryPage : UserControl
         viewModel.Workspace.SelectedAssetTreeNode = node;
     }
 
-    private async void VectorizeDescriptionsForNode_Click(object? sender, RoutedEventArgs e)
+    private void VectorizeDescriptionsForNode_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem menuItem ||
             menuItem.CommandParameter is not AssetLibraryTreeNode node ||
@@ -79,7 +79,7 @@ public partial class LibraryPage : UserControl
         viewModel.Workspace.SelectedAssetTreeNode = node;
     }
 
-    private async void DeleteDescriptionForNode_Click(object? sender, RoutedEventArgs e)
+    private void DeleteDescriptionForNode_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem menuItem ||
             menuItem.CommandParameter is not AssetLibraryTreeNode node ||
@@ -128,7 +128,7 @@ public partial class LibraryPage : UserControl
         viewModel.Workspace.SelectedAssetTreeNode = node;
     }
 
-    private async void EditTags_Click(object? sender, RoutedEventArgs e)
+    private void EditTags_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem menuItem ||
             menuItem.CommandParameter is not AssetLibraryTreeNode node ||
@@ -140,7 +140,7 @@ public partial class LibraryPage : UserControl
         viewModel.Workspace.SelectedAssetTreeNode = node;
     }
 
-    private async void RenameNode_Click(object? sender, RoutedEventArgs e)
+    private void RenameNode_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem menuItem ||
             menuItem.CommandParameter is not AssetLibraryTreeNode node ||

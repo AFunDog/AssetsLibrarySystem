@@ -7,7 +7,6 @@ using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CommunityToolkit.Mvvm.Input;
 
 namespace AssetsLibrarySystem.Avalonia.ViewModels;
 

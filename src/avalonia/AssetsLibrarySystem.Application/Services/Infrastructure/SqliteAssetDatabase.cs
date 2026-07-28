@@ -51,11 +51,171 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 
     public SqliteConnection OpenConnection()
     {
-        EnsureSchemaAsync().GetAwaiter().GetResult();
+        EnsureSchema();
         var connection = CreateConnection();
         connection.Open();
         ConfigureOpenConnection(connection, configureStoragePragmas: false);
         return connection;
+    }
+
+    private void EnsureSchema()
+    {
+        if (_schemaReady)
+        {
+            return;
+        }
+
+        _schemaLock.Wait();
+        try
+        {
+            if (_schemaReady)
+            {
+                return;
+            }
+
+            using var connection = OpenConnectionWithoutSchema();
+            CreateSchema(connection);
+            _schemaReady = true;
+        }
+        finally
+        {
+            _schemaLock.Release();
+        }
+    }
+
+    private SqliteConnection OpenConnectionWithoutSchema()
+    {
+        return CreateConnectionAndOpen(configureStoragePragmas: true);
+    }
+
+    private SqliteConnection CreateConnectionAndOpen(bool configureStoragePragmas)
+    {
+        var connection = CreateConnection();
+        connection.Open();
+        ConfigureOpenConnection(connection, configureStoragePragmas);
+        return connection;
+    }
+
+    private static void CreateSchema(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS libraries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                root_path TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_libraries_root_path
+                ON libraries(root_path);
+
+            CREATE TABLE IF NOT EXISTS assets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_uid TEXT NOT NULL,
+                library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+                asset_name TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                current_path TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                observed_hash TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                modified_time_utc TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                created_by TEXT NOT NULL,
+                uid_version INTEGER NOT NULL DEFAULT 1
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_assets_content_hash
+                ON assets(content_hash);
+
+            CREATE INDEX IF NOT EXISTS ix_assets_current_path
+                ON assets(current_path);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_asset_uid
+                ON assets(asset_uid);
+
+            CREATE TABLE IF NOT EXISTS asset_metadata (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+                tags_json TEXT NOT NULL DEFAULT '[]',
+                metadata_status TEXT NOT NULL,
+                vector_state TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_metadata_asset_id
+                ON asset_metadata(asset_id);
+
+            CREATE TABLE IF NOT EXISTS asset_descriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+                asset_name TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                asset_path TEXT NOT NULL,
+                description TEXT NOT NULL,
+                backend_endpoint TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                generated_at TEXT NOT NULL,
+                token_usage_json TEXT NULL,
+                prompt TEXT NULL,
+                system_prompt TEXT NULL,
+                content_hash TEXT NULL,
+                metadata_status TEXT NOT NULL DEFAULT 'ready'
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_descriptions_asset_id
+                ON asset_descriptions(asset_id);
+
+            CREATE TABLE IF NOT EXISTS asset_description_vectors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+                angle_type TEXT NOT NULL DEFAULT '全面',
+                embedding_model TEXT NOT NULL,
+                vector_dim INTEGER NOT NULL,
+                vector_blob BLOB NOT NULL,
+                vectorized_at TEXT NOT NULL,
+                content_hash TEXT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_description_vectors_identity
+                ON asset_description_vectors(asset_id, angle_type, embedding_model);
+            CREATE INDEX IF NOT EXISTS ix_asset_description_vectors_embedding_model
+                ON asset_description_vectors(embedding_model);
+            """;
+        command.ExecuteNonQuery();
+
+        EnsureColumn(connection, "asset_descriptions", "content_hash", "TEXT NULL");
+        EnsureColumn(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'");
+        EnsureColumn(connection, "asset_description_vectors", "angle_type", "TEXT NOT NULL DEFAULT '全面'");
+        EnsureColumn(connection, "asset_description_vectors", "content_hash", "TEXT NULL");
+        EnsureColumn(connection, "asset_metadata", "subtype", "TEXT NULL");
+    }
+
+    private static void EnsureColumn(SqliteConnection connection, string tableName, string columnName, string definition)
+    {
+        if (ColumnExists(connection, tableName, columnName))
+        {
+            return;
+        }
+
+        using var alter = connection.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {definition};";
+        alter.ExecuteNonQuery();
+    }
+
+    private static bool ColumnExists(SqliteConnection connection, string tableName, string columnName)
+    {
+        using var pragma = connection.CreateCommand();
+        pragma.CommandText = $"PRAGMA table_info({tableName});";
+        using var reader = pragma.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public async Task UpdateSubtypeAsync(long assetId, string subtype, CancellationToken ct = default)

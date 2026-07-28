@@ -1,0 +1,273 @@
+from __future__ import annotations
+
+import base64
+import json
+import logging
+from pathlib import Path
+from typing import Any
+
+import httpx
+
+from app.application.services.model_client import ModelClient
+from app.core.provider_config import ProviderConfig
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+CHAT_COMPLETIONS_PATH = "/chat/completions"
+
+
+class OpenAIModelClient(ModelClient):
+    """OpenAI 兼容 API 客户端。
+
+    支持任意实现 OpenAI Chat Completions 接口的供应商：
+    - OpenAI（GPT-4o 等）
+    - Ollama（本地模型）
+    - vLLM（自托管）
+    - LM Studio
+    - Groq
+    - Together AI
+    - 等等
+
+    通过 ``provider_config.base_url`` 配置 API 端点地址。
+    """
+
+    def call_generation(
+        self,
+        provider_config: ProviderConfig,
+        model_name: str,
+        system_prompt: str,
+        user_prompt: str,
+        text_content: str,
+        response_format: dict[str, Any],
+    ) -> Any:
+        base_url = provider_config.base_url or DEFAULT_OPENAI_BASE_URL
+        url = base_url.rstrip("/") + CHAT_COMPLETIONS_PATH
+
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"{user_prompt}\n\n素材内容：\n{text_content}".strip()},
+        ]
+
+        body: dict[str, Any] = {
+            "model": model_name,
+            "messages": messages,
+            "temperature": provider_config.temperature,
+            "max_tokens": provider_config.max_tokens,
+        }
+        if response_format and response_format.get("type"):
+            body["response_format"] = response_format
+
+        logger.info(
+            "OpenAI 文本生成: url=%s, model=%s, max_tokens=%s",
+            url, model_name, provider_config.max_tokens,
+        )
+        return self._post(url, provider_config.api_key, body)
+
+    def call_multimodal(
+        self,
+        provider_config: ProviderConfig,
+        model_name: str,
+        system_prompt: str,
+        multimodal_content: list[dict[str, Any]],
+        response_format: dict[str, Any],
+    ) -> Any:
+        base_url = provider_config.base_url or DEFAULT_OPENAI_BASE_URL
+        url = base_url.rstrip("/") + CHAT_COMPLETIONS_PATH
+
+        messages: list[dict[str, Any]] = []
+        if system_prompt.strip():
+            messages.append({"role": "system", "content": system_prompt})
+
+        # 将 DashScope 格式的多模态内容转换为 OpenAI 格式
+        openai_content = self._convert_multimodal_content(multimodal_content)
+        messages.append({"role": "user", "content": openai_content})
+
+        body: dict[str, Any] = {
+            "model": model_name,
+            "messages": messages,
+            "temperature": provider_config.temperature,
+            "max_tokens": provider_config.max_tokens,
+        }
+        if response_format and response_format.get("type"):
+            body["response_format"] = response_format
+
+        logger.info(
+            "OpenAI 多模态生成: url=%s, model=%s, items=%d",
+            url, model_name, len(multimodal_content),
+        )
+        return self._post(url, provider_config.api_key, body)
+
+    # ── 内部方法 ────────────────────────────────────────────────
+
+    def _post(self, url: str, api_key: str, body: dict[str, Any]) -> dict[str, Any]:
+        """发送 POST 请求到 OpenAI 兼容 API 并返回 JSON 响应。"""
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            response = httpx.post(
+                url,
+                headers=headers,
+                json=body,
+                timeout=300.0,  # 大模型调用可能耗时较长
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "OpenAI API HTTP 错误: status=%d, body=%s",
+                e.response.status_code,
+                e.response.text[:500],
+            )
+            raise
+        except httpx.TimeoutException:
+            logger.error("OpenAI API 请求超时: url=%s", url)
+            raise
+        except Exception as e:
+            logger.error("OpenAI API 请求失败: %s", e)
+            raise
+
+    def _convert_multimodal_content(
+        self,
+        dashscope_content: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """将 DashScope 风格的多模态内容列表转换为 OpenAI 风格。
+
+        DashScope 格式::
+            [{"image": "file:///path/to/img.jpg"}, {"text": "描述这个图片"}]
+
+        OpenAI 格式::
+            [
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}},
+                {"type": "text", "text": "描述这个图片"},
+            ]
+        """
+        openai_items: list[dict[str, Any]] = []
+        for item in dashscope_content:
+            if not isinstance(item, dict):
+                continue
+
+            # 文本
+            if "text" in item:
+                openai_items.append({"type": "text", "text": str(item["text"])})
+                continue
+
+            # 图片
+            image_path = item.get("image")
+            if image_path:
+                local_path = self._strip_file_uri(str(image_path))
+                openai_item = self._build_image_item(local_path)
+                if openai_item:
+                    openai_items.append(openai_item)
+                continue
+
+            # 视频 — OpenAI 不支持原生视频，提取第一帧作为图片
+            video_path = item.get("video")
+            if video_path:
+                local_path = self._strip_file_uri(str(video_path))
+                logger.warning(
+                    "OpenAI 不支持原生视频输入，尝试提取第一帧: %s", local_path,
+                )
+                frame_item = self._extract_video_first_frame(local_path)
+                if frame_item:
+                    openai_items.append(frame_item)
+                continue
+
+            # 音频 — OpenAI Chat Completions 不支持原生音频
+            audio_path = item.get("audio")
+            if audio_path:
+                local_path = self._strip_file_uri(str(audio_path))
+                logger.warning(
+                    "OpenAI Chat Completions 不支持原生音频输入，跳过: %s", local_path,
+                )
+                continue
+
+        return openai_items
+
+    def _build_image_item(self, file_path: str) -> dict[str, Any] | None:
+        """读取图片文件并构建 OpenAI 图片内容项。"""
+        path = Path(file_path)
+        if not path.exists():
+            logger.warning("图片文件不存在: %s", file_path)
+            return None
+
+        try:
+            data = path.read_bytes()
+            mime = self._guess_mime_type(path.suffix)
+            b64 = base64.b64encode(data).decode("ascii")
+            return {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime};base64,{b64}",
+                    "detail": "low",  # 降低分辨率减少 token 消耗
+                },
+            }
+        except Exception as e:
+            logger.warning("读取图片文件失败: %s, error=%s", file_path, e)
+            return None
+
+    def _extract_video_first_frame(self, video_path: str) -> dict[str, Any] | None:
+        """尝试用 ffmpeg 提取视频第一帧作为图片。"""
+        import subprocess
+        import tempfile
+
+        path = Path(video_path)
+        if not path.exists():
+            return None
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                frame_path = tmp.name
+
+            cmd = [
+                "ffmpeg", "-y",
+                "-ss", "0",
+                "-i", str(path),
+                "-vframes", "1",
+                "-q:v", "2",
+                str(frame_path),
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode != 0:
+                logger.warning("ffmpeg 提取视频帧失败: %s", result.stderr[:200])
+                Path(frame_path).unlink(missing_ok=True)
+                return None
+
+            item = self._build_image_item(frame_path)
+            Path(frame_path).unlink(missing_ok=True)
+            return item
+        except Exception as e:
+            logger.warning("提取视频帧异常: %s", e)
+            return None
+
+    @staticmethod
+    def _guess_mime_type(suffix: str) -> str:
+        mapping = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+            ".bmp": "image/bmp",
+        }
+        return mapping.get(suffix.lower(), "image/jpeg")
+
+    @staticmethod
+    def _strip_file_uri(uri: str) -> str:
+        """去除 file:// 前缀，返回本地文件系统路径。
+
+        支持格式:
+        - file:///C:/path/to/file  ->  C:/path/to/file
+        - file:///path/to/file     ->  /path/to/file
+        - C:/path/to/file          ->  C:/path/to/file（无前缀时原样返回）
+        """
+        prefix = "file://"
+        if uri.startswith(prefix):
+            path = uri[len(prefix):]
+            # Windows 上 file:///C:/... 去掉前缀后是 /C:/...，去掉开头的 /
+            if path.startswith("/") and len(path) > 2 and path[2] == ":":
+                return path.lstrip("/")
+            return path
+        return uri

@@ -36,7 +36,18 @@ class ProviderResolver:
 
     @staticmethod
     def supports_live_call(provider: ProviderConfig) -> bool:
-        return bool(provider.api_key) and importlib.util.find_spec("dashscope") is not None
+        if not provider.api_key:
+            return False
+        provider_name = provider.provider.lower()
+        if provider_name == "dashscope":
+            import importlib
+            return importlib.util.find_spec("dashscope") is not None
+        if provider_name == "openai":
+            # OpenAI 兼容 API 只需要 httpx（FastAPI 已依赖）
+            import importlib
+            return importlib.util.find_spec("httpx") is not None
+        # 未知 provider，保守返回 False
+        return False
 
     def _first_slot_or_raise(self, message: str) -> str:
         for slot in self.manager.slots():

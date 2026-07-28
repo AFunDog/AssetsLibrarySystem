@@ -109,28 +109,26 @@ public sealed class PythonEngineService : IBackendLauncher, IDisposable
                 return;
 
             Log.Information("PythonEngine 开始关闭");
-            try
-            {
-                PythonEngine.EndAllowThreads(_threadState);
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "PythonEngine EndAllowThreads 异常");
-            }
+
+            // 不调用 EndAllowThreads()，保持 GIL 释放状态，
+            // 让 Shutdown() 能从线程池线程正常获取 GIL 并完成清理。
+            // 如果在持有 GIL 的状态下从另一线程调用 Shutdown() 会导致死锁。
 
             try
             {
-                // PythonEngine.Shutdown() 在某些环境下可能挂起或崩溃。
-                // 使用超时任务避免阻塞进程退出。
                 var shutdownTask = Task.Run(() => PythonEngine.Shutdown());
-                if (!shutdownTask.Wait(TimeSpan.FromSeconds(5)))
+                if (!shutdownTask.Wait(TimeSpan.FromSeconds(10)))
                 {
-                    Log.Warning("PythonEngine.Shutdown 超时（5s），跳过关闭");
+                    Log.Warning("PythonEngine.Shutdown 超时（10s），跳过关闭，由 OS 进程退出时自动清理。");
+                }
+                else
+                {
+                    Log.Information("PythonEngine Shutdown 完成。");
                 }
             }
             catch (Exception ex)
             {
-                Log.Warning(ex, "PythonEngine.Shutdown 异常（已忽略）");
+                Log.Warning(ex, "PythonEngine.Shutdown 异常（已忽略）。");
             }
 
             _isInitialized = false;

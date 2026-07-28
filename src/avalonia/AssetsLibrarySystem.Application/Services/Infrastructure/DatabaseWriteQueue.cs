@@ -50,7 +50,15 @@ public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
 
     public void Dispose()
     {
-        DisposeAsync().AsTask().GetAwaiter().GetResult();
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _queue.Writer.TryComplete();
+        // Dispose() 不等待 worker 完成，避免在 UI 线程上阻塞。
+        // 如果需要完整等待，请调用 DisposeAsync()。
+        // 进程退出时 OS 会自动清理线程。
     }
 
     public async ValueTask DisposeAsync()
@@ -64,10 +72,12 @@ public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
 
         try
         {
-            await _worker.ConfigureAwait(false);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await _worker.WaitAsync(cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
+            Log.Warning("数据库写队列在关闭时等待超时（10s），跳过剩余写入。");
         }
         catch (Exception ex)
         {

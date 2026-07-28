@@ -51,6 +51,7 @@ public partial class App : global::Avalonia.Application
             quickSearchWindow.DataContext = quickSearchViewModel;
 
             desktop.MainWindow = mainWindow;
+            shellWindowService.AttachDesktop(desktop);
             shellWindowService.AttachMainWindow(mainWindow);
             shellWindowService.AttachQuickSearchWindow(quickSearchWindow);
 
@@ -97,17 +98,40 @@ public partial class App : global::Avalonia.Application
         try
         {
             Log.Information("开始清理桌面端资源。");
+
+            // 1. 先释放 TrayIcon，销毁其隐藏的窗口句柄
+            DisposeTrayIcon();
+
+            // 2. 释放 ViewModel 资源（热键线程等）
             ShellViewModel?.Dispose();
             shellWindowService.SetShuttingDown(true);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "桌面端退出时清理 Python 后端失败");
+            Log.Error(ex, "桌面端退出时清理资源失败");
         }
         finally
         {
+            // 3. 释放容器（所有注册的服务）
             Container?.Dispose();
             Log.Information("桌面端资源清理完成。");
+        }
+    }
+
+    private void DisposeTrayIcon()
+    {
+        try
+        {
+            // 通过 Avalonia 的 TrayIcon 附加属性获取图标集合并清除
+            if (global::Avalonia.Controls.TrayIcon.GetIcons(this) is { } icons)
+            {
+                icons.Clear();
+                Log.Information("TrayIcon 已清除。");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "清除 TrayIcon 时出现异常。");
         }
     }
 }

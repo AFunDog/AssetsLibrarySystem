@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.application.services.model_client import ModelClient
 from app.core.provider_config import ProviderConfig
 
 
-class DashScopeModelClient:
+class DashScopeModelClient(ModelClient):
     """封装 DashScope SDK 的同步模型调用。"""
 
     def call_generation(

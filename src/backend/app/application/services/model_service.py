@@ -7,8 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from app.application.services.dashscope_model_client import DashScopeModelClient
+from app.application.services.model_client import ModelClient
 from app.application.services.media_preprocessor import MediaPreprocessor
 from app.application.services.model_response_parser import ModelResponseParser
+from app.application.services.openai_model_client import OpenAIModelClient
 from app.application.services.provider_resolver import ProviderResolver
 from app.application.services.video_slice_describer import VideoSliceDescriber
 from app.core.angle_prompt_builder import build_system_prompt_from_angles
@@ -74,7 +76,7 @@ class ModelService:
         self._video_audio_bitrate = settings.video_audio_bitrate.strip() or "128k"
         self._provider_manager: ProviderConfigManager | None = None
         self._provider_resolver: ProviderResolver | None = None
-        self._dashscope_client = DashScopeModelClient()
+        self._clients: dict[str, ModelClient] = {}
         self._response_parser = ModelResponseParser()
 
     def get_capabilities(self, provider_slot: str = DEFAULT_PROVIDER_SLOT) -> ModelCapabilitiesResponse:
@@ -127,9 +129,6 @@ class ModelService:
                 token_usage=None,
             )
 
-        if provider_context.provider.lower() != "dashscope":
-            raise ValueError(f"当前仅实现 dashscope live 调用，实际 provider 为: {provider_context.provider}")
-
         # 视频切片描述：对长视频启用场景检测和分段描述
         if (
             payload.asset_format == "视频"
@@ -172,12 +171,12 @@ class ModelService:
                 )
 
         logger.info(
-            "描述生成调用 DashScope: format=%s, model=%s, slot=%s",
+            "描述生成调用 live 模型: format=%s, model=%s, slot=%s",
             payload.asset_format,
             call_model,
             provider_context.config_slot,
         )
-        raw_output_text, usage = await self._call_dashscope(
+        raw_output_text, usage = await self._call_model(
             provider_context,
             system_prompt,
             prompt,
@@ -295,10 +294,10 @@ class ModelService:
         asset_format: str,
         asset_path: str,
     ) -> tuple[str, ModelGenerateResponse.TokenUsage | None]:
-        """VideoSliceDescriber 使用的 LLM 回调，封装 _call_dashscope 的调用。"""
+        """VideoSliceDescriber 使用的 LLM 回调，封装 _call_model 的调用。"""
         provider_context = self._resolve_provider_context_for_asset_format(asset_format)
         call_model = self._resolve_model_name(provider_context.model, asset_format)
-        return await self._call_dashscope(
+        return await self._call_model(
             provider_context,
             system_prompt,
             prompt,
@@ -327,8 +326,9 @@ class ModelService:
 
         try:
             multimodal_content = [{"text": summary_prompt}]
+            client = self._get_client(provider_config.provider)
             response = await asyncio.to_thread(
-                self._dashscope_client.call_multimodal,
+                client.call_multimodal,
                 provider_config,
                 provider_config.model,
                 "你是一个视频内容总结助手。",
@@ -344,7 +344,7 @@ class ModelService:
             logger.warning("文本总结失败，返回原文片段: %s", e)
             return text[:300]
 
-    async def _call_dashscope(
+    async def _call_model(
         self,
         context: ModelRuntimeContext,
         system_prompt: str,
@@ -383,6 +383,18 @@ class ModelService:
     def _supports_live_call(self, provider: ProviderConfig) -> bool:
         return ProviderResolver.supports_live_call(provider)
 
+    def _get_client(self, provider: str) -> ModelClient:
+        """根据 provider 名称获取或创建对应的模型客户端。"""
+        provider = provider.lower().strip()
+        if provider not in self._clients:
+            if provider == "dashscope":
+                self._clients[provider] = DashScopeModelClient()
+            elif provider == "openai":
+                self._clients[provider] = OpenAIModelClient()
+            else:
+                raise ValueError(f"不支持的 provider: {provider}")
+        return self._clients[provider]
+
     def _call_generation_sync(
         self,
         provider_config: ProviderConfig,
@@ -391,7 +403,8 @@ class ModelService:
         user_prompt: str,
         text_content: str,
     ) -> Any:
-        return self._dashscope_client.call_generation(
+        client = self._get_client(provider_config.provider)
+        return client.call_generation(
             provider_config,
             model_name,
             system_prompt,
@@ -407,7 +420,8 @@ class ModelService:
         system_prompt: str,
         multimodal_content: list[dict[str, Any]],
     ) -> Any:
-        return self._dashscope_client.call_multimodal(
+        client = self._get_client(provider_config.provider)
+        return client.call_multimodal(
             provider_config,
             model_name,
             system_prompt,

@@ -1,0 +1,347 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500" viewBox="0 0 1200 1500" font-family="'Microsoft YaHei', 'PingFang SC', 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1976D2"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#388E3C"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#E65100"/>
+    </marker>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="1200" height="1500" fill="#FAFAFA" rx="6"/>
+
+  <!-- 标题 -->
+  <text x="600" y="36" text-anchor="middle" font-size="20" font-weight="bold" fill="#333">20 分钟动画素材 - 描述生成完整流程图</text>
+  <text x="600" y="56" text-anchor="middle" font-size="12" fill="#888">Assets Library System - 进程内 Python.NET 架构（无 HTTP 通信）</text>
+
+  <!-- ============================================================ -->
+  <!-- 第 1 层：用户操作 -->
+  <!-- ============================================================ -->
+  <rect x="30" y="75" width="1140" height="105" rx="8" fill="#E3F2FD" stroke="#1976D2" stroke-width="1.5"/>
+  <text x="48" y="95" font-size="13" font-weight="bold" fill="#1976D2">01 用户操作层</text>
+
+  <rect x="50" y="105" width="245" height="60" rx="6" fill="#fff" stroke="#1976D2" stroke-width="1"/>
+  <text x="172" y="126" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">添加目录</text>
+  <text x="172" y="144" text-anchor="middle" font-size="10" fill="#666">点击「添加目录」按钮</text>
+  <text x="172" y="157" text-anchor="middle" font-size="10" fill="#666">选择动画素材文件夹</text>
+
+  <rect x="320" y="105" width="245" height="60" rx="6" fill="#fff" stroke="#1976D2" stroke-width="1"/>
+  <text x="442" y="126" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">扫描素材库</text>
+  <text x="442" y="144" text-anchor="middle" font-size="10" fill="#666">点击「扫描当前」按钮</text>
+  <text x="442" y="157" text-anchor="middle" font-size="10" fill="#666">文件扫描 + 哈希比对入库</text>
+
+  <rect x="590" y="105" width="245" height="60" rx="6" fill="#fff" stroke="#1976D2" stroke-width="1"/>
+  <text x="712" y="126" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">选中动画素材</text>
+  <text x="712" y="144" text-anchor="middle" font-size="10" fill="#666">在网格中选中文件</text>
+  <text x="712" y="157" text-anchor="middle" font-size="10" fill="#666">状态：「待生成描述与向量」</text>
+
+  <rect x="860" y="105" width="245" height="60" rx="6" fill="#fff" stroke="#1976D2" stroke-width="1"/>
+  <text x="982" y="126" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">触发描述生成</text>
+  <text x="982" y="144" text-anchor="middle" font-size="10" fill="#666">点击「描述当前素材」</text>
+  <text x="982" y="157" text-anchor="middle" font-size="10" fill="#666">或右键「加入任务队列」</text>
+
+  <line x1="295" y1="135" x2="318" y2="135" stroke="#1976D2" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <line x1="565" y1="135" x2="588" y2="135" stroke="#1976D2" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+  <line x1="835" y1="135" x2="858" y2="135" stroke="#1976D2" stroke-width="1.5" marker-end="url(#arrow-blue)"/>
+
+  <!-- 第1层到第2层连接线 -->
+  <line x1="982" y1="165" x2="982" y2="198" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ============================================================ -->
+  <!-- 第 2 层：ViewModel -->
+  <!-- ============================================================ -->
+  <rect x="30" y="200" width="1140" height="95" rx="8" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.5"/>
+  <text x="48" y="220" font-size="13" font-weight="bold" fill="#7B1FA2">02 ViewModel 层</text>
+
+  <rect x="50" y="230" width="245" height="52" rx="6" fill="#fff" stroke="#7B1FA2" stroke-width="1"/>
+  <text x="172" y="250" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">LibraryWorkspaceViewModel</text>
+  <text x="172" y="268" text-anchor="middle" font-size="10" fill="#666">UI 状态：选中库、文件、树节点</text>
+
+  <rect x="320" y="230" width="245" height="52" rx="6" fill="#fff" stroke="#7B1FA2" stroke-width="1"/>
+  <text x="442" y="250" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">AssetDescriptionPanelViewModel</text>
+  <text x="442" y="268" text-anchor="middle" font-size="10" fill="#666">QueueDescriptionsForSelectionAsync()</text>
+
+  <rect x="590" y="230" width="245" height="52" rx="6" fill="#fff" stroke="#7B1FA2" stroke-width="1"/>
+  <text x="712" y="250" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">BackendStatusViewModel</text>
+  <text x="712" y="268" text-anchor="middle" font-size="10" fill="#666">检查 IsBackendReady</text>
+
+  <rect x="860" y="230" width="245" height="52" rx="6" fill="#fff" stroke="#7B1FA2" stroke-width="1"/>
+  <text x="982" y="250" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">AssetDetailViewModel</text>
+  <text x="982" y="268" text-anchor="middle" font-size="10" fill="#666">展示描述角度 / 编辑标签</text>
+
+  <!-- 第2层到第3层连接线 -->
+  <line x1="442" y1="282" x2="442" y2="315" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="712" y1="282" x2="600" y2="315" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ============================================================ -->
+  <!-- 第 3 层：Use Case -->
+  <!-- ============================================================ -->
+  <rect x="30" y="318" width="1140" height="65" rx="8" fill="#E8F5E9" stroke="#388E3C" stroke-width="1.5"/>
+  <text x="48" y="338" font-size="13" font-weight="bold" fill="#388E3C">03 Use Case 层</text>
+
+  <rect x="300" y="350" width="600" height="24" rx="6" fill="#fff" stroke="#388E3C" stroke-width="1"/>
+  <text x="600" y="366" text-anchor="middle" font-size="11" font-weight="bold" fill="#333">DescribeAssetsUseCase.ExecuteAsync() - 遍历素材 - 逐个调用 DescribeAsync - 报告进度 Queued - Completed/Failed</text>
+
+  <!-- 第3层到第4层连接线 -->
+  <line x1="600" y1="383" x2="600" y2="405" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ============================================================ -->
+  <!-- 第 4 层：C# 服务层 -->
+  <!-- ============================================================ -->
+  <rect x="30" y="408" width="1140" height="145" rx="8" fill="#FCE4EC" stroke="#C62828" stroke-width="1.5"/>
+  <text x="48" y="428" font-size="13" font-weight="bold" fill="#C62828">04 C# 服务层</text>
+
+  <rect x="50" y="442" width="360" height="55" rx="6" fill="#fff" stroke="#C62828" stroke-width="1"/>
+  <text x="230" y="460" text-anchor="middle" font-size="11" font-weight="bold" fill="#C62828">AssetDescriptionService.DescribeAsync()</text>
+  <text x="230" y="478" text-anchor="middle" font-size="10" fill="#555">1. SubtypeDetector.DetectSubtype() - 动画</text>
+  <text x="230" y="492" text-anchor="middle" font-size="10" fill="#555">2. AngleProfileManager.GetProfile() - 8 角度 + 30s 切片配置</text>
+
+  <rect x="50" y="502" width="360" height="40" rx="6" fill="#fff" stroke="#C62828" stroke-width="1"/>
+  <text x="230" y="520" text-anchor="middle" font-size="11" font-weight="bold" fill="#C62828">构建 BackendModelGenerateRequest</text>
+  <text x="230" y="535" text-anchor="middle" font-size="10" fill="#555">AssetFormat:视频, EnableSlicing:true, SliceThreshold:30s</text>
+
+  <rect x="440" y="442" width="200" height="55" rx="6" fill="#fff" stroke="#C62828" stroke-width="1"/>
+  <text x="540" y="460" text-anchor="middle" font-size="11" font-weight="bold" fill="#C62828">AngleProfileManager</text>
+  <text x="540" y="478" text-anchor="middle" font-size="10" fill="#555">读取 angle_profiles.yaml</text>
+  <text x="540" y="492" text-anchor="middle" font-size="10" fill="#555">视频/动画 - 8 角度 + 30s 切片</text>
+
+  <rect x="440" y="502" width="200" height="40" rx="6" fill="#fff" stroke="#C62828" stroke-width="1"/>
+  <text x="540" y="520" text-anchor="middle" font-size="11" font-weight="bold" fill="#C62828">SubtypeDetector</text>
+  <text x="540" y="535" text-anchor="middle" font-size="10" fill="#555">检测为「动画」子类型</text>
+
+  <rect x="670" y="442" width="240" height="55" rx="6" fill="#fff" stroke="#C62828" stroke-width="1"/>
+  <text x="790" y="460" text-anchor="middle" font-size="11" font-weight="bold" fill="#C62828">IAssetDescriptionStore</text>
+  <text x="790" y="478" text-anchor="middle" font-size="10" fill="#555">SaveAsync() - 写入 SQLite</text>
+  <text x="790" y="492" text-anchor="middle" font-size="10" fill="#555">asset_descriptions + asset_metadata</text>
+
+  <rect x="670" y="502" width="240" height="40" rx="6" fill="#fff" stroke="#C62828" stroke-width="1"/>
+  <text x="790" y="520" text-anchor="middle" font-size="11" font-weight="bold" fill="#C62828">LibraryCatalogService</text>
+  <text x="790" y="535" text-anchor="middle" font-size="10" fill="#555">扫描文件系统 - 哈希比对 - 入库</text>
+
+  <line x1="410" y1="470" x2="438" y2="470" stroke="#C62828" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="640" y1="470" x2="668" y2="470" stroke="#C62828" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- 第4层到第5层连接线 -->
+  <line x1="230" y1="543" x2="230" y2="575" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ============================================================ -->
+  <!-- 第 5 层：Python.NET 互操作 -->
+  <!-- ============================================================ -->
+  <rect x="30" y="578" width="1140" height="85" rx="8" fill="#FFF8E1" stroke="#F9A825" stroke-width="1.5"/>
+  <text x="48" y="598" font-size="13" font-weight="bold" fill="#F9A825">05 Python.NET 互操作层（进程内，无 HTTP）</text>
+
+  <rect x="50" y="612" width="350" height="40" rx="6" fill="#fff" stroke="#F9A825" stroke-width="1"/>
+  <text x="225" y="630" text-anchor="middle" font-size="11" font-weight="bold" fill="#F9A825">PythonEngineService</text>
+  <text x="225" y="645" text-anchor="middle" font-size="10" fill="#555">PythonEngine.Initialize() - 加载 CPython dll - Py.Import() 导入模块</text>
+
+  <rect x="430" y="612" width="550" height="40" rx="6" fill="#fff" stroke="#F9A825" stroke-width="1"/>
+  <text x="705" y="630" text-anchor="middle" font-size="11" font-weight="bold" fill="#F9A825">PythonModelService.GenerateAsync()</text>
+  <text x="705" y="645" text-anchor="middle" font-size="10" fill="#555">Engine.Execute() - 获取 GIL - BuildGenerateRequest(PyDict) - 调用 Python 函数 - ConvertResponse() 转 C# 类型</text>
+
+  <!-- 第5层到第6层连接线 -->
+  <line x1="705" y1="653" x2="705" y2="685" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ============================================================ -->
+  <!-- 第 6 层：Python 后端 -->
+  <!-- ============================================================ -->
+  <rect x="30" y="688" width="1140" height="380" rx="8" fill="#E0F7FA" stroke="#00838F" stroke-width="1.5"/>
+  <text x="48" y="708" font-size="13" font-weight="bold" fill="#00838F">06 Python 后端处理层（src/backend/app/）</text>
+
+  <rect x="50" y="720" width="230" height="40" rx="6" fill="#fff" stroke="#00838F" stroke-width="1"/>
+  <text x="165" y="738" text-anchor="middle" font-size="11" font-weight="bold" fill="#00838F">model_service.generate_text()</text>
+  <text x="165" y="753" text-anchor="middle" font-size="10" fill="#555">入口函数，接收请求</text>
+
+  <rect x="310" y="720" width="230" height="40" rx="6" fill="#fff" stroke="#00838F" stroke-width="1"/>
+  <text x="425" y="738" text-anchor="middle" font-size="11" font-weight="bold" fill="#00838F">angle_prompt_builder</text>
+  <text x="425" y="753" text-anchor="middle" font-size="10" fill="#555">build_system_prompt_from_angles()</text>
+
+  <rect x="570" y="720" width="230" height="40" rx="6" fill="#fff" stroke="#00838F" stroke-width="1"/>
+  <text x="685" y="738" text-anchor="middle" font-size="11" font-weight="bold" fill="#00838F">provider_resolver</text>
+  <text x="685" y="753" text-anchor="middle" font-size="10" fill="#555">视频 - qwen3.6-flash - dashscope</text>
+
+  <rect x="830" y="720" width="230" height="40" rx="6" fill="#fff" stroke="#00838F" stroke-width="1"/>
+  <text x="945" y="738" text-anchor="middle" font-size="11" font-weight="bold" fill="#00838F">media_preprocessor</text>
+  <text x="945" y="753" text-anchor="middle" font-size="10" fill="#555">FFmpeg 压缩视频</text>
+
+  <line x1="280" y1="740" x2="308" y2="740" stroke="#00838F" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="540" y1="740" x2="568" y2="740" stroke="#00838F" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="800" y1="740" x2="828" y2="740" stroke="#00838F" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- 判断分支 -->
+  <rect x="50" y="775" width="400" height="24" rx="4" fill="#fff" stroke="#00838F" stroke-width="1"/>
+  <text x="250" y="791" text-anchor="middle" font-size="10" fill="#00838F">判断：视频时长 20 min - 30s 阈值 - 启用切片</text>
+
+  <line x1="165" y1="760" x2="250" y2="773" stroke="#00838F" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- 视频切片主流程 -->
+  <rect x="50" y="810" width="800" height="28" rx="4" fill="#E0F2F1" stroke="#00695C" stroke-width="1.5"/>
+  <text x="450" y="829" text-anchor="middle" font-size="11" font-weight="bold" fill="#00695C">阶段一：逐片段描述（两阶段流程）</text>
+
+  <line x1="250" y1="799" x2="250" y2="808" stroke="#00695C" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 切片子流程 -->
+  <rect x="50" y="848" width="145" height="52" rx="4" fill="#fff" stroke="#00695C" stroke-width="1"/>
+  <text x="122" y="866" text-anchor="middle" font-size="10" font-weight="bold" fill="#00695C">PySceneDetect</text>
+  <text x="122" y="882" text-anchor="middle" font-size="9" fill="#555">检测场景切换点</text>
+  <text x="122" y="894" text-anchor="middle" font-size="9" fill="#555">分割 20-40 个场景</text>
+
+  <rect x="210" y="848" width="145" height="52" rx="4" fill="#fff" stroke="#00695C" stroke-width="1"/>
+  <text x="282" y="866" text-anchor="middle" font-size="10" font-weight="bold" fill="#00695C">FFmpeg 提取</text>
+  <text x="282" y="882" text-anchor="middle" font-size="9" fill="#555">ffmpeg -c copy</text>
+  <text x="282" y="894" text-anchor="middle" font-size="9" fill="#555">不重编码快速提取</text>
+
+  <rect x="370" y="848" width="145" height="52" rx="4" fill="#fff" stroke="#00695C" stroke-width="1"/>
+  <text x="442" y="866" text-anchor="middle" font-size="10" font-weight="bold" fill="#00695C">逐片段 LLM</text>
+  <text x="442" y="882" text-anchor="middle" font-size="9" fill="#555">带时间戳+上下文</text>
+  <text x="442" y="894" text-anchor="middle" font-size="9" fill="#555">返回 8 角度 JSON</text>
+
+  <rect x="530" y="848" width="145" height="52" rx="4" fill="#fff" stroke="#00695C" stroke-width="1"/>
+  <text x="602" y="866" text-anchor="middle" font-size="10" font-weight="bold" fill="#00695C">累积摘要</text>
+  <text x="602" y="882" text-anchor="middle" font-size="9" fill="#555">LLM 压缩 - 300 字</text>
+  <text x="602" y="894" text-anchor="middle" font-size="9" fill="#555">传递上下文</text>
+
+  <rect x="690" y="848" width="145" height="52" rx="4" fill="#fff" stroke="#00695C" stroke-width="1"/>
+  <text x="762" y="866" text-anchor="middle" font-size="10" font-weight="bold" fill="#00695C">合成整体</text>
+  <text x="762" y="882" text-anchor="middle" font-size="9" fill="#555">合并所有片段</text>
+  <text x="762" y="894" text-anchor="middle" font-size="9" fill="#555">overall + segments</text>
+
+  <line x1="195" y1="874" x2="208" y2="874" stroke="#00695C" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="355" y1="874" x2="368" y2="874" stroke="#00695C" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="515" y1="874" x2="528" y2="874" stroke="#00695C" stroke-width="1" marker-end="url(#arrow)"/>
+  <line x1="675" y1="874" x2="688" y2="874" stroke="#00695C" stroke-width="1" marker-end="url(#arrow)"/>
+
+  <!-- 阶段二 -->
+  <rect x="50" y="910" width="800" height="28" rx="4" fill="#E0F2F1" stroke="#00695C" stroke-width="1.5"/>
+  <text x="450" y="929" text-anchor="middle" font-size="11" font-weight="bold" fill="#00695C">阶段二：合成整体摘要 - 返回 ModelGenerateResponse</text>
+
+  <line x1="762" y1="900" x2="450" y2="908" stroke="#00695C" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 返回结果 -->
+  <rect x="50" y="948" width="530" height="28" rx="4" fill="#fff" stroke="#00838F" stroke-width="1"/>
+  <text x="315" y="967" text-anchor="middle" font-size="10" fill="#00838F">返回：output_text(完整JSON) - mode:live - token_usage - system_prompt</text>
+
+  <line x1="450" y1="938" x2="315" y2="946" stroke="#00838F" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 外部 API 调用 -->
+  <rect x="620" y="948" width="200" height="55" rx="6" fill="#fff" stroke="#9E9E9E" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="720" y="966" text-anchor="middle" font-size="10" font-weight="bold" fill="#666">阿里云 DashScope API</text>
+  <text x="720" y="982" text-anchor="middle" font-size="9" fill="#666">模型：qwen3.6-flash</text>
+  <text x="720" y="995" text-anchor="middle" font-size="9" fill="#666">MultiModalConversation.call()</text>
+
+  <line x1="315" y1="962" x2="618" y2="962" stroke="#9E9E9E" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+  <!-- 第6层到第7层连接线 -->
+  <line x1="315" y1="976" x2="315" y2="1015" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ============================================================ -->
+  <!-- 第 7 层：SQLite 持久化 -->
+  <!-- ============================================================ -->
+  <rect x="30" y="1018" width="1140" height="90" rx="8" fill="#EFEBE9" stroke="#5D4037" stroke-width="1.5"/>
+  <text x="48" y="1038" font-size="13" font-weight="bold" fill="#5D4037">07 SQLite 持久化</text>
+
+  <rect x="50" y="1052" width="360" height="45" rx="6" fill="#fff" stroke="#5D4037" stroke-width="1"/>
+  <text x="230" y="1070" text-anchor="middle" font-size="11" font-weight="bold" fill="#5D4037">asset_descriptions 表</text>
+  <text x="230" y="1086" text-anchor="middle" font-size="10" fill="#555">asset_id, description(完整JSON), mode, generated_at</text>
+
+  <rect x="440" y="1052" width="360" height="45" rx="6" fill="#fff" stroke="#5D4037" stroke-width="1"/>
+  <text x="620" y="1070" text-anchor="middle" font-size="11" font-weight="bold" fill="#5D4037">asset_metadata 表（副作用更新）</text>
+  <text x="620" y="1086" text-anchor="middle" font-size="10" fill="#555">metadata_status=described, vector_state=pending（触发向量化）</text>
+
+  <!-- 第7层到第8层连接线 -->
+  <line x1="620" y1="1097" x2="620" y2="1125" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ============================================================ -->
+  <!-- 第 8 层：UI 更新 -->
+  <!-- ============================================================ -->
+  <rect x="30" y="1128" width="1140" height="80" rx="8" fill="#FFF3E0" stroke="#E65100" stroke-width="1.5"/>
+  <text x="48" y="1148" font-size="13" font-weight="bold" fill="#E65100">08 UI 更新 - 结果回显</text>
+
+  <rect x="50" y="1160" width="245" height="38" rx="6" fill="#fff" stroke="#E65100" stroke-width="1"/>
+  <text x="172" y="1178" text-anchor="middle" font-size="11" font-weight="bold" fill="#E65100">文件卡片状态更新</text>
+  <text x="172" y="1192" text-anchor="middle" font-size="10" fill="#555">Stage:已描述, IsDescribed:true</text>
+
+  <rect x="320" y="1160" width="245" height="38" rx="6" fill="#fff" stroke="#E65100" stroke-width="1"/>
+  <text x="442" y="1178" text-anchor="middle" font-size="11" font-weight="bold" fill="#E65100">详情面板刷新</text>
+  <text x="442" y="1192" text-anchor="middle" font-size="10" fill="#555">8 个角度 - Label+Text+Tags</text>
+
+  <rect x="590" y="1160" width="245" height="38" rx="6" fill="#fff" stroke="#E65100" stroke-width="1"/>
+  <text x="712" y="1178" text-anchor="middle" font-size="11" font-weight="bold" fill="#E65100">活动日志新增</text>
+  <text x="712" y="1192" text-anchor="middle" font-size="10" fill="#555">「描述完成」事件记录</text>
+
+  <rect x="860" y="1160" width="245" height="38" rx="6" fill="#fff" stroke="#E65100" stroke-width="1"/>
+  <text x="982" y="1178" text-anchor="middle" font-size="11" font-weight="bold" fill="#E65100">后台任务列表</text>
+  <text x="982" y="1192" text-anchor="middle" font-size="10" fill="#555">CompleteTask - 标记完成</text>
+
+  <!-- ============================================================ -->
+  <!-- 图例 -->
+  <!-- ============================================================ -->
+  <rect x="30" y="1230" width="1140" height="32" rx="6" fill="#F5F5F5" stroke="#CCC" stroke-width="1"/>
+
+  <rect x="48" y="1238" width="14" height="14" rx="2" fill="#E3F2FD" stroke="#1976D2" stroke-width="1"/>
+  <text x="68" y="1250" font-size="10" fill="#555">用户操作</text>
+
+  <rect x="148" y="1238" width="14" height="14" rx="2" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1"/>
+  <text x="168" y="1250" font-size="10" fill="#555">ViewModel</text>
+
+  <rect x="248" y="1238" width="14" height="14" rx="2" fill="#E8F5E9" stroke="#388E3C" stroke-width="1"/>
+  <text x="268" y="1250" font-size="10" fill="#555">Use Case</text>
+
+  <rect x="348" y="1238" width="14" height="14" rx="2" fill="#FCE4EC" stroke="#C62828" stroke-width="1"/>
+  <text x="368" y="1250" font-size="10" fill="#555">C# 服务</text>
+
+  <rect x="438" y="1238" width="14" height="14" rx="2" fill="#FFF8E1" stroke="#F9A825" stroke-width="1"/>
+  <text x="458" y="1250" font-size="10" fill="#555">Python.NET</text>
+
+  <rect x="548" y="1238" width="14" height="14" rx="2" fill="#E0F7FA" stroke="#00838F" stroke-width="1"/>
+  <text x="568" y="1250" font-size="10" fill="#555">Python 后端</text>
+
+  <rect x="658" y="1238" width="14" height="14" rx="2" fill="#EFEBE9" stroke="#5D4037" stroke-width="1"/>
+  <text x="678" y="1250" font-size="10" fill="#555">SQLite</text>
+
+  <rect x="738" y="1238" width="14" height="14" rx="2" fill="#fff" stroke="#9E9E9E" stroke-width="1.5" stroke-dasharray="3,2"/>
+  <text x="758" y="1250" font-size="10" fill="#555">外部 API</text>
+
+  <text x="850" y="1250" font-size="10" fill="#888">全程无 HTTP 网络通信：Python.NET 进程内 P/Invoke 互操作</text>
+
+  <!-- ============================================================ -->
+  <!-- 8 角度详情 -->
+  <!-- ============================================================ -->
+  <rect x="30" y="1280" width="1140" height="95" rx="8" fill="#F5F5F5" stroke="#BBB" stroke-width="1"/>
+  <text x="48" y="1300" font-size="13" font-weight="bold" fill="#555">动画子类型 - 8 角度定义（angle_profiles.yaml）</text>
+
+  <rect x="50" y="1312" width="125" height="24" rx="4" fill="#FFF3E0" stroke="#E65100" stroke-width="1"/>
+  <text x="112" y="1329" text-anchor="middle" font-size="10" fill="#E65100">时间线 (300)</text>
+
+  <rect x="185" y="1312" width="125" height="24" rx="4" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1"/>
+  <text x="247" y="1329" text-anchor="middle" font-size="10" fill="#7B1FA2">人物 (160)</text>
+
+  <rect x="320" y="1312" width="125" height="24" rx="4" fill="#E3F2FD" stroke="#1976D2" stroke-width="1"/>
+  <text x="382" y="1329" text-anchor="middle" font-size="10" fill="#1976D2">场景 (140)</text>
+
+  <rect x="455" y="1312" width="125" height="24" rx="4" fill="#E8F5E9" stroke="#388E3C" stroke-width="1"/>
+  <text x="517" y="1329" text-anchor="middle" font-size="10" fill="#388E3C">动作 (180)</text>
+
+  <rect x="590" y="1312" width="125" height="24" rx="4" fill="#FCE4EC" stroke="#C62828" stroke-width="1"/>
+  <text x="652" y="1329" text-anchor="middle" font-size="10" fill="#C62828">情感 (100)</text>
+
+  <rect x="725" y="1312" width="125" height="24" rx="4" fill="#FFF8E1" stroke="#F9A825" stroke-width="1"/>
+  <text x="787" y="1329" text-anchor="middle" font-size="10" fill="#F9A825">镜头 (140)</text>
+
+  <rect x="860" y="1312" width="125" height="24" rx="4" fill="#E0F7FA" stroke="#00838F" stroke-width="1"/>
+  <text x="922" y="1329" text-anchor="middle" font-size="10" fill="#00838F">关键画面 (180)</text>
+
+  <rect x="995" y="1312" width="125" height="24" rx="4" fill="#EFEBE9" stroke="#5D4037" stroke-width="1"/>
+  <text x="1057" y="1329" text-anchor="middle" font-size="10" fill="#5D4037">整体 (120)</text>
+
+  <text x="48" y="1360" font-size="10" fill="#888">视频切片配置：SliceThreshold=30s, MinSceneLen=15, 模型：qwen3.6-flash, provider：dashscope</text>
+
+  <!-- 文件信息 -->
+  <text x="48" y="1390" font-size="10" fill="#AAA">流程图文件：docs/flowcharts/description-pipeline.svg</text>
+</svg>
