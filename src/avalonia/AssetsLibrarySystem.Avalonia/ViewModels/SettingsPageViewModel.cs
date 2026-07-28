@@ -4,8 +4,6 @@ using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
-using AssetsLibrarySystem.Avalonia.Services.Backend;
-using AssetsLibrarySystem.Avalonia.Services.Library;
 using AssetsLibrarySystem.Avalonia.Services.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -13,28 +11,24 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 public sealed partial class SettingsPageViewModel : ObservableObject
 {
-    private BackendSessionService BackendSessionService { get; }
-    private LibraryCatalogService LibraryCatalogService { get; }
+    private BackendStatusViewModel BackendStatus { get; }
     private IUserSettingsService UserSettingsService { get; }
     private bool IsLoadingSettings { get; set; }
 
     public SettingsPageViewModel()
         : this(
-            new BackendSessionService(),
-            new LibraryCatalogService(),
+            new BackendStatusViewModel(),
             new ActivityFeedService(),
             new UserSettingsService())
     {
     }
 
     public SettingsPageViewModel(
-        BackendSessionService backendSessionService,
-        LibraryCatalogService libraryCatalogService,
+        BackendStatusViewModel backendStatus,
         ActivityFeedService activityFeedService,
         IUserSettingsService userSettingsService)
     {
-        BackendSessionService = backendSessionService;
-        LibraryCatalogService = libraryCatalogService;
+        BackendStatus = backendStatus;
         UserSettingsService = userSettingsService;
         ActivityFeed = activityFeedService.Entries;
         SettingsStatusMessage = "修改模型名和维度后会自动保存，并立即生效。";
@@ -51,8 +45,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         SearchFinalTopK = UserSettingsService.SearchFinalTopK;
         IsLoadingSettings = false;
 
-        BackendSessionService.PropertyChanged += OnDependencyPropertyChanged;
-        LibraryCatalogService.PropertyChanged += OnDependencyPropertyChanged;
+        BackendStatus.PropertyChanged += OnDependencyPropertyChanged;
     }
 
     [ObservableProperty]
@@ -95,14 +88,14 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     [ObservableProperty]
     public partial string SettingsStatusMessage { get; set; }
 
-    public string OperatorNotice => LibraryCatalogService.OperatorNotice;
-    public string BackendStatusTitle => BackendSessionService.BackendStatusTitle;
-    public string BackendStatusDetail => BackendSessionService.BackendStatusDetail;
-    public string BackendEndpoint => BackendSessionService.BackendEndpoint;
-    public string SearchModelStatusTitle => BackendSessionService.SearchModelStatusTitle;
-    public string SearchModelStatusStage => BackendSessionService.SearchModelStatusStage;
-    public string SearchModelStatusDetail => BackendSessionService.SearchModelStatusDetail;
-    public ObservableCollection<AiCapabilityRecord> AiCapabilities => BackendSessionService.AiCapabilities;
+    public string OperatorNotice => BackendStatus.BackendStatusDetail;
+    public string BackendStatusTitle => BackendStatus.BackendStatusTitle;
+    public string BackendStatusDetail => BackendStatus.BackendStatusDetail;
+    public string BackendEndpoint => BackendStatus.BackendEndpoint;
+    public string SearchModelStatusTitle => BackendStatus.SearchModelStatusTitle;
+    public string SearchModelStatusStage => BackendStatus.SearchModelStatusStage;
+    public string SearchModelStatusDetail => BackendStatus.SearchModelStatusDetail;
+    public ObservableCollection<AiCapabilityRecord> AiCapabilities => BackendStatus.AiCapabilities;
     public ObservableCollection<string> ActivityFeed { get; }
 
     partial void OnEmbeddingModelChanged(string value)

@@ -4,24 +4,22 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
-using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
-using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 public sealed partial class MainWindowViewModel : ObservableObject
 {
-    private BackendSessionService BackendSessionService { get; }
-    private LibraryCatalogService LibraryCatalogService { get; }
+    private BackendStatusViewModel BackendStatus { get; }
+    private LibraryWorkspaceViewModel Workspace { get; }
     private IBackgroundTaskService BackgroundTaskService { get; }
 
     [Obsolete("仅供设计器使用。运行时请通过 DI 构造。", false)]
     public MainWindowViewModel()
         : this(
-            new BackendSessionService(),
-            new LibraryCatalogService(),
+            new BackendStatusViewModel(),
+            new LibraryWorkspaceViewModel(),
             new BackgroundTaskService(),
             new OverviewPageViewModel(),
             new LibraryPageViewModel(),
@@ -30,15 +28,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     public MainWindowViewModel(
-        BackendSessionService backendSessionService,
-        LibraryCatalogService libraryCatalogService,
+        BackendStatusViewModel backendStatus,
+        LibraryWorkspaceViewModel workspace,
         IBackgroundTaskService backgroundTaskService,
         OverviewPageViewModel overviewPage,
         LibraryPageViewModel libraryPage,
         SettingsPageViewModel settingsPage)
     {
-        BackendSessionService = backendSessionService;
-        LibraryCatalogService = libraryCatalogService;
+        BackendStatus = backendStatus;
+        Workspace = workspace;
         BackgroundTaskService = backgroundTaskService;
         OverviewPage = overviewPage;
         LibraryPage = libraryPage;
@@ -46,7 +44,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         BackgroundTaskService.PropertyChanged += OnBackgroundTaskServicePropertyChanged;
         BackgroundTaskService.Tasks.CollectionChanged += OnBackgroundTasksCollectionChanged;
-        BackendSessionService.PropertyChanged += OnBackendSessionPropertyChanged;
+        BackendStatus.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
         foreach (var task in BackgroundTaskService.Tasks)
         {
@@ -61,12 +59,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public SettingsPageViewModel SettingsPage { get; }
     public ObservableCollection<BackgroundTaskEntry> BackgroundTasks => BackgroundTaskService.Tasks;
 
-    public string BackendStatusTitle => BackendSessionService.BackendStatusTitle;
-    public string BackendStatusStage => BackendSessionService.BackendStatusStage;
-    public string BackendEndpoint => BackendSessionService.BackendEndpoint;
-    public string SearchModelStatusTitle => BackendSessionService.SearchModelStatusTitle;
-    public string SearchModelStatusStage => BackendSessionService.SearchModelStatusStage;
-    public string SearchModelStatusDetail => BackendSessionService.SearchModelStatusDetail;
+    public string BackendStatusTitle => BackendStatus.BackendStatusTitle;
+    public string BackendStatusStage => BackendStatus.BackendStatusStage;
+    public string BackendEndpoint => BackendStatus.BackendEndpoint;
+    public string SearchModelStatusTitle => BackendStatus.SearchModelStatusTitle;
+    public string SearchModelStatusStage => BackendStatus.SearchModelStatusStage;
+    public string SearchModelStatusDetail => BackendStatus.SearchModelStatusDetail;
 
     [ObservableProperty]
     public partial string LatestBackgroundTaskText { get; set; } = "暂无后台任务";
@@ -76,8 +74,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public async Task InitializeAsync()
     {
-        await BackendSessionService.InitializeAsync();
-        await LibraryCatalogService.InitializeAsync();
+        await BackendStatus.InitializeAsync();
+        await Workspace.InitializeAsync();
     }
 
     private void OnBackgroundTaskServicePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -104,11 +102,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         RefreshBackgroundTaskSummary();
-    }
-
-    private void OnBackendSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        OnPropertyChanged(e.PropertyName);
     }
 
     private void OnBackgroundTaskPropertyChanged(object? sender, PropertyChangedEventArgs e)

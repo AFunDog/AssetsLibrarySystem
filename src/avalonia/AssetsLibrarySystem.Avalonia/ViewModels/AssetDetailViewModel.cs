@@ -1,51 +1,56 @@
+using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
-using AssetsLibrarySystem.Avalonia.Services.Library;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
+/// <summary>
+/// 素材详情 ViewModel，委托给 LibraryWorkspaceViewModel。
+/// AXAML 通过此 ViewModel 访问素材详情状态。
+/// </summary>
 public sealed partial class AssetDetailViewModel : ObservableObject
 {
-    private LibraryCatalogService LibraryCatalogService { get; }
+    private LibraryWorkspaceViewModel Workspace { get; }
 
+    public AssetDetailViewModel(LibraryWorkspaceViewModel workspace)
+    {
+        Workspace = workspace;
+        Workspace.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
+    }
+
+    [Obsolete("仅供设计器使用")]
     public AssetDetailViewModel()
-        : this(new LibraryCatalogService())
+        : this(new LibraryWorkspaceViewModel())
     {
     }
 
-    public AssetDetailViewModel(LibraryCatalogService libraryCatalogService)
-    {
-        LibraryCatalogService = libraryCatalogService;
-        LibraryCatalogService.PropertyChanged += OnCatalogPropertyChanged;
-    }
-
-    // === 现有只读属性 ===
-    public string SelectedAssetName => LibraryCatalogService.SelectedAssetName;
-    public string SelectedAssetLibrary => LibraryCatalogService.SelectedAssetLibrary;
-    public string SelectedAssetPath => LibraryCatalogService.SelectedAssetPath;
-    public string SelectedAssetType => LibraryCatalogService.SelectedAssetType;
-    public string SelectedAssetSubtype => LibraryCatalogService.SelectedAssetSubtype;
-    public string SelectedAssetStage => LibraryCatalogService.SelectedAssetStage;
-    public string SelectedAssetAiState => LibraryCatalogService.SelectedAssetAiState;
-    public string SelectedAssetDetail => LibraryCatalogService.SelectedAssetDetail;
-    public string SelectedAssetDescriptionState => LibraryCatalogService.SelectedAssetDescriptionState;
-    public string SelectedAssetDescriptionGeneratedAt => LibraryCatalogService.SelectedAssetDescriptionGeneratedAt;
-    public string SelectedAssetDescriptionText => LibraryCatalogService.SelectedAssetDescriptionText;
-    public string SelectedAssetDescriptionStorePath => LibraryCatalogService.SelectedAssetDescriptionStorePath;
-    public string SelectedAssetDescriptionMode => LibraryCatalogService.SelectedAssetDescriptionMode;
-    public string SelectedAssetDescriptionTokenUsage => LibraryCatalogService.SelectedAssetDescriptionTokenUsage;
-    public string SelectedAssetDescriptionPrompt => LibraryCatalogService.SelectedAssetDescriptionPrompt;
-    public string SelectedAssetDescriptionSystemPrompt => LibraryCatalogService.SelectedAssetDescriptionSystemPrompt;
+    // ===== 委托给 Workspace =====
+    public string SelectedAssetName => Workspace.SelectedAssetName;
+    public string SelectedAssetLibrary => Workspace.SelectedAssetLibrary;
+    public string SelectedAssetPath => Workspace.SelectedAssetPath;
+    public string SelectedAssetType => Workspace.SelectedAssetType;
+    public string SelectedAssetSubtype => Workspace.SelectedAssetSubtype;
+    public string SelectedAssetStage => Workspace.SelectedAssetStage;
+    public string SelectedAssetAiState => Workspace.SelectedAssetAiState;
+    public string SelectedAssetDetail => Workspace.SelectedAssetDetail;
+    public string SelectedAssetDescriptionState => Workspace.SelectedAssetDescriptionState;
+    public string SelectedAssetDescriptionGeneratedAt => Workspace.SelectedAssetDescriptionGeneratedAt;
+    public string SelectedAssetDescriptionText => Workspace.SelectedAssetDescriptionText;
+    public string SelectedAssetDescriptionStorePath => Workspace.SelectedAssetDescriptionStorePath;
+    public string SelectedAssetDescriptionMode => Workspace.SelectedAssetDescriptionMode;
+    public string SelectedAssetDescriptionTokenUsage => Workspace.SelectedAssetDescriptionTokenUsage;
+    public string SelectedAssetDescriptionPrompt => Workspace.SelectedAssetDescriptionPrompt;
+    public string SelectedAssetDescriptionSystemPrompt => Workspace.SelectedAssetDescriptionSystemPrompt;
     public ObservableCollection<AngleDescriptionRecord> SelectedAssetDescriptionAngles
-        => LibraryCatalogService.SelectedAssetDescriptionAngles;
+        => Workspace.SelectedAssetDescriptionAngles;
 
-    // === 标签编辑 ===
-    public ObservableCollection<string> SelectedAssetTags => LibraryCatalogService.SelectedAsset?.Tags ?? [];
+    // ===== 标签编辑 =====
+    public ObservableCollection<string> SelectedAssetTags => Workspace.SelectedAsset?.Tags ?? [];
 
     [ObservableProperty]
     public partial string NewTagText { get; set; } = string.Empty;
@@ -53,85 +58,66 @@ public sealed partial class AssetDetailViewModel : ObservableObject
     [RelayCommand]
     private async Task AddTagAsync()
     {
-        if (string.IsNullOrWhiteSpace(NewTagText) || LibraryCatalogService.SelectedAsset is null)
+        if (string.IsNullOrWhiteSpace(NewTagText) || Workspace.SelectedAsset is null)
             return;
-
         var tag = NewTagText.Trim();
-        var currentTags = LibraryCatalogService.SelectedAsset.Tags.ToArray();
-        if (currentTags.Contains(tag))
-            return;
-
-        var newTags = currentTags.Append(tag).ToArray();
-        await LibraryCatalogService.UpdateSelectedAssetTagsAsync(newTags);
+        var currentTags = Workspace.SelectedAsset.Tags.ToArray();
+        if (currentTags.Contains(tag)) return;
+        await Workspace.UpdateSelectedAssetTagsAsync(currentTags.Append(tag).ToArray());
         NewTagText = string.Empty;
     }
 
     [RelayCommand]
     private async Task RemoveTagAsync(string? tag)
     {
-        if (string.IsNullOrWhiteSpace(tag) || LibraryCatalogService.SelectedAsset is null)
-            return;
-
-        var currentTags = LibraryCatalogService.SelectedAsset.Tags.ToArray();
-        var newTags = currentTags.Where(t => t != tag).ToArray();
-        await LibraryCatalogService.UpdateSelectedAssetTagsAsync(newTags);
+        if (string.IsNullOrWhiteSpace(tag) || Workspace.SelectedAsset is null) return;
+        var currentTags = Workspace.SelectedAsset.Tags.ToArray();
+        await Workspace.UpdateSelectedAssetTagsAsync(currentTags.Where(t => t != tag).ToArray());
     }
 
-    // === 删除操作 ===
+    // ===== 删除操作 =====
     [RelayCommand]
     private async Task DeleteAssetAsync()
     {
-        await LibraryCatalogService.DeleteSelectedAssetAsync();
+        if (Workspace.DeleteAssetCommand.CanExecute(null))
+            await Workspace.DeleteAssetCommand.ExecuteAsync(null);
     }
 
     [RelayCommand]
     private async Task DeleteLibraryAsync()
     {
-        await LibraryCatalogService.DeleteSelectedLibraryAsync();
+        if (Workspace.DeleteLibraryCommand.CanExecute(null))
+            await Workspace.DeleteLibraryCommand.ExecuteAsync(null);
     }
 
-    // === 重命名 ===
+    // ===== 重命名 =====
     [ObservableProperty]
     public partial string RenameText { get; set; } = string.Empty;
 
     [RelayCommand]
     private async Task RenameAssetAsync()
     {
-        if (string.IsNullOrWhiteSpace(RenameText))
-            return;
-        await LibraryCatalogService.UpdateSelectedAssetNameAsync(RenameText.Trim());
+        if (string.IsNullOrWhiteSpace(RenameText)) return;
+        await Workspace.UpdateSelectedAssetNameAsync(RenameText.Trim());
         RenameText = string.Empty;
     }
 
     [RelayCommand]
     private async Task RenameLibraryAsync()
     {
-        if (string.IsNullOrWhiteSpace(RenameText))
-            return;
-        await LibraryCatalogService.UpdateSelectedLibraryNameAsync(RenameText.Trim());
+        if (string.IsNullOrWhiteSpace(RenameText)) return;
+        await Workspace.UpdateSelectedLibraryNameAsync(RenameText.Trim());
         RenameText = string.Empty;
     }
 
-    // === 描述编辑 ===
+    // ===== 描述编辑 =====
     [ObservableProperty]
     public partial string EditDescriptionText { get; set; } = string.Empty;
 
     [RelayCommand]
     private async Task SaveDescriptionAsync()
     {
-        if (string.IsNullOrWhiteSpace(EditDescriptionText))
-            return;
-        await LibraryCatalogService.UpdateSelectedAssetDescriptionAsync(EditDescriptionText.Trim());
-    }
-
-    private void OnCatalogPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        OnPropertyChanged(e.PropertyName);
-        if (e.PropertyName == nameof(LibraryCatalogService.SelectedAsset)
-            || e.PropertyName == nameof(LibraryCatalogService.SelectedAssetDescriptionText))
-        {
-            OnPropertyChanged(nameof(SelectedAssetTags));
-            EditDescriptionText = LibraryCatalogService.SelectedAssetDescriptionText;
-        }
+        if (string.IsNullOrWhiteSpace(EditDescriptionText)) return;
+        await Workspace.UpdateSelectedAssetDescriptionAsync(EditDescriptionText.Trim());
     }
 }

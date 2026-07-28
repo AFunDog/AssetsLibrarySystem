@@ -16,24 +16,24 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
 {
-    private BackendSessionService BackendSessionService { get; }
-    private LibraryCatalogService LibraryCatalogService { get; }
+    private BackendStatusViewModel BackendStatus { get; }
+    private LibraryWorkspaceViewModel Workspace { get; }
     private VectorizeDescriptionsUseCase? VectorizeDescriptionsUseCase { get; }
     private ObservableCollection<string> ActivityFeed { get; }
 
     public AssetVectorizationPanelViewModel()
-        : this(new BackendSessionService(), new LibraryCatalogService(), null, new ActivityFeedService())
+        : this(new BackendStatusViewModel(), new LibraryWorkspaceViewModel(), null, new ActivityFeedService())
     {
     }
 
     public AssetVectorizationPanelViewModel(
-        BackendSessionService backendSessionService,
-        LibraryCatalogService libraryCatalogService,
+        BackendStatusViewModel backendStatus,
+        LibraryWorkspaceViewModel workspace,
         VectorizeDescriptionsUseCase? vectorizeDescriptionsUseCase,
         ActivityFeedService activityFeedService)
     {
-        BackendSessionService = backendSessionService;
-        LibraryCatalogService = libraryCatalogService;
+        BackendStatus = backendStatus;
+        Workspace = workspace;
         VectorizeDescriptionsUseCase = vectorizeDescriptionsUseCase;
         ActivityFeed = activityFeedService.Entries;
 
@@ -46,15 +46,15 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
     {
         if (node is null)
         {
-            LibraryCatalogService.SetOperatorNotice("请先右键选择一个素材库、目录或素材文件。");
+            Workspace.SetOperatorNotice("请先右键选择一个素材库、目录或素材文件。");
             return;
         }
 
-        LibraryCatalogService.SelectedAssetTreeNode = node;
-        var assets = LibraryCatalogService.GetDescriptionSelectionAssets();
+        Workspace.SelectedAssetTreeNode = node;
+        var assets = Workspace.GetDescriptionSelectionAssets();
         if (assets.Count == 0)
         {
-            LibraryCatalogService.SetOperatorNotice("当前节点下没有可向量化的素材。");
+            Workspace.SetOperatorNotice("当前节点下没有可向量化的素材。");
             Log.Warning(
                 "右键向量化失败：节点下没有素材，nodeName={NodeName}, nodeKind={NodeKind}, path={Path}",
                 node.DisplayName,
@@ -72,10 +72,10 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
 
     private async Task VectorizeDescriptionsAsync()
     {
-        var assets = LibraryCatalogService.GetAllLibraryAssets();
+        var assets = Workspace.GetAllLibraryAssets();
         if (assets.Count == 0)
         {
-            LibraryCatalogService.SetOperatorNotice("当前没有可向量化的素材。");
+            Workspace.SetOperatorNotice("当前没有可向量化的素材。");
             return;
         }
 
@@ -87,21 +87,21 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
         string scopeName,
         string activityPrefix)
     {
-        if (!BackendSessionService.IsBackendReady)
+        if (!BackendStatus.IsBackendReady)
         {
-            LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
+            Workspace.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
             Log.Warning("{ActivityPrefix}失败：后端未就绪，assetCount={AssetCount}", activityPrefix, assets.Count);
             return;
         }
 
         if (VectorizeDescriptionsUseCase is null)
         {
-            LibraryCatalogService.SetOperatorNotice("向量化服务未注册，当前无法执行向量化。");
+            Workspace.SetOperatorNotice("向量化服务未注册，当前无法执行向量化。");
             Log.Warning("{ActivityPrefix}失败：向量化服务未注册，assetCount={AssetCount}", activityPrefix, assets.Count);
             return;
         }
 
-        LibraryCatalogService.SetOperatorNotice($"正在增量向量化{scopeName}：{assets.Count} 个素材");
+        Workspace.SetOperatorNotice($"正在增量向量化{scopeName}：{assets.Count} 个素材");
         ActivityFeed.Insert(0, $"{activityPrefix}开始：{scopeName}，共 {assets.Count} 个素材");
         Log.Information(
             "用户触发向量化: activityPrefix={ActivityPrefix}, scopeName={ScopeName}, assetCount={AssetCount}",
@@ -113,19 +113,19 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
         {
             var result = await VectorizeDescriptionsUseCase.ExecuteAsync(
                 assets,
-                BackendSessionService.BaseUrl,
+                BackendStatus.BaseUrl,
                 progress =>
                 {
                     if (progress.Kind == VectorizeDescriptionProgressKind.Completed)
                     {
-                        LibraryCatalogService.MarkAssetVectorized(progress.Asset);
+                        Workspace.MarkAssetVectorized(progress.Asset);
                     }
 
                     return Task.CompletedTask;
                 });
 
-            LibraryCatalogService.RefreshMetrics();
-            LibraryCatalogService.SetOperatorNotice(
+            Workspace.RefreshMetrics();
+            Workspace.SetOperatorNotice(
                 $"{scopeName}向量化完成：成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}。");
             ActivityFeed.Insert(0, $"{activityPrefix}完成：{scopeName}，成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}");
             Log.Information(
@@ -138,7 +138,7 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            LibraryCatalogService.SetOperatorNotice($"{scopeName}向量化失败：{ex.Message}");
+            Workspace.SetOperatorNotice($"{scopeName}向量化失败：{ex.Message}");
             ActivityFeed.Insert(0, $"{activityPrefix}失败：{scopeName} -> {ex.Message}");
             Log.Error(ex, "向量化失败: activityPrefix={ActivityPrefix}, scopeName={ScopeName}, assetCount={AssetCount}", activityPrefix, scopeName, assets.Count);
         }

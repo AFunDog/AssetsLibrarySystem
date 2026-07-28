@@ -17,26 +17,26 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 public sealed partial class AssetSearchPanelViewModel : ObservableObject
 {
-    private BackendSessionService BackendSessionService { get; }
-    private LibraryCatalogService LibraryCatalogService { get; }
+    private BackendStatusViewModel BackendStatus { get; }
+    private LibraryWorkspaceViewModel Workspace { get; }
     private IAssetSearchService? AssetSearchService { get; }
     private RebuildSearchIndexUseCase? RebuildSearchIndexUseCase { get; }
     private ObservableCollection<string> ActivityFeed { get; }
 
     public AssetSearchPanelViewModel()
-        : this(new BackendSessionService(), new LibraryCatalogService(), null, null, new ActivityFeedService())
+        : this(new BackendStatusViewModel(), new LibraryWorkspaceViewModel(), null, null, new ActivityFeedService())
     {
     }
 
     public AssetSearchPanelViewModel(
-        BackendSessionService backendSessionService,
-        LibraryCatalogService libraryCatalogService,
+        BackendStatusViewModel backendStatus,
+        LibraryWorkspaceViewModel workspace,
         IAssetSearchService? assetSearchService,
         RebuildSearchIndexUseCase? rebuildSearchIndexUseCase,
         ActivityFeedService activityFeedService)
     {
-        BackendSessionService = backendSessionService;
-        LibraryCatalogService = libraryCatalogService;
+        BackendStatus = backendStatus;
+        Workspace = workspace;
         AssetSearchService = assetSearchService;
         RebuildSearchIndexUseCase = rebuildSearchIndexUseCase;
         ActivityFeed = activityFeedService.Entries;
@@ -83,7 +83,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
     {
         if (result is null || string.IsNullOrWhiteSpace(result.AssetPath))
         {
-            LibraryCatalogService.SetOperatorNotice("当前搜索结果没有可打开的本地路径。");
+            Workspace.SetOperatorNotice("当前搜索结果没有可打开的本地路径。");
             Log.Warning("搜索结果定位失败：没有可用路径。");
             return;
         }
@@ -96,16 +96,16 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
             Arguments = $"/select,\"{path}\"",
         });
 
-        LibraryCatalogService.SetOperatorNotice($"已在文件资源管理器中显示：{path}");
+        Workspace.SetOperatorNotice($"已在文件资源管理器中显示：{path}");
         ActivityFeed.Insert(0, $"搜索结果定位：{result.AssetName}");
         Log.Information("搜索结果定位成功: assetName={AssetName}, assetPath={AssetPath}", result.AssetName, path);
     }
 
     private async Task ExecuteSearchAsync()
     {
-        if (!BackendSessionService.IsBackendReady)
+        if (!BackendStatus.IsBackendReady)
         {
-            LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
+            Workspace.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
             SearchStatus = "后端未就绪，无法执行检索。";
             Log.Warning("用户触发库页检索，但后端未就绪。");
             return;
@@ -113,7 +113,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
 
         if (AssetSearchService is null)
         {
-            LibraryCatalogService.SetOperatorNotice("检索服务未注册，当前无法调用后端。");
+            Workspace.SetOperatorNotice("检索服务未注册，当前无法调用后端。");
             SearchStatus = "检索服务未注册。";
             Log.Warning("库页检索失败：检索服务未注册。");
             return;
@@ -121,7 +121,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(SearchQuery))
         {
-            LibraryCatalogService.SetOperatorNotice("请输入要检索的文本描述。");
+            Workspace.SetOperatorNotice("请输入要检索的文本描述。");
             SearchStatus = "请输入查询文本。";
             Log.Warning("库页检索失败：查询文本为空。");
             return;
@@ -129,7 +129,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
 
         if (!TryParsePositiveInt(SearchCandidateTopKText, out var candidateTopK))
         {
-            LibraryCatalogService.SetOperatorNotice("候选数量必须是大于 0 的整数。");
+            Workspace.SetOperatorNotice("候选数量必须是大于 0 的整数。");
             SearchStatus = "候选数量格式错误。";
             Log.Warning("库页检索失败：候选数量格式错误，value={Value}", SearchCandidateTopKText);
             return;
@@ -137,14 +137,14 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
 
         if (!TryParsePositiveInt(SearchFinalTopKText, out var finalTopK))
         {
-            LibraryCatalogService.SetOperatorNotice("返回数量必须是大于 0 的整数。");
+            Workspace.SetOperatorNotice("返回数量必须是大于 0 的整数。");
             SearchStatus = "返回数量格式错误。";
             Log.Warning("库页检索失败：返回数量格式错误，value={Value}", SearchFinalTopKText);
             return;
         }
 
         SearchStatus = "正在执行向量召回与重排序...";
-        LibraryCatalogService.SetOperatorNotice($"正在检索：“{SearchQuery}”");
+        Workspace.SetOperatorNotice($"正在检索：“{SearchQuery}”");
         ActivityFeed.Insert(0, $"开始检索：{SearchQuery}");
         Log.Information(
             "用户在库页发起检索: queryLength={QueryLength}, candidateTopK={CandidateTopK}, finalTopK={FinalTopK}, assetFormat={AssetFormat}",
@@ -156,7 +156,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         try
         {
             var response = await AssetSearchService.SearchAsync(
-                BackendSessionService.BaseUrl,
+                BackendStatus.BaseUrl,
                 SearchQuery,
                 candidateTopK,
                 finalTopK,
@@ -169,7 +169,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
             }
 
             SearchStatus = $"检索完成：候选 {response.CandidateTopK} 条，返回 {response.Results.Length} 条。";
-            LibraryCatalogService.SetOperatorNotice(SearchStatus);
+            Workspace.SetOperatorNotice(SearchStatus);
             ActivityFeed.Insert(0, $"检索完成：{SearchQuery} -> {response.Results.Length} 条结果");
             Log.Information(
                 "库页检索完成: resultCount={ResultCount}, embeddingModel={EmbeddingModel}, rerankModel={RerankModel}",
@@ -180,7 +180,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         catch (Exception ex)
         {
             SearchStatus = $"检索失败：{ex.Message}";
-            LibraryCatalogService.SetOperatorNotice(SearchStatus);
+            Workspace.SetOperatorNotice(SearchStatus);
             ActivityFeed.Insert(0, $"检索失败：{SearchQuery} -> {ex.Message}");
             Log.Error(ex, "库页检索失败。");
         }
@@ -191,14 +191,14 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         if (RebuildSearchIndexUseCase is null)
         {
             SearchIndexSummary = "检索服务未注册，无法重建索引。";
-            LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
+            Workspace.SetOperatorNotice(SearchIndexSummary);
             Log.Warning("用户触发索引重建，但检索服务未注册。");
             return;
         }
 
         SearchIndexSummary = "正在重建向量索引...";
         SearchIndexDetail = "桌面端会重新扫描本地 SQLite 向量数据；当前阶段不再依赖 Python 后端读库建索引。";
-        LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
+        Workspace.SetOperatorNotice(SearchIndexSummary);
         ActivityFeed.Insert(0, "开始重建向量索引。");
         Log.Information("用户触发向量索引重建。");
 
@@ -207,7 +207,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
             var response = await RebuildSearchIndexUseCase.ExecuteAsync();
             SearchIndexSummary = $"索引已重建：{response.DocumentCount} 条，{response.VectorDim} 维。";
             SearchIndexDetail = $"数据库：{response.DatabasePath}\n索引：{response.IndexPath}\n元数据：{response.MetadataPath}\n模型：{string.Join(", ", response.EmbeddingModels)}";
-            LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
+            Workspace.SetOperatorNotice(SearchIndexSummary);
             ActivityFeed.Insert(0, $"索引重建完成：{response.DocumentCount} 条素材描述。");
             Log.Information(
                 "索引重建完成: documentCount={DocumentCount}, vectorDim={VectorDim}, databasePath={DatabasePath}, indexPath={IndexPath}",
@@ -220,7 +220,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         {
             SearchIndexSummary = $"索引重建失败：{ex.Message}";
             SearchIndexDetail = ex.Message;
-            LibraryCatalogService.SetOperatorNotice(SearchIndexSummary);
+            Workspace.SetOperatorNotice(SearchIndexSummary);
             ActivityFeed.Insert(0, $"索引重建失败：{ex.Message}");
             Log.Error(ex, "索引重建失败。");
         }

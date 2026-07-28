@@ -16,26 +16,26 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
 {
-    private BackendSessionService BackendSessionService { get; }
-    private LibraryCatalogService LibraryCatalogService { get; }
+    private BackendStatusViewModel BackendStatus { get; }
+    private LibraryWorkspaceViewModel Workspace { get; }
     private DescribeAssetsUseCase? DescribeAssetsUseCase { get; }
     private DeleteAssetDescriptionUseCase? DeleteAssetDescriptionUseCase { get; }
     private ObservableCollection<string> ActivityFeed { get; }
 
     public AssetDescriptionPanelViewModel()
-        : this(new BackendSessionService(), new LibraryCatalogService(), null, null, new ActivityFeedService())
+        : this(new BackendStatusViewModel(), new LibraryWorkspaceViewModel(), null, null, new ActivityFeedService())
     {
     }
 
     public AssetDescriptionPanelViewModel(
-        BackendSessionService backendSessionService,
-        LibraryCatalogService libraryCatalogService,
+        BackendStatusViewModel backendStatus,
+        LibraryWorkspaceViewModel workspace,
         DescribeAssetsUseCase? describeAssetsUseCase,
         DeleteAssetDescriptionUseCase? deleteAssetDescriptionUseCase,
         ActivityFeedService activityFeedService)
     {
-        BackendSessionService = backendSessionService;
-        LibraryCatalogService = libraryCatalogService;
+        BackendStatus = backendStatus;
+        Workspace = workspace;
         DescribeAssetsUseCase = describeAssetsUseCase;
         DeleteAssetDescriptionUseCase = deleteAssetDescriptionUseCase;
         ActivityFeed = activityFeedService.Entries;
@@ -53,15 +53,15 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
     {
         if (node is null)
         {
-            LibraryCatalogService.SetOperatorNotice("请先选择一个素材库、目录或素材文件。");
+            Workspace.SetOperatorNotice("请先选择一个素材库、目录或素材文件。");
             return;
         }
 
-        LibraryCatalogService.SelectedAssetTreeNode = node;
-        var assets = LibraryCatalogService.GetDescriptionSelectionAssets();
+        Workspace.SelectedAssetTreeNode = node;
+        var assets = Workspace.GetDescriptionSelectionAssets();
         if (assets.Count == 0)
         {
-            LibraryCatalogService.SetOperatorNotice("当前节点下没有可发送到后端描述的素材。");
+            Workspace.SetOperatorNotice("当前节点下没有可发送到后端描述的素材。");
             Log.Warning(
                 "右键加入描述任务失败：节点下没有素材，nodeName={NodeName}, nodeKind={NodeKind}, path={Path}",
                 node.DisplayName,
@@ -70,21 +70,21 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
             return;
         }
 
-        if (!BackendSessionService.IsBackendReady)
+        if (!BackendStatus.IsBackendReady)
         {
-            LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
+            Workspace.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
             Log.Warning("右键加入描述任务失败：后端未就绪，assetCount={AssetCount}", assets.Count);
             return;
         }
 
         if (DescribeAssetsUseCase is null)
         {
-            LibraryCatalogService.SetOperatorNotice("描述服务未注册，当前无法调用后端。");
+            Workspace.SetOperatorNotice("描述服务未注册，当前无法调用后端。");
             Log.Warning("右键加入描述任务失败：描述服务未注册，assetCount={AssetCount}", assets.Count);
             return;
         }
 
-        LibraryCatalogService.SetOperatorNotice($"已将 {assets.Count} 个素材排入后端描述任务。");
+        Workspace.SetOperatorNotice($"已将 {assets.Count} 个素材排入后端描述任务。");
         ActivityFeed.Insert(0, $"右键描述任务排队：{node.DisplayName}，共 {assets.Count} 个素材");
         Log.Information(
             "用户通过右键菜单加入描述任务: nodeName={NodeName}, nodeKind={NodeKind}, path={Path}, assetCount={AssetCount}",
@@ -100,20 +100,20 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
     {
         if (node?.Asset is null)
         {
-            LibraryCatalogService.SetOperatorNotice("请右键具体素材文件，再删除它的描述记录。");
+            Workspace.SetOperatorNotice("请右键具体素材文件，再删除它的描述记录。");
             return;
         }
 
-        LibraryCatalogService.SelectedAssetTreeNode = node;
+        Workspace.SelectedAssetTreeNode = node;
         await DeleteDescriptionForAssetAsync(node.Asset);
     }
 
     private async Task QueueDescriptionsForSelectionAsync()
     {
-        var assets = LibraryCatalogService.GetDescriptionSelectionAssets();
+        var assets = Workspace.GetDescriptionSelectionAssets();
         if (assets.Count == 0)
         {
-            LibraryCatalogService.SetOperatorNotice("当前范围内没有可描述的素材。");
+            Workspace.SetOperatorNotice("当前范围内没有可描述的素材。");
             return;
         }
 
@@ -122,9 +122,9 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
 
     private async Task QueueSelectedDescriptionAsync()
     {
-        if (LibraryCatalogService.SelectedAsset is not { } asset)
+        if (Workspace.SelectedAsset is not { } asset)
         {
-            LibraryCatalogService.SetOperatorNotice("请先选择一个素材。");
+            Workspace.SetOperatorNotice("请先选择一个素材。");
             return;
         }
 
@@ -133,34 +133,34 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
 
     private async Task DescribeAssetsAsync(IReadOnlyList<ManagedAssetRecord> assets)
     {
-        if (!BackendSessionService.IsBackendReady)
+        if (!BackendStatus.IsBackendReady)
         {
-            LibraryCatalogService.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
+            Workspace.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
             return;
         }
 
         if (DescribeAssetsUseCase is null)
         {
-            LibraryCatalogService.SetOperatorNotice("描述服务未注册，当前无法调用后端。");
+            Workspace.SetOperatorNotice("描述服务未注册，当前无法调用后端。");
             return;
         }
 
         await DescribeAssetsUseCase.ExecuteAsync(
             assets,
-            BackendSessionService.BaseUrl,
+            BackendStatus.BaseUrl,
             progress: progress =>
             {
                 if (progress.Kind == DescribeAssetProgressKind.Queued)
                 {
-                    LibraryCatalogService.MarkAssetDescriptionQueued(progress.Asset);
+                    Workspace.MarkAssetDescriptionQueued(progress.Asset);
                 }
                 else if (progress.Kind == DescribeAssetProgressKind.Completed && progress.Document is not null)
                 {
-                    LibraryCatalogService.CompleteAssetDescription(progress.Asset, progress.Document);
+                    Workspace.CompleteAssetDescription(progress.Asset, progress.Document?.Description ?? "");
                 }
                 else if (progress.Kind == DescribeAssetProgressKind.Failed && progress.Error is not null)
                 {
-                    LibraryCatalogService.FailAssetDescription(progress.Asset, progress.Error.Message);
+                    Workspace.FailAssetDescription(progress.Asset, progress.Error.Message);
                 }
 
                 return Task.CompletedTask;
@@ -169,10 +169,10 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
 
     private async Task DeleteSelectedDescriptionAsync()
     {
-        var asset = LibraryCatalogService.SelectedAsset;
+        var asset = Workspace.SelectedAsset;
         if (asset is null)
         {
-            LibraryCatalogService.SetOperatorNotice("请先选择一个素材，再删除它的描述记录。");
+            Workspace.SetOperatorNotice("请先选择一个素材，再删除它的描述记录。");
             return;
         }
 
@@ -183,7 +183,7 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
     {
         if (DeleteAssetDescriptionUseCase is null)
         {
-            LibraryCatalogService.SetOperatorNotice("描述删除服务未注册，当前无法删除描述记录。");
+            Workspace.SetOperatorNotice("描述删除服务未注册，当前无法删除描述记录。");
             return;
         }
 
@@ -192,17 +192,17 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
             var result = await DeleteAssetDescriptionUseCase.ExecuteAsync(asset);
             if (!result.DeletedAny)
             {
-                LibraryCatalogService.SetOperatorNotice($"当前素材没有可删除的描述记录：{asset.Name}");
+                Workspace.SetOperatorNotice($"当前素材没有可删除的描述记录：{asset.Name}");
                 ActivityFeed.Insert(0, $"描述删除跳过：{asset.Name} 没有记录");
                 return;
             }
 
-            LibraryCatalogService.RemoveAssetDescription(asset, result.VectorDeleted);
+            Workspace.RemoveAssetDescription(asset, result.VectorDeleted);
             ActivityFeed.Insert(0, $"描述删除完成：{asset.Name}");
         }
         catch (Exception ex)
         {
-            LibraryCatalogService.SetOperatorNotice($"删除描述失败：{ex.Message}");
+            Workspace.SetOperatorNotice($"删除描述失败：{ex.Message}");
             ActivityFeed.Insert(0, $"描述删除失败：{asset.Name} -> {ex.Message}");
             Log.Error(ex, "删除素材描述失败: assetUid={AssetUid}, assetName={AssetName}", asset.AssetUid, asset.Name);
         }

@@ -120,7 +120,7 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        viewModel.SelectedAssetTreeNode = node;
+        viewModel.Workspace.SelectedAssetTreeNode = node;
     }
 
     private async void EditTags_Click(object? sender, RoutedEventArgs e)
@@ -133,7 +133,7 @@ public partial class LibraryPage : UserControl
         }
 
         // 切换到该素材，标签编辑在详情面板中完成
-        viewModel.SelectedAssetTreeNode = node;
+        viewModel.Workspace.SelectedAssetTreeNode = node;
     }
 
     private async void RenameNode_Click(object? sender, RoutedEventArgs e)
@@ -146,7 +146,7 @@ public partial class LibraryPage : UserControl
         }
 
         // 切换到该节点，重命名在详情面板中完成
-        viewModel.SelectedAssetTreeNode = node;
+        viewModel.Workspace.SelectedAssetTreeNode = node;
         viewModel.AssetDetail.RenameText = node.DisplayName;
     }
 
@@ -159,7 +159,7 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        viewModel.SelectedAssetTreeNode = node;
+        viewModel.Workspace.SelectedAssetTreeNode = node;
         if (node.Kind == AssetLibraryTreeNodeKind.File && node.Asset is not null)
         {
             await viewModel.AssetDetail.DeleteAssetCommand.ExecuteAsync(null);
