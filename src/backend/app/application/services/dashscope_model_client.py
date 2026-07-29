@@ -44,6 +44,7 @@ class DashScopeModelClient(ModelClient):
         system_prompt: str,
         multimodal_content: list[dict[str, Any]],
         response_format: dict[str, Any],
+        **kwargs: Any,
     ) -> Any:
         try:
             from dashscope import MultiModalConversation
@@ -59,4 +60,5 @@ class DashScopeModelClient(ModelClient):
             model=model_name,
             messages=messages,
             response_format=response_format,
+            **kwargs,
         )

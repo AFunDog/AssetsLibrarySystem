@@ -428,13 +428,20 @@ class ModelService:
         multimodal_content: list[dict[str, Any]],
     ) -> Any:
         client = self._get_client(provider_config.provider)
+        extra_kwargs = self._build_extra_kwargs(provider_config)
         return client.call_multimodal(
             provider_config,
             model_name,
             system_prompt,
             multimodal_content,
             self._build_response_format(provider_config),
+            **extra_kwargs,
         )
+
+    def _build_extra_kwargs(self, provider_config: ProviderConfig) -> dict[str, Any]:
+        """从 extra_body 中提取非 response_format 的额外参数，用于透传给模型 API。"""
+        extra = provider_config.extra_body or {}
+        return {k: v for k, v in extra.items() if k != "response_format"}
 
     def _build_response_format(self, provider_config: ProviderConfig) -> dict[str, Any]:
         configured = provider_config.extra_body or {}

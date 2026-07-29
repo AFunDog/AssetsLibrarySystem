@@ -26,10 +26,12 @@ args = parser.parse_args()
 
 # ── 日志文件（DEBUG 级别，用于事后解析） ────────────────────────
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-log_file = f"test_video_desc_{timestamp}.log"
-report_file = f"test_video_desc_{timestamp}.md"
+log_dir = Path(__file__).parent / "logs"
+log_dir.mkdir(parents=True, exist_ok=True)
+log_file = log_dir / f"test_video_desc_{timestamp}.log"
+report_file = log_dir / f"test_video_desc_{timestamp}.md"
 
-file_handler = logging.FileHandler(log_file, encoding='utf-8')
+file_handler = logging.FileHandler(str(log_file), encoding='utf-8')
 file_handler.setLevel(logging.DEBUG)
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
@@ -120,6 +122,7 @@ def parse_log(log_path: str) -> list[dict]:
                         'angles': angle_data,
                         'usage': usage,
                         'is_summary': (usage.get('video_tokens', 0) or 0) == 0,
+                        'raw_json': text,  # 保存原始 JSON 字符串
                     })
             except:
                 pass
@@ -206,14 +209,30 @@ def generate_report(segments: list[dict], elapsed: float, model: str, video_path
             for key in ['整体', '场景', '人物', '动作', '情感', '镜头', '关键画面', '时间线']:
                 if key in angles:
                     val = angles[key]
-                    text = val.get('text', '')
-                    tags = val.get('tags', [])
-                    lines.append(f"- **{key}**: {text}")
-                    if tags:
-                        lines.append(f"  - 标签: {'、'.join(tags)}")
+                    if isinstance(val, dict):
+                        text = val.get('text', '')
+                        tags = val.get('tags', [])
+                        lines.append(f"- **{key}**: {text}")
+                        if tags:
+                            lines.append(f"  - 标签: {'、'.join(tags)}")
+                    elif isinstance(val, str):
+                        lines.append(f"- **{key}**: {val}")
             lines.append(f"")
         else:
             lines.append(f"  (描述解析失败)\n")
+
+        # ── 原始 JSON 输出 ──
+        raw = seg.get('raw_json', '')
+        if raw:
+            lines.append(f"<details>")
+            lines.append(f"<summary>原始模型输出</summary>")
+            lines.append(f"")
+            lines.append(f"```json")
+            lines.append(f"{raw}")
+            lines.append(f"```")
+            lines.append(f"")
+            lines.append(f"</details>")
+            lines.append(f"")
 
     # ── 整体总结 ──
     lines.append(f"---")

@@ -15,4 +15,4 @@ data/
 logs/
 tmp/
 
-.zcode/.superpowers/
+.zcode/

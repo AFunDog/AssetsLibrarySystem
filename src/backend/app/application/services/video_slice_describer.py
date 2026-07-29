@@ -235,6 +235,7 @@ class VideoSliceDescriber:
             raw_text, _ = await self._call_llm(system_prompt, prompt, asset_format, video_path)
             cleaned = _clean_llm_output(raw_text)
             parsed = json.loads(cleaned) if cleaned.startswith("{") else {"整体": {"text": cleaned, "tags": []}}
+            parsed = _normalize_angle_fields(parsed)  # 兜底：确保字段格式正确
         except Exception as e:
             logger.error("视频描述失败: %s", e)
             parsed = {"整体": {"text": "", "tags": []}}
@@ -280,6 +281,22 @@ class VideoSliceDescriber:
         if previous_context:
             parts.append(f"[{previous_context[:300]}]")
         parts.append("[注意：当前画面是最高优先级证据，请基于当前片段内容进行描述，不要为了与前文一致而忽略当前画面。]")
+        # 格式示例（强制模型输出 {"text": ..., "tags": [...]} 格式）
+        example = (
+            '【输出格式要求】\n'
+            '每个字段必须严格使用以下结构，不得使用扁平字符串：\n'
+            '{\n'
+            '  "整体": {"text": "视频展示了雨天的城市街景…", "tags": ["城市", "雨天", "街景"]},\n'
+            '  "场景": {"text": "阴雨天的街道…", "tags": ["街道", "雨天", "建筑"]},\n'
+            '  "人物": {"text": "多名行人撑着雨伞…", "tags": ["行人", "雨伞", "学生"]},\n'
+            '  "动作": {"text": "行人过马路…", "tags": ["过马路", "行走"]},\n'
+            '  "情感": {"text": "宁静略带忧郁…", "tags": ["宁静", "忧郁"]},\n'
+            '  "镜头": {"text": "从模糊散景逐渐聚焦…", "tags": ["散景", "聚焦", "特写"]},\n'
+            '  "关键画面": {"text": "红灯变绿灯…", "tags": ["红绿灯", "斑马线"]},\n'
+            '  "时间线": {"text": "0s-3s画面…", "tags": ["时间线", "顺序"]}\n'
+            '}'
+        )
+        parts.append(example)
         if prompt:
             parts.append(prompt)
         time_prompt = "\n".join(parts)
@@ -289,6 +306,7 @@ class VideoSliceDescriber:
             raw_text, _ = await self._call_llm(system_prompt, time_prompt, asset_format, segment_path)
             cleaned = _clean_llm_output(raw_text)
             parsed = json.loads(cleaned) if cleaned.startswith("{") else {"整体": {"text": cleaned, "tags": []}}
+            parsed = _normalize_angle_fields(parsed)  # 兜底：确保字段格式正确
         except Exception as e:
             logger.error("片段描述失败: seg=%d, error=%s", index, e)
             parsed = {"整体": {"text": "", "tags": []}}
@@ -355,6 +373,25 @@ class VideoSliceDescriber:
             "text": summary[:500],
             "tags": unique_tags[:20],
         }
+
+
+def _normalize_angle_fields(parsed: dict) -> dict:
+    """确保每个字段使用 {"text": ..., "tags": [...]} 格式，若模型输出扁平字符串则自动包装。"""
+    result = {}
+    for key, value in parsed.items():
+        if isinstance(value, dict):
+            # 已经是对象格式，确保有 text 和 tags 字段
+            result[key] = {
+                "text": value.get("text", ""),
+                "tags": value.get("tags", []),
+            }
+        elif isinstance(value, str):
+            # 扁平字符串，自动包装
+            result[key] = {"text": value, "tags": []}
+        else:
+            # 其他类型（null、list 等），置空
+            result[key] = {"text": "", "tags": []}
+    return result
 
 
 def _clean_llm_output(text: str) -> str:
