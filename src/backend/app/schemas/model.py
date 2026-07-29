@@ -29,6 +29,7 @@ class ModelGenerateRequest(BaseModel):
     # 视频切片配置
     enable_slicing: bool = Field(default=False, description="是否启用视频切片描述")
     slice_threshold: float = Field(default=60.0, description="切片阈值（秒），超过此时长才切片")
+    fps: int = Field(default=5, ge=1, le=30, description="视频帧采样率（帧/秒），默认 5fps")
     min_scene_len: int = Field(default=15, description="最小场景长度（帧），低于此长度的场景会被合并")
     adaptive_threshold: float = Field(default=3.0, description="场景检测自适应阈值，越高越不敏感")
 

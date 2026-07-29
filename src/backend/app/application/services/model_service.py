@@ -78,6 +78,7 @@ class ModelService:
         self._provider_resolver: ProviderResolver | None = None
         self._clients: dict[str, ModelClient] = {}
         self._response_parser = ModelResponseParser()
+        self._current_fps: int = 5
 
     def get_capabilities(self, provider_slot: str = DEFAULT_PROVIDER_SLOT) -> ModelCapabilitiesResponse:
         context = self._resolve_provider_context(provider_slot)
@@ -97,6 +98,9 @@ class ModelService:
             payload.mock_response,
             payload.subtype,
         )
+
+        # 存储当前请求的 fps，供 _call_slice_llm 使用
+        self._current_fps = payload.fps
 
         # 如果 C# 端传入了角度定义，使用动态构建的 system prompt
         if payload.angles:
@@ -183,6 +187,7 @@ class ModelService:
             payload.asset_format,
             payload.asset_path,
             call_model,
+            fps=payload.fps,
         )
         output_text = self._clean_llm_output(raw_output_text)
         token_info = f", tokens={usage.total_tokens}" if usage else ""
@@ -304,6 +309,7 @@ class ModelService:
             asset_format,
             asset_path,
             call_model,
+            fps=self._current_fps,
         )
 
     async def _summarize_text(self, text: str) -> str:
@@ -352,6 +358,7 @@ class ModelService:
         asset_format: str,
         asset_path: str,
         model_name: str,
+        fps: int = 5,
     ) -> tuple[str, ModelGenerateResponse.TokenUsage | None]:
         provider_manager = self._get_provider_manager()
         provider_config = provider_manager.get(context.config_slot)
@@ -368,7 +375,7 @@ class ModelService:
 
         preprocessed_path = await asyncio.to_thread(self._prepare_media_asset, asset_format, asset_path)
         try:
-            multimodal_content = self._build_multimodal_content(asset_format, preprocessed_path, prompt)
+            multimodal_content = self._build_multimodal_content(asset_format, preprocessed_path, prompt, fps)
             response = await asyncio.to_thread(
                 self._call_multimodal_sync,
                 provider_config,
@@ -448,18 +455,18 @@ class ModelService:
             parts.insert(0, prompt.strip())
         return "\n\n".join(parts)
 
-    def _build_multimodal_content(self, asset_format: str, asset_path: str, prompt: str) -> list[dict[str, Any]]:
-        content: list[dict[str, Any]] = [self._build_media_item(asset_format, asset_path)]
+    def _build_multimodal_content(self, asset_format: str, asset_path: str, prompt: str, fps: int = 5) -> list[dict[str, Any]]:
+        content: list[dict[str, Any]] = [self._build_media_item(asset_format, asset_path, fps)]
         if prompt.strip():
             content.append({"text": prompt.strip()})
         return content
 
-    def _build_media_item(self, asset_format: str, asset_path: str) -> dict[str, Any]:
+    def _build_media_item(self, asset_format: str, asset_path: str, fps: int = 5) -> dict[str, Any]:
         file_uri = self._to_file_uri(asset_path)
         if asset_format == "图片":
             return {"image": file_uri}
         if asset_format == "视频":
-            return {"video": file_uri, "fps": 5}
+            return {"video": file_uri, "fps": fps}
         if asset_format == "音频":
             return {"audio": file_uri}
         raise ValueError(f"不支持的多模态素材格式: {asset_format}")
