@@ -18,8 +18,8 @@ CHAT_COMPLETIONS_PATH = "/chat/completions"
 
 
 # 视频多帧提取配置
-# DashScope 的视频处理默认按 5fps 采样，OpenAI 兼容客户端尽力对齐
-MAX_VIDEO_FRAMES = 20       # 每个视频片段最多提取 20 帧（5fps 下的合理上限）
+# 按 DashScope 的 5fps 采样标准，每秒钟提取 5 帧
+# 帧数 = fps * 视频时长（秒），无上限，完全对齐原生视频处理
 
 
 class OpenAIModelClient(ModelClient):
@@ -216,15 +216,10 @@ class OpenAIModelClient(ModelClient):
             return None
 
     def _extract_video_frames(self, video_path: str, fps: int = 5) -> list[dict[str, Any]]:
-        """从视频中均匀提取多帧作为图片列表。
+        """从视频中按 fps 提取多帧作为图片列表。
 
-        按 ``fps`` 参数计算期望帧数（对齐 DashScope 的 5fps 采样），
-        但最多提取 ``MAX_VIDEO_FRAMES`` 帧，避免 token 消耗过大。
-
-        采样策略：
-        - 期望帧数 = fps * duration（如 5fps * 30s = 150 帧）
-        - 实际帧数 = min(期望帧数, MAX_VIDEO_FRAMES)
-        - 帧在时间轴上均匀分布
+        按 ``fps`` 参数逐秒提取帧，对齐 DashScope 的 5fps 采样标准。
+        帧数 = fps * duration，在时间轴上均匀分布。
 
         Args:
             video_path: 视频文件路径
@@ -248,9 +243,9 @@ class OpenAIModelClient(ModelClient):
             frame = self._extract_video_first_frame(video_path)
             return [frame] if frame else []
 
-        # 按 fps 计算期望帧数，再取上限
-        desired_frames = max(3, int(duration * fps))
-        num_frames = min(desired_frames, MAX_VIDEO_FRAMES)
+        # 按 fps * duration 计算帧数，在时间轴上均匀分布
+        # 例如：5fps * 10s = 50 帧，每 0.2s 一帧
+        num_frames = max(3, int(duration * fps))
         safe_duration = max(duration - 0.5, 0.1)  # 避免取到视频末尾边界
 
         if num_frames <= 1:
@@ -258,6 +253,11 @@ class OpenAIModelClient(ModelClient):
         else:
             step = safe_duration / (num_frames - 1)
             timestamps = [i * step for i in range(num_frames)]
+
+        logger.info(
+            "视频帧提取: duration=%ss, fps=%d, frames=%d",
+            duration, fps, num_frames,
+        )
 
         # 提取每一帧
         frames: list[dict[str, Any]] = []
