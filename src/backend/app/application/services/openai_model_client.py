@@ -18,8 +18,8 @@ CHAT_COMPLETIONS_PATH = "/chat/completions"
 
 
 # 视频多帧提取配置
-MAX_VIDEO_FRAMES = 6        # 每个视频片段最多提取 6 帧
-FRAME_INTERVAL_SEC = 5.0    # 每隔 5 秒提取一帧
+# DashScope 的视频处理默认按 5fps 采样，OpenAI 兼容客户端尽力对齐
+MAX_VIDEO_FRAMES = 20       # 每个视频片段最多提取 20 帧（5fps 下的合理上限）
 
 
 class OpenAIModelClient(ModelClient):
@@ -218,12 +218,17 @@ class OpenAIModelClient(ModelClient):
     def _extract_video_frames(self, video_path: str, fps: int = 5) -> list[dict[str, Any]]:
         """从视频中均匀提取多帧作为图片列表。
 
-        使用 ffprobe 获取视频时长，然后按 ``FRAME_INTERVAL_SEC`` 间隔
-        均匀采样，最多提取 ``MAX_VIDEO_FRAMES`` 帧，避免 token 消耗过大。
+        按 ``fps`` 参数计算期望帧数（对齐 DashScope 的 5fps 采样），
+        但最多提取 ``MAX_VIDEO_FRAMES`` 帧，避免 token 消耗过大。
+
+        采样策略：
+        - 期望帧数 = fps * duration（如 5fps * 30s = 150 帧）
+        - 实际帧数 = min(期望帧数, MAX_VIDEO_FRAMES)
+        - 帧在时间轴上均匀分布
 
         Args:
             video_path: 视频文件路径
-            fps: 原始 fps 参数（来自 DashScope 格式），用于参考
+            fps: 采样帧率（来自 DashScope 格式的 fps 参数，默认 5fps）
 
         Returns:
             OpenAI 图片格式的帧列表，每项为 ``{"type": "image_url", ...}``
@@ -243,19 +248,15 @@ class OpenAIModelClient(ModelClient):
             frame = self._extract_video_first_frame(video_path)
             return [frame] if frame else []
 
-        # 计算采样帧数
-        # 短片段（< 30s）：提取 3-4 帧
-        # 长片段：按 FRAME_INTERVAL_SEC 间隔采样，最多 MAX_VIDEO_FRAMES 帧
+        # 按 fps 计算期望帧数，再取上限
+        desired_frames = max(3, int(duration * fps))
+        num_frames = min(desired_frames, MAX_VIDEO_FRAMES)
         safe_duration = max(duration - 0.5, 0.1)  # 避免取到视频末尾边界
-        if duration < 10:
-            timestamps = [0.0, duration / 2, safe_duration]
-            timestamps = sorted(set(t for t in timestamps if t >= 0))
-        elif duration < 30:
-            timestamps = [0.0, duration / 3, duration * 2 / 3, safe_duration]
-            timestamps = sorted(set(t for t in timestamps if t >= 0))
+
+        if num_frames <= 1:
+            timestamps = [0.0]
         else:
-            num_frames = min(int(duration / FRAME_INTERVAL_SEC) + 1, MAX_VIDEO_FRAMES)
-            step = safe_duration / (num_frames - 1) if num_frames > 1 else safe_duration
+            step = safe_duration / (num_frames - 1)
             timestamps = [i * step for i in range(num_frames)]
 
         # 提取每一帧
