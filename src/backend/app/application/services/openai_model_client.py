@@ -17,6 +17,11 @@ DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 CHAT_COMPLETIONS_PATH = "/chat/completions"
 
 
+# 视频多帧提取配置
+MAX_VIDEO_FRAMES = 6        # 每个视频片段最多提取 6 帧
+FRAME_INTERVAL_SEC = 5.0    # 每隔 5 秒提取一帧
+
+
 class OpenAIModelClient(ModelClient):
     """OpenAI 兼容 API 客户端。
 
@@ -163,16 +168,18 @@ class OpenAIModelClient(ModelClient):
                     openai_items.append(openai_item)
                 continue
 
-            # 视频 — OpenAI 不支持原生视频，提取第一帧作为图片
+            # 视频 — OpenAI 不支持原生视频，均匀提取多帧作为图片
             video_path = item.get("video")
             if video_path:
                 local_path = self._strip_file_uri(str(video_path))
-                logger.warning(
-                    "OpenAI 不支持原生视频输入，尝试提取第一帧: %s", local_path,
-                )
-                frame_item = self._extract_video_first_frame(local_path)
-                if frame_item:
-                    openai_items.append(frame_item)
+                fps = item.get("fps", 5)  # 来自 _build_media_item 的 fps 参数
+                frame_items = self._extract_video_frames(local_path, fps)
+                if frame_items:
+                    openai_items.extend(frame_items)
+                    logger.info(
+                        "视频提取多帧: path=%s, frames=%d",
+                        local_path, len(frame_items),
+                    )
                 continue
 
             # 音频 — OpenAI Chat Completions 不支持原生音频
@@ -208,8 +215,111 @@ class OpenAIModelClient(ModelClient):
             logger.warning("读取图片文件失败: %s, error=%s", file_path, e)
             return None
 
+    def _extract_video_frames(self, video_path: str, fps: int = 5) -> list[dict[str, Any]]:
+        """从视频中均匀提取多帧作为图片列表。
+
+        使用 ffprobe 获取视频时长，然后按 ``FRAME_INTERVAL_SEC`` 间隔
+        均匀采样，最多提取 ``MAX_VIDEO_FRAMES`` 帧，避免 token 消耗过大。
+
+        Args:
+            video_path: 视频文件路径
+            fps: 原始 fps 参数（来自 DashScope 格式），用于参考
+
+        Returns:
+            OpenAI 图片格式的帧列表，每项为 ``{"type": "image_url", ...}``
+        """
+        import subprocess
+        import tempfile
+
+        path = Path(video_path)
+        if not path.exists():
+            logger.warning("视频文件不存在: %s", video_path)
+            return []
+
+        # 获取视频时长
+        duration = self._get_video_duration(video_path)
+        if duration <= 0:
+            logger.warning("无法获取视频时长，回退到提取第一帧: %s", video_path)
+            frame = self._extract_video_first_frame(video_path)
+            return [frame] if frame else []
+
+        # 计算采样帧数
+        # 短片段（< 30s）：提取 3-4 帧
+        # 长片段：按 FRAME_INTERVAL_SEC 间隔采样，最多 MAX_VIDEO_FRAMES 帧
+        safe_duration = max(duration - 0.5, 0.1)  # 避免取到视频末尾边界
+        if duration < 10:
+            timestamps = [0.0, duration / 2, safe_duration]
+            timestamps = sorted(set(t for t in timestamps if t >= 0))
+        elif duration < 30:
+            timestamps = [0.0, duration / 3, duration * 2 / 3, safe_duration]
+            timestamps = sorted(set(t for t in timestamps if t >= 0))
+        else:
+            num_frames = min(int(duration / FRAME_INTERVAL_SEC) + 1, MAX_VIDEO_FRAMES)
+            step = safe_duration / (num_frames - 1) if num_frames > 1 else safe_duration
+            timestamps = [i * step for i in range(num_frames)]
+
+        # 提取每一帧
+        frames: list[dict[str, Any]] = []
+        for ts in timestamps:
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                    frame_path = tmp.name
+
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-ss", str(ts),
+                    "-i", str(path),
+                    "-vframes", "1",
+                    "-q:v", "2",
+                    str(frame_path),
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                if result.returncode != 0:
+                    logger.warning(
+                        "ffmpeg 提取帧失败: ts=%ss, error=%s",
+                        ts, result.stderr[:100],
+                    )
+                    Path(frame_path).unlink(missing_ok=True)
+                    continue
+
+                item = self._build_image_item(frame_path)
+                Path(frame_path).unlink(missing_ok=True)
+                if item:
+                    frames.append(item)
+            except Exception as e:
+                logger.warning("提取视频帧异常: ts=%ss, error=%s", ts, e)
+
+        if not frames:
+            # 回退到第一帧
+            frame = self._extract_video_first_frame(video_path)
+            if frame:
+                frames.append(frame)
+
+        logger.info(
+            "视频多帧提取完成: duration=%ss, requested=%d, got=%d",
+            duration, len(timestamps), len(frames),
+        )
+        return frames
+
+    def _get_video_duration(self, video_path: str) -> float:
+        """用 ffprobe 获取视频时长（秒）。"""
+        import subprocess
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            video_path,
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0 and result.stdout.strip():
+                return float(result.stdout.strip())
+        except Exception:
+            pass
+        return 0.0
+
     def _extract_video_first_frame(self, video_path: str) -> dict[str, Any] | None:
-        """尝试用 ffmpeg 提取视频第一帧作为图片。"""
+        """尝试用 ffmpeg 提取视频第一帧作为图片（回退方法）。"""
         import subprocess
         import tempfile
 
