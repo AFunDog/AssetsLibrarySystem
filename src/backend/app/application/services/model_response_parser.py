@@ -12,13 +12,22 @@ class ModelResponseParser:
     """解析模型输出文本与 token 使用量。"""
 
     def extract_text(self, response: Any) -> str:
+        # DashScope 格式: response.output.choices[0].message.content
+        # OpenAI 格式:   response.choices[0].message.content  (无 output 层)
         output = getattr(response, "output", None)
         if output is None and isinstance(response, dict):
             output = response.get("output")
 
-        choices = getattr(output, "choices", None)
-        if choices is None and isinstance(output, dict):
-            choices = output.get("choices")
+        if output is not None:
+            choices = getattr(output, "choices", None)
+            if choices is None and isinstance(output, dict):
+                choices = output.get("choices")
+        else:
+            # 直接尝试从 response 获取 choices（OpenAI 兼容格式）
+            choices = getattr(response, "choices", None)
+            if choices is None and isinstance(response, dict):
+                choices = response.get("choices")
+
         if not choices:
             logger.warning("无法解析模型响应: choices 为空")
             raise RuntimeError(f"无法解析模型响应: {response}")
