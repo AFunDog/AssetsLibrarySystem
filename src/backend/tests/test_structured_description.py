@@ -12,15 +12,23 @@ class StructuredDescriptionTestCase(unittest.TestCase):
     def test_extract_primary_description_returns_plain_text_when_not_json(self) -> None:
         self.assertEqual(extract_primary_description("普通描述文本"), "普通描述文本")
 
-    def test_extract_primary_description_reads_quanmian_text_field(self) -> None:
+    def test_extract_primary_description_reads_zhengti_text_field(self) -> None:
+        raw = '{"整体":{"text":"日常街景","tags":["街景"]},"风格":{"text":"纪实","tags":[]}}'
+        self.assertEqual(extract_primary_description(raw), "日常街景")
+
+    def test_extract_primary_description_reads_quanmian_text_field_legacy(self) -> None:
         raw = '{"全面":{"text":"一段舒缓的钢琴配乐","tags":["钢琴","舒缓"]},"风格":{"text":"节奏平稳","tags":[]}}'
         self.assertEqual(extract_primary_description(raw), "一段舒缓的钢琴配乐")
 
-    def test_extract_primary_description_reads_quanmian_string_value(self) -> None:
+    def test_extract_primary_description_reads_quanmian_string_value_legacy(self) -> None:
         raw = '{"全面":"一段安静的环境音","情绪":{"text":"安静","tags":[]}}'
         self.assertEqual(extract_primary_description(raw), "一段安静的环境音")
 
-    def test_extract_primary_description_falls_back_when_quanmian_missing(self) -> None:
+    def test_extract_primary_description_prefers_zhengti_over_quanmian(self) -> None:
+        raw = '{"整体":{"text":"新主角度","tags":[]},"全面":{"text":"旧主角度","tags":[]}}'
+        self.assertEqual(extract_primary_description(raw), "新主角度")
+
+    def test_extract_primary_description_falls_back_when_primary_missing(self) -> None:
         raw = '{"风格":{"text":"偏抒情","tags":[]}}'
         self.assertEqual(extract_primary_description(raw), raw)
 

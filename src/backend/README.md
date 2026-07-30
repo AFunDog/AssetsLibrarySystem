@@ -40,15 +40,22 @@
 
 桌面端启动后端时，会把 `APP_ENV` 和 `DATA_ROOT` 传给子进程，保证 Avalonia 和 Python 后端看到的是同一个数据目录。
 
+## 与桌面端的关系
+
+- 桌面端默认 **嵌入进程内** 调用本包中的模型与检索服务（Python.NET），不必单独起 uvicorn。
+- 仍可用 `uvicorn app.main:app` 以 HTTP 方式调试网关。
+- 结构化描述主角度为 **「整体」**，解析时兼容历史键 **「全面」**。
+- 视频切片会透传 `min_scene_len` / `adaptive_threshold`；时长未知时不切片；LLM 失败会向上抛错而非空描述。
+- OpenAI 兼容路径的视频抽帧有硬上限（默认 32 帧）；DashScope 响应会检查 `status_code`。
+
 ## 当前接口
 
 - `GET /health`
+- `POST /internal/heartbeat`
 - `GET /api/v1/model/capabilities`
 - `POST /api/v1/model/generate`
-- `POST /api/v1/search/index`
-- `POST /api/v1/search/query`
-- `GET /api/v1/search/models/status`
-- `POST /api/v1/search/models/close`
+- `POST /api/v1/search/index`（文本向量化，不写库）
+- `POST /api/v1/search/query`（候选集重排序，不读库）
 
 `POST /api/v1/model/generate` 现在接收的是素材打标请求，而不是对话消息流。请求体的核心字段是：
 
@@ -64,18 +71,10 @@
 
 `configs/providers.yaml` 也已经按素材类型分组，分别为 `文本`、`图片`、`视频`、`音频` 配置独立模型。后端会优先读取与 `asset_format` 同名的槽位，再按兼容顺序回退到 `llm_gateway`、`asset_describer` 或第一个可用槽位。
 
-`POST /api/v1/search/index` 只负责把传入文本转换成向量，不会写入数据库。请求需携带 `provider` 与 `model`，可选择 `local` 或 `dashscope`。桌面端默认使用：
+`POST /api/v1/search/index` 只负责把传入文本转换成向量，不会写入数据库。请求需携带 `provider` 与 `model`；当前实现以 **DashScope 云端 embedding** 为主。桌面端默认使用：
 
 - embedding：`dashscope / text-embedding-v4`
 - rerank：`dashscope / qwen3-rerank`
-
-如果需要改模型名或 HuggingFace 缓存目录，可以分别设置：
-
-- `ALS_SEARCH_EMBED_MODEL`
-- `ALS_SEARCH_RERANK_MODEL`
-- `ALS_SEARCH_CACHE_DIR`
-
-如果没有显式设置 `ALS_SEARCH_CACHE_DIR`，后端会默认使用 `DATA_ROOT/huggingface` 作为本地搜索模型缓存目录；只有在 `DATA_ROOT` 也不可用时，才会退回 `sentence-transformers` / `huggingface_hub` 自己的默认缓存规则。
 
 多模态素材预处理默认开启，临时文件会写到 `DATA_ROOT/temp/`（或 `ALS_MEDIA_TEMP_DIR` 指定目录）：
 
@@ -96,11 +95,7 @@
 
 `POST /api/v1/search/query` 只对调用方传入的候选文本做 rerank，不负责数据库读取或写入。`provider` 与 `model` 同样由调用方显式指定。
 
-当前推荐架构下，`asset_descriptions.db`、HNSW 索引文件和向量召回都由 Avalonia/C# 本地维护；Python 后端保持为纯模型网关，只负责 embedding、rerank 和模型状态控制。
-
-`POST /api/v1/search/models/close` 用来主动释放本地搜索模型缓存，当前可选值为 `embedding` 和 `rerank`。这个接口只影响进程内已经加载的 `SentenceTransformer` / `CrossEncoder` 对象，适合在长时间空闲后手动腾出显存；如果对应模型还没被加载，接口也会正常返回，只是 `closed=false`。
-
-`GET /api/v1/search/models/status` 用来查看当前进程里哪些本地搜索模型已经驻留。返回里会包含 `embedding_loaded`、`rerank_loaded`、`loaded_model_kinds` 和对应模型名，便于前端直接展示缓存状态。
+当前推荐架构下，`asset_descriptions.db`、HNSW 索引文件和向量召回都由 Avalonia/C# 本地维护；Python 保持为纯模型网关，只负责 embedding 与 rerank。
 
 `api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取 `DASHSCOPE_API_KEY`。
 

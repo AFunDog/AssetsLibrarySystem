@@ -11,7 +11,31 @@ logger = logging.getLogger(__name__)
 class ModelResponseParser:
     """解析模型输出文本与 token 使用量。"""
 
+    def ensure_success(self, response: Any, *, operation: str = "模型调用") -> None:
+        """检查 DashScope / 兼容响应的 status_code，非成功则抛出 RuntimeError。"""
+        status_code = getattr(response, "status_code", None)
+        if status_code is None and isinstance(response, dict):
+            status_code = response.get("status_code")
+        if status_code is None:
+            return
+        try:
+            code = int(status_code)
+        except (TypeError, ValueError):
+            return
+        if code == 200:
+            return
+
+        message = (
+            getattr(response, "message", None)
+            or (response.get("message") if isinstance(response, dict) else None)
+            or getattr(response, "code", None)
+            or status_code
+        )
+        logger.error("%s 返回错误: status=%s, message=%s", operation, status_code, message)
+        raise RuntimeError(f"{operation}失败（status={status_code}）：{message}")
+
     def extract_text(self, response: Any) -> str:
+        self.ensure_success(response, operation="模型生成")
         # DashScope 格式: response.output.choices[0].message.content
         # OpenAI 格式:   response.choices[0].message.content  (无 output 层)
         output = getattr(response, "output", None)

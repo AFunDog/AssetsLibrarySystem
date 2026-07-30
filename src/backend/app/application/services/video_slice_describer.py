@@ -53,7 +53,7 @@ def ffmpeg_extract_segment(
         "make_zero",
         str(output_path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     if result.returncode != 0:
         logger.warning(
             "ffmpeg 提取片段失败: returncode=%d, stderr=%s",
@@ -65,7 +65,7 @@ def ffmpeg_extract_segment(
 
 
 def get_video_duration(video_path: str) -> float:
-    """用 ffprobe 获取视频时长（秒）。"""
+    """用 ffprobe 获取视频时长（秒）。失败返回 0.0（调用方需自行兜底）。"""
     cmd = [
         "ffprobe",
         "-v",
@@ -76,12 +76,18 @@ def get_video_duration(video_path: str) -> float:
         "default=noprint_wrappers=1:nokey=1",
         video_path,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     if result.returncode != 0 or not result.stdout.strip():
+        logger.warning(
+            "ffprobe 获取时长失败: path=%s, returncode=%s",
+            video_path,
+            result.returncode,
+        )
         return 0.0
     try:
         return float(result.stdout.strip())
     except ValueError:
+        logger.warning("ffprobe 时长解析失败: path=%s, raw=%r", video_path, result.stdout)
         return 0.0
 
 
@@ -120,8 +126,11 @@ class VideoSliceDescriber:
         self._temp_dir = Path(temp_dir) if temp_dir else Path(tempfile.gettempdir())
 
     def should_slice(self, video_path: str) -> bool:
-        """判断视频是否需要切片。"""
+        """判断视频是否需要切片。时长未知（0）时不切片，避免错误裁剪。"""
         duration = get_video_duration(video_path)
+        if duration <= 0:
+            logger.warning("视频时长未知，跳过切片: path=%s", video_path)
+            return False
         return duration >= self._slice_threshold
 
     async def describe_sliced(
@@ -152,8 +161,16 @@ class VideoSliceDescriber:
             logger.info("视频只有一个场景，无需切片，直接描述")
             return await self._describe_single(video_path, asset_format, angles, system_prompt, prompt)
 
-        # 获取视频总时长，用于边界裁剪
+        # 获取视频总时长，用于边界裁剪；ffprobe 失败时用场景最大 end_sec 兜底
         video_duration = get_video_duration(video_path)
+        if video_duration <= 0:
+            video_duration = max((s.end_sec for s in scenes), default=0.0)
+            logger.warning(
+                "ffprobe 时长不可用，使用场景最大 end_sec=%.2f 作为边界",
+                video_duration,
+            )
+        if video_duration <= 0:
+            raise RuntimeError(f"无法确定视频时长，拒绝切片描述: {video_path}")
 
         # 2. 描述每个片段（带重叠 + 上下文传递）
         segment_descriptions = []
@@ -164,6 +181,9 @@ class VideoSliceDescriber:
             overlap = self._overlap_seconds
             overlap_start = max(0.0, scene.start_sec - overlap)
             overlap_end = min(video_duration, scene.end_sec + overlap)
+            if overlap_end <= overlap_start:
+                overlap_start = scene.start_sec
+                overlap_end = max(scene.end_sec, scene.start_sec + 0.1)
             overlapped = SceneRange(
                 start_frame=scene.start_frame,
                 end_frame=scene.end_frame,
@@ -230,15 +250,15 @@ class VideoSliceDescriber:
         system_prompt: str,
         prompt: str,
     ) -> dict[str, Any]:
-        """描述整个视频（不分片）。"""
+        """描述整个视频（不分片）。LLM/JSON 失败向上抛出，避免假成功写入空描述。"""
         try:
             raw_text, _ = await self._call_llm(system_prompt, prompt, asset_format, video_path)
             cleaned = _clean_llm_output(raw_text)
             parsed = json.loads(cleaned) if cleaned.startswith("{") else {"整体": {"text": cleaned, "tags": []}}
-            parsed = _normalize_angle_fields(parsed)  # 兜底：确保字段格式正确
+            parsed = _normalize_angle_fields(parsed)
         except Exception as e:
             logger.error("视频描述失败: %s", e)
-            parsed = {"整体": {"text": "", "tags": []}}
+            raise RuntimeError(f"视频描述失败: {e}") from e
 
         return {
             "整体": parsed.get("整体", {"text": "", "tags": []}),
@@ -301,15 +321,17 @@ class VideoSliceDescriber:
             parts.append(prompt)
         time_prompt = "\n".join(parts)
 
-        # 调 LLM 描述
+        # 调 LLM 描述；失败向上抛出，避免静默空描述被当成 live 成功
         try:
             raw_text, _ = await self._call_llm(system_prompt, time_prompt, asset_format, segment_path)
             cleaned = _clean_llm_output(raw_text)
             parsed = json.loads(cleaned) if cleaned.startswith("{") else {"整体": {"text": cleaned, "tags": []}}
-            parsed = _normalize_angle_fields(parsed)  # 兜底：确保字段格式正确
+            parsed = _normalize_angle_fields(parsed)
         except Exception as e:
             logger.error("片段描述失败: seg=%d, error=%s", index, e)
-            parsed = {"整体": {"text": "", "tags": []}}
+            if segment_path != video_path:
+                Path(segment_path).unlink(missing_ok=True)
+            raise RuntimeError(f"片段描述失败 (seg={index}): {e}") from e
 
         # 清理临时文件
         if segment_path != video_path:

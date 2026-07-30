@@ -54,43 +54,51 @@ class VideoSceneDetector:
             如果未检测到场景边界，返回整个视频作为一个场景。
         """
         video = open_video(str(video_path))
-        manager = SceneManager()
-        manager.add_detector(
-            AdaptiveDetector(
-                adaptive_threshold=self._adaptive_threshold,
-                min_scene_len=self._min_scene_len,
-            )
-        )
-        manager.detect_scenes(video)
-        scene_list = manager.get_scene_list()
-
-        if not scene_list:
-            logger.info("未检测到场景边界，将整个视频作为一个场景处理")
-            total_frames = video.duration.frame_num
-            fps = float(video.frame_rate or 30.0)
-            return [
-                SceneRange(
-                    start_frame=0,
-                    end_frame=total_frames,
-                    start_sec=0.0,
-                    end_sec=total_frames / fps,
+        try:
+            manager = SceneManager()
+            manager.add_detector(
+                AdaptiveDetector(
+                    adaptive_threshold=self._adaptive_threshold,
+                    min_scene_len=self._min_scene_len,
                 )
+            )
+            manager.detect_scenes(video)
+            scene_list = manager.get_scene_list()
+
+            if not scene_list:
+                logger.info("未检测到场景边界，将整个视频作为一个场景处理")
+                total_frames = video.duration.frame_num
+                fps = float(video.frame_rate or 30.0)
+                return [
+                    SceneRange(
+                        start_frame=0,
+                        end_frame=total_frames,
+                        start_sec=0.0,
+                        end_sec=total_frames / fps,
+                    )
+                ]
+
+            scenes = [
+                SceneRange(
+                    start_frame=start.frame_num,
+                    end_frame=end.frame_num,
+                    start_sec=start.seconds,
+                    end_sec=end.seconds,
+                )
+                for start, end in scene_list
             ]
 
-        scenes = [
-            SceneRange(
-                start_frame=start.frame_num,
-                end_frame=end.frame_num,
-                start_sec=start.seconds,
-                end_sec=end.seconds,
-            )
-            for start, end in scene_list
-        ]
-
-        # 合并过短的相邻场景
-        scenes = self._merge_short_scenes(scenes)
-        logger.info("场景检测完成: raw=%d, merged=%d", len(scene_list), len(scenes))
-        return scenes
+            # 合并过短的相邻场景
+            scenes = self._merge_short_scenes(scenes)
+            logger.info("场景检测完成: raw=%d, merged=%d", len(scene_list), len(scenes))
+            return scenes
+        finally:
+            close = getattr(video, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    logger.debug("关闭视频资源失败: path=%s", video_path, exc_info=True)
 
     def _merge_short_scenes(self, scenes: list[SceneRange]) -> list[SceneRange]:
         """合并时长低于 min_seconds 的相邻场景"""

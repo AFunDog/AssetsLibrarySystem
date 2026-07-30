@@ -139,9 +139,17 @@ class ModelService:
             and payload.enable_slicing
             and payload.angles
         ):
+            from app.application.services.video_scene_detector import VideoSceneDetector
+
+            scene_detector = VideoSceneDetector(
+                adaptive_threshold=payload.adaptive_threshold,
+                min_scene_len=payload.min_scene_len,
+                min_seconds=5.0,
+            )
             slice_describer = VideoSliceDescriber(
                 call_llm=self._call_slice_llm,
                 summarize_fn=self._summarize_text,
+                scene_detector=scene_detector,
                 slice_threshold=payload.slice_threshold,
                 min_seconds=5.0,
                 overlap_seconds=0.5,

@@ -243,9 +243,10 @@ class OpenAIModelClient(ModelClient):
             frame = self._extract_video_first_frame(video_path)
             return [frame] if frame else []
 
-        # 按 fps * duration 计算帧数，在时间轴上均匀分布
-        # 例如：5fps * 10s = 50 帧，每 0.2s 一帧
-        num_frames = max(3, int(duration * fps))
+        # 按 fps * duration 计算帧数，但硬性上限避免长视频 OOM / 超大请求体
+        max_frames = 32
+        requested_frames = max(3, int(duration * fps))
+        num_frames = min(requested_frames, max_frames)
         safe_duration = max(duration - 0.5, 0.1)  # 避免取到视频末尾边界
 
         if num_frames <= 1:
@@ -254,6 +255,14 @@ class OpenAIModelClient(ModelClient):
             step = safe_duration / (num_frames - 1)
             timestamps = [i * step for i in range(num_frames)]
 
+        if requested_frames > max_frames:
+            logger.warning(
+                "视频帧数触达上限: duration=%ss, fps=%d, requested=%d, capped=%d",
+                duration,
+                fps,
+                requested_frames,
+                max_frames,
+            )
         logger.info(
             "视频帧提取: duration=%ss, fps=%d, frames=%d",
             duration, fps, num_frames,
