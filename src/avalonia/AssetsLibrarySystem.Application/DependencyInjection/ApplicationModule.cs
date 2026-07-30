@@ -194,6 +194,12 @@ public sealed class BackgroundTaskModule : Module
 {
     protected override void Load(ContainerBuilder builder)
     {
+        // Avalonia 可覆盖为 Dispatcher 调度；默认同步执行（Console/测试）。
+        builder.RegisterType<InlineBackgroundTaskUiScheduler>()
+            .As<IBackgroundTaskUiScheduler>()
+            .SingleInstance()
+            .IfNotRegistered(typeof(IBackgroundTaskUiScheduler));
+
         builder.RegisterType<BackgroundTaskService>()
             .As<IBackgroundTaskService>()
             .SingleInstance();

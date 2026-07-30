@@ -10,9 +10,11 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 {
     private readonly SemaphoreSlim _schemaLock = new(1, 1);
     private bool _schemaReady;
+    private IDatabaseWriteQueue? WriteQueue { get; }
 
-    public SqliteAssetDatabase()
+    public SqliteAssetDatabase(IDatabaseWriteQueue? writeQueue = null)
     {
+        WriteQueue = writeQueue;
         DatabasePath = SharedDataPathHelper.GetDataFilePath("asset_descriptions.db");
     }
 
@@ -170,7 +172,7 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
             CREATE TABLE IF NOT EXISTS asset_description_vectors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-                angle_type TEXT NOT NULL DEFAULT '全面',
+                angle_type TEXT NOT NULL DEFAULT '整体',
                 embedding_model TEXT NOT NULL,
                 vector_dim INTEGER NOT NULL,
                 vector_blob BLOB NOT NULL,
@@ -186,7 +188,7 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 
         EnsureColumn(connection, "asset_descriptions", "content_hash", "TEXT NULL");
         EnsureColumn(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'");
-        EnsureColumn(connection, "asset_description_vectors", "angle_type", "TEXT NOT NULL DEFAULT '全面'");
+        EnsureColumn(connection, "asset_description_vectors", "angle_type", "TEXT NOT NULL DEFAULT '整体'");
         EnsureColumn(connection, "asset_description_vectors", "content_hash", "TEXT NULL");
         EnsureColumn(connection, "asset_metadata", "subtype", "TEXT NULL");
     }
@@ -220,12 +222,49 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 
     public async Task UpdateSubtypeAsync(long assetId, string subtype, CancellationToken ct = default)
     {
-        await using var connection = await OpenConnectionAsync(ct);
-        await using var command = connection.CreateCommand();
-        command.CommandText = "UPDATE asset_metadata SET subtype = $subtype WHERE asset_id = $assetId";
-        command.Parameters.AddWithValue("$subtype", subtype);
-        command.Parameters.AddWithValue("$assetId", assetId);
-        await command.ExecuteNonQueryAsync(ct);
+        async Task WriteCoreAsync(CancellationToken token)
+        {
+            await using var connection = await OpenConnectionAsync(token).ConfigureAwait(false);
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE asset_metadata
+                SET subtype = $subtype,
+                    updated_at = $updated_at
+                WHERE asset_id = $assetId;
+                """;
+            command.Parameters.AddWithValue("$subtype", subtype);
+            command.Parameters.AddWithValue("$assetId", assetId);
+            command.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.ToString("O"));
+            var affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            if (affected == 0)
+            {
+                // metadata 行可能尚未创建（仅有 assets）
+                await using var insert = connection.CreateCommand();
+                insert.CommandText = """
+                    INSERT INTO asset_metadata (
+                        asset_id, tags_json, metadata_status, vector_state, subtype, created_at, updated_at
+                    )
+                    VALUES (
+                        $assetId, '[]', 'pending', 'pending', $subtype, $updated_at, $updated_at
+                    )
+                    ON CONFLICT(asset_id) DO UPDATE SET
+                        subtype = excluded.subtype,
+                        updated_at = excluded.updated_at;
+                    """;
+                insert.Parameters.AddWithValue("$subtype", subtype);
+                insert.Parameters.AddWithValue("$assetId", assetId);
+                insert.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.ToString("O"));
+                await insert.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }
+        }
+
+        if (WriteQueue is null)
+        {
+            await WriteCoreAsync(ct).ConfigureAwait(false);
+            return;
+        }
+
+        await WriteQueue.EnqueueAsync(WriteCoreAsync, ct).ConfigureAwait(false);
     }
 
     private async Task<SqliteConnection> OpenConnectionWithoutSchemaAsync(CancellationToken ct, bool configureStoragePragmas)
@@ -349,7 +388,7 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
             CREATE TABLE IF NOT EXISTS asset_description_vectors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-                angle_type TEXT NOT NULL DEFAULT '全面',
+                angle_type TEXT NOT NULL DEFAULT '整体',
                 embedding_model TEXT NOT NULL,
                 vector_dim INTEGER NOT NULL,
                 vector_blob BLOB NOT NULL,
@@ -365,7 +404,7 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
 
         await EnsureColumnAsync(connection, "asset_descriptions", "content_hash", "TEXT NULL", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'", ct).ConfigureAwait(false);
-        await EnsureColumnAsync(connection, "asset_description_vectors", "angle_type", "TEXT NOT NULL DEFAULT '全面'", ct).ConfigureAwait(false);
+        await EnsureColumnAsync(connection, "asset_description_vectors", "angle_type", "TEXT NOT NULL DEFAULT '整体'", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_description_vectors", "content_hash", "TEXT NULL", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_metadata", "subtype", "TEXT NULL", ct).ConfigureAwait(false);
     }

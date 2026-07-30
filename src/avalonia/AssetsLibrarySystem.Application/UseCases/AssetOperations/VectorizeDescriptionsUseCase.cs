@@ -59,6 +59,8 @@ public sealed class VectorizeDescriptionsUseCase
             {
                 ct.ThrowIfCancellationRequested();
                 var asset = assets[index];
+                var progressValue = (double)(index + 1) / assets.Count * 100;
+                BackgroundTaskService.UpdateProgress(taskId, progressValue);
                 BackgroundTaskService.UpdateTask(
                     taskId,
                     $"正在向量化 {index + 1}/{assets.Count}：{asset.Name}",
@@ -69,6 +71,13 @@ public sealed class VectorizeDescriptionsUseCase
                 {
                     skipCount++;
                     await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "尚未生成描述"), ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (string.Equals(description.MetadataStatus, "stale", StringComparison.OrdinalIgnoreCase))
+                {
+                    skipCount++;
+                    await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "描述已过期，请先重新生成描述"), ct).ConfigureAwait(false);
                     continue;
                 }
 

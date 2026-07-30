@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.IO;
@@ -19,6 +18,9 @@ internal sealed class LocalHnswSearchIndexManager
 
     private SmallWorld<float[], float>? _graph;
     private int? _dim;
+    private string? _loadedFingerprint;
+    private string[]? _loadedKeys;
+    private LocalVectorIndexState? _loadedState;
 
     public LocalHnswSearchIndexManager()
     {
@@ -51,6 +53,12 @@ internal sealed class LocalHnswSearchIndexManager
         lock (SyncRoot)
         {
             ValidateInputs(vectors, orderedKeys);
+
+            // 内存已加载且身份一致：跳过磁盘反序列化
+            if (_graph is not null && IsLoadedStateCurrent(orderedKeys, state))
+            {
+                return;
+            }
 
             if (IsCurrent(vectors, orderedKeys, state))
             {
@@ -142,6 +150,7 @@ internal sealed class LocalHnswSearchIndexManager
 
         _graph = graph;
         _dim = dim;
+        RememberLoadedState(vectors, orderedKeys, state);
     }
 
     private void Load(IReadOnlyList<float[]> vectors, IReadOnlyList<string> orderedKeys)
@@ -172,6 +181,11 @@ internal sealed class LocalHnswSearchIndexManager
             false);
         _graph = graph;
         _dim = metadata.Dim;
+        RememberLoadedState(
+            vectors,
+            orderedKeys,
+            new LocalVectorIndexState(metadata.DocumentCount, metadata.LatestUpdatedAt),
+            metadata.EntriesFingerprint);
     }
 
     private bool IsCurrent(
@@ -198,10 +212,22 @@ internal sealed class LocalHnswSearchIndexManager
         }
     }
 
+    /// <summary>清空内存图与磁盘索引文件（用于库中已无向量时的 reindex）。</summary>
+    public void Clear()
+    {
+        lock (SyncRoot)
+        {
+            ResetFiles();
+        }
+    }
+
     private void ResetFiles()
     {
         _graph = null;
         _dim = null;
+        _loadedFingerprint = null;
+        _loadedKeys = null;
+        _loadedState = null;
 
         if (File.Exists(IndexPath))
         {
@@ -212,6 +238,42 @@ internal sealed class LocalHnswSearchIndexManager
         {
             File.Delete(MetadataPath);
         }
+    }
+
+    private bool IsLoadedStateCurrent(IReadOnlyList<string> orderedKeys, LocalVectorIndexState state)
+    {
+        if (_loadedState is null || _loadedKeys is null || _loadedFingerprint is null)
+        {
+            return false;
+        }
+
+        if (_loadedState.DocumentCount != state.DocumentCount
+            || !string.Equals(_loadedState.LatestUpdatedAt, state.LatestUpdatedAt, StringComparison.Ordinal)
+            || _loadedKeys.Length != orderedKeys.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < orderedKeys.Count; index++)
+        {
+            if (!string.Equals(_loadedKeys[index], orderedKeys[index], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void RememberLoadedState(
+        IReadOnlyList<float[]> vectors,
+        IReadOnlyList<string> orderedKeys,
+        LocalVectorIndexState state,
+        string? fingerprint = null)
+    {
+        _loadedState = state;
+        _loadedKeys = orderedKeys.ToArray();
+        _loadedFingerprint = fingerprint ?? BuildEntriesFingerprint(vectors, orderedKeys);
     }
 
     private static void ValidateInputs(IReadOnlyList<float[]> vectors, IReadOnlyList<string> orderedKeys)
@@ -261,11 +323,12 @@ internal sealed class LocalHnswSearchIndexManager
         for (var index = 0; index < vectors.Count; index++)
         {
             writer.Write(orderedKeys[index]);
-            writer.Write(vectors[index].Length);
-            foreach (var value in vectors[index])
-            {
-                writer.Write(value.ToString("R", CultureInfo.InvariantCulture));
-            }
+            var vector = vectors[index];
+            writer.Write(vector.Length);
+            // 原始 float 字节，避免逐元素字符串化
+            var bytes = new byte[vector.Length * sizeof(float)];
+            Buffer.BlockCopy(vector, 0, bytes, 0, bytes.Length);
+            writer.Write(bytes);
         }
 
         writer.Flush();

@@ -5,9 +5,86 @@ using System.Text.Json;
 
 namespace AssetsLibrarySystem.Application.Models;
 
+/// <summary>匹配高亮结果中的一段文本</summary>
+public sealed record HighlightSegment(string Text, bool IsHighlight);
+
 public static class StructuredDescriptionHelper
 {
-    public static string ExtractPrimaryText(string? rawDescription)
+    /// <summary>
+/// 将文本中的匹配关键词高亮为 <see cref="HighlightSegment"/> 列表。
+/// 不区分大小写，支持中文和英文关键词匹配。
+/// </summary>
+/// <param name="text">要搜索的文本</param>
+/// <param name="query">搜索关键词</param>
+/// <returns>高亮分段列表，匹配部分 IsHighlight=true</returns>
+public static IReadOnlyList<HighlightSegment> HighlightMatches(string? text, string? query)
+{
+    if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(query))
+    {
+        return string.IsNullOrWhiteSpace(text)
+            ? []
+            : [new HighlightSegment(text.Trim(), false)];
+    }
+
+    var trimmedText = text.Trim();
+    var trimmedQuery = query.Trim();
+
+    // 对查询词按空格分词，每段独立高亮
+    var queryWords = trimmedQuery
+        .Split([' ', '\t', '\n', '\r', '，', '　', '、'], StringSplitOptions.RemoveEmptyEntries)
+        .Where(w => w.Length >= 1)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderByDescending(w => w.Length)
+        .ToList();
+
+    if (queryWords.Count == 0)
+    {
+        return [new HighlightSegment(trimmedText, false)];
+    }
+
+    var segments = new List<HighlightSegment>();
+    var remaining = trimmedText.AsSpan();
+
+    while (remaining.Length > 0)
+    {
+        // 查找最近匹配位置
+        int? bestMatchIndex = null;
+        string? bestMatchWord = null;
+
+        foreach (var word in queryWords)
+        {
+            var matchIdx = remaining.IndexOf(word, StringComparison.OrdinalIgnoreCase);
+            if (matchIdx >= 0 && (bestMatchIndex is null || matchIdx < bestMatchIndex))
+            {
+                bestMatchIndex = matchIdx;
+                bestMatchWord = word;
+            }
+        }
+
+        if (bestMatchIndex is null || bestMatchWord is null)
+        {
+            // 剩余部分无匹配
+            segments.Add(new HighlightSegment(remaining.ToString(), false));
+            break;
+        }
+
+        // 匹配前的非高亮段
+        if (bestMatchIndex.Value > 0)
+        {
+            segments.Add(new HighlightSegment(remaining[..bestMatchIndex.Value].ToString(), false));
+        }
+
+        // 高亮匹配段
+        segments.Add(new HighlightSegment(remaining.Slice(bestMatchIndex.Value, bestMatchWord.Length).ToString(), true));
+
+        // 跳过已匹配部分
+        remaining = remaining[(bestMatchIndex.Value + bestMatchWord.Length)..];
+    }
+
+    return segments;
+}
+
+public static string ExtractPrimaryText(string? rawDescription)
     {
         if (string.IsNullOrWhiteSpace(rawDescription))
         {
@@ -28,21 +105,29 @@ public static class StructuredDescriptionHelper
                 return trimmed;
             }
 
-            if (!document.RootElement.TryGetProperty("全面", out var comprehensiveElement))
+            // 主角度优先「整体」，兼容历史数据「全面」。
+            foreach (var primaryKey in new[]
+                     {
+                         AssetDescriptionVectorDocument.DefaultAngleType,
+                         AssetDescriptionVectorDocument.LegacyPrimaryAngleType
+                     })
             {
-                return trimmed;
-            }
+                if (!document.RootElement.TryGetProperty(primaryKey, out var comprehensiveElement))
+                {
+                    continue;
+                }
 
-            if (comprehensiveElement.ValueKind == JsonValueKind.String)
-            {
-                return comprehensiveElement.GetString()?.Trim() ?? string.Empty;
-            }
+                if (comprehensiveElement.ValueKind == JsonValueKind.String)
+                {
+                    return comprehensiveElement.GetString()?.Trim() ?? string.Empty;
+                }
 
-            if (comprehensiveElement.ValueKind == JsonValueKind.Object
-                && comprehensiveElement.TryGetProperty("text", out var textElement)
-                && textElement.ValueKind == JsonValueKind.String)
-            {
-                return textElement.GetString()?.Trim() ?? string.Empty;
+                if (comprehensiveElement.ValueKind == JsonValueKind.Object
+                    && comprehensiveElement.TryGetProperty("text", out var textElement)
+                    && textElement.ValueKind == JsonValueKind.String)
+                {
+                    return textElement.GetString()?.Trim() ?? string.Empty;
+                }
             }
         }
         catch (JsonException)
@@ -123,10 +208,7 @@ public static class StructuredDescriptionHelper
         try
         {
             return ExtractSegments(rawDescription)
-                .Where(segment => !string.Equals(
-                    segment.NormalizedAngleType,
-                    AssetDescriptionVectorDocument.DefaultAngleType,
-                    StringComparison.Ordinal))
+                .Where(segment => !AssetDescriptionVectorDocument.IsPrimaryAngleType(segment.NormalizedAngleType))
                 .Select(segment => $"{segment.NormalizedAngleType}：{segment.NormalizedText}")
                 .ToArray();
         }

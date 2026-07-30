@@ -255,7 +255,7 @@ public sealed class VectorRecordRepository : IVectorRecordRepository
             SELECT
                 v.asset_id,
                 a.asset_uid,
-                COALESCE(NULLIF(TRIM(v.angle_type), ''), '全面') AS angle_type,
+                COALESCE(NULLIF(TRIM(v.angle_type), ''), '整体') AS angle_type,
                 COALESCE(a.asset_name, d.asset_name, '') AS asset_name,
                 COALESCE(a.asset_type, d.asset_type, '') AS asset_type,
                 COALESCE(a.current_path, d.asset_path, '') AS asset_path,
@@ -423,7 +423,8 @@ public sealed class SearchResultAggregator : ISearchResultAggregator
         {
             var selectedCandidates = assetCandidates.Values.ToArray();
             var bestCandidate = selectedCandidates.OrderByDescending(item => item.CombinedScore).First();
-            var displayCandidate = selectedCandidates.FirstOrDefault(item => item.Record.AngleType == "全面")
+            var displayCandidate = selectedCandidates.FirstOrDefault(item =>
+                                       AssetDescriptionVectorDocument.IsPrimaryAngleType(item.Record.AngleType))
                                    ?? bestCandidate;
 
             var result = new AssetSearchDocument(

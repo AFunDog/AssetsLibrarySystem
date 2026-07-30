@@ -81,7 +81,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             Prompt: request.Prompt,
             SystemPrompt: request.SystemPrompt,
             ContentHash: asset.ContentHash,
-            MetadataStatus: asset.MetadataStatus,
+            MetadataStatus: "ready",
             Subtype: subtype);
 
         await Store.SaveAsync(document, ct);

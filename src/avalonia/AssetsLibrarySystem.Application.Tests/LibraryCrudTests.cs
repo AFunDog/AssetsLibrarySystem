@@ -202,6 +202,7 @@ public sealed class LibraryCrudTests : IAsyncDisposable
                     tags_json TEXT NOT NULL DEFAULT '[]',
                     metadata_status TEXT NOT NULL,
                     vector_state TEXT NOT NULL DEFAULT 'pending',
+                    subtype TEXT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     UNIQUE(asset_id)

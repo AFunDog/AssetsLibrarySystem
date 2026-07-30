@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Collections.ObjectModel;
 
 namespace AssetsLibrarySystem.Application.Models;
 
@@ -58,6 +59,9 @@ public sealed class AssetSearchDocument
     public float? CombinedScore { get; set; }
     public string[] Tags { get; set; } = [];
     public string[] AngleTags { get; set; } = [];
+
+    /// <summary>搜索匹配高亮分段（由 ViewModel 在搜索完成后设置）</summary>
+    public IReadOnlyList<HighlightSegment> HighlightedDescription { get; set; } = [];
 }
 
 public sealed record AssetSearchResponseDocument(

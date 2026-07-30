@@ -272,13 +272,14 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 }
                 else
                 {
+                    // 内容指纹变化：接受新 hash，并失效旧描述向量，要求重新打标。
                     assetRecord = await CreateOrUpdateAssetAsync(
                         library,
                         assetUid: assetRecord.AssetUid,
                         assetName: fileInfo.Name,
                         assetType: assetType,
                         currentPath: normalizedPath,
-                        contentHash: assetRecord.ContentHash,
+                        contentHash: currentHash,
                         observedHash: currentHash,
                         fileSize: fileInfo.Length,
                         modifiedTimeUtc: fileInfo.LastWriteTimeUtc,
@@ -287,9 +288,9 @@ public sealed class AssetLibraryService : IAssetLibraryService
                         createdAt: assetRecord.CreatedAt,
                         createdBy: assetRecord.CreatedBy,
                         uidVersion: assetRecord.UidVersion);
-                    await EnsureAssetMetadataAsync(assetRecord.Id, "changed", scanAt, ct);
+                    await InvalidateStaleDescriptionAndVectorsAsync(assetRecord.Id, scanAt, ct);
                     stage = "内容已变化";
-                    aiState = "等待版本处理策略";
+                    aiState = "描述已过期，需重新生成";
                 }
             }
         }
@@ -358,11 +359,27 @@ public sealed class AssetLibraryService : IAssetLibraryService
             }
         }
 
+        var descriptionMetaStatus = descriptionTableExists
+            ? ReadDescriptionMetadataStatus(connection, assetRecord.Id)
+            : null;
         var isDescribed = descriptionTableExists && HasDescription(connection, assetRecord.Id);
-        var isVectorized = HasVector(connection, assetRecord.Id);
+        var isDescriptionStale = string.Equals(descriptionMetaStatus, "stale", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(assetRecord.Status, "changed", StringComparison.OrdinalIgnoreCase);
+        var isVectorized = HasVector(connection, assetRecord.Id) && !isDescriptionStale;
         var metadataTags = ReadMetadataTags(connection, assetRecord.Id);
+        var subtype = ReadMetadataSubtype(connection, assetRecord.Id);
         var tags = AssetRecordFormatter.BuildTags(assetType, extension, metadataTags);
         var summary = AssetRecordFormatter.BuildSummary(assetType, fileInfo.Length, fileInfo.LastWriteTime, assetRecord.AssetUid, assetRecord.Status);
+
+        if (isDescribed && isDescriptionStale)
+        {
+            stage = string.IsNullOrWhiteSpace(stage) || stage is "已同步" or "已识别" ? "内容已变化" : stage;
+            aiState = "描述已过期，需重新生成";
+        }
+        else if (isDescribed)
+        {
+            aiState = "已生成描述";
+        }
 
         return new ManagedAssetRecord
         {
@@ -382,9 +399,10 @@ public sealed class AssetLibraryService : IAssetLibraryService
             IsDescribed = isDescribed,
             IsVectorized = isVectorized,
             Summary = summary,
+            Subtype = subtype,
             Tags = new(tags),
             Stage = stage,
-            AiState = isDescribed ? "已生成描述" : aiState
+            AiState = aiState
         };
     }
 
@@ -537,6 +555,75 @@ public sealed class AssetLibraryService : IAssetLibraryService
         }, ct).AsTask();
     }
 
+    /// <summary>
+    /// 文件内容变化后：标记描述过期、向量 pending 并删除旧向量，避免检索命中过时语义。
+    /// </summary>
+    private Task InvalidateStaleDescriptionAndVectorsAsync(long assetId, DateTimeOffset scanAt, CancellationToken ct)
+    {
+        return WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(token).ConfigureAwait(false);
+            var updatedAt = scanAt.ToString("O");
+
+            await using (var descCmd = connection.CreateCommand())
+            {
+                descCmd.Transaction = transaction;
+                descCmd.CommandText = """
+                    UPDATE asset_descriptions
+                    SET metadata_status = 'stale'
+                    WHERE asset_id = $asset_id;
+                    """;
+                AddParameter(descCmd, "$asset_id", assetId);
+                await descCmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }
+
+            await using (var metaCmd = connection.CreateCommand())
+            {
+                metaCmd.Transaction = transaction;
+                metaCmd.CommandText = """
+                    INSERT INTO asset_metadata (
+                        asset_id,
+                        tags_json,
+                        metadata_status,
+                        vector_state,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (
+                        $asset_id,
+                        '[]',
+                        'stale',
+                        'pending',
+                        $updated_at,
+                        $updated_at
+                    )
+                    ON CONFLICT(asset_id) DO UPDATE SET
+                        metadata_status = 'stale',
+                        vector_state = 'pending',
+                        updated_at = excluded.updated_at;
+                    """;
+                AddParameter(metaCmd, "$asset_id", assetId);
+                AddParameter(metaCmd, "$updated_at", updatedAt);
+                await metaCmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }
+
+            await using (var vectorCmd = connection.CreateCommand())
+            {
+                vectorCmd.Transaction = transaction;
+                vectorCmd.CommandText = """
+                    DELETE FROM asset_description_vectors
+                    WHERE asset_id = $asset_id;
+                    """;
+                AddParameter(vectorCmd, "$asset_id", assetId);
+                await vectorCmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }
+
+            await transaction.CommitAsync(token).ConfigureAwait(false);
+            Log.Information("素材内容变化，已失效描述与向量: assetId={AssetId}", assetId);
+        }, ct).AsTask();
+    }
+
     private static bool IsSameAssetSnapshot(
         AssetDbRecord assetRecord,
         long libraryId,
@@ -585,6 +672,33 @@ public sealed class AssetLibraryService : IAssetLibraryService
         {
             return [];
         }
+    }
+
+    private static string ReadMetadataSubtype(SqliteConnection connection, long assetId)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT subtype
+            FROM asset_metadata
+            WHERE asset_id = $asset_id
+            LIMIT 1;
+            """;
+        AddParameter(command, "$asset_id", assetId);
+        var value = command.ExecuteScalar() as string;
+        return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+    }
+
+    private static string? ReadDescriptionMetadataStatus(SqliteConnection connection, long assetId)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT metadata_status
+            FROM asset_descriptions
+            WHERE asset_id = $asset_id
+            LIMIT 1;
+            """;
+        AddParameter(command, "$asset_id", assetId);
+        return command.ExecuteScalar() as string;
     }
 
     private AssetDbRecord? TryGetAssetByUid(SqliteConnection connection, string assetUid)

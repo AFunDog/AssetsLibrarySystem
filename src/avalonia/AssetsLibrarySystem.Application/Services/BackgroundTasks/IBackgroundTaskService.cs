@@ -16,6 +16,9 @@ public interface IBackgroundTaskService : INotifyPropertyChanged
 
     void UpdateTask(string taskId, string stageText, string? detailText = null);
 
+    /// <summary>更新任务进度百分比（0-100）</summary>
+    void UpdateProgress(string taskId, double progress);
+
     void CompleteTask(string taskId, string? stageText = null, string? detailText = null);
 
     void FailTask(string taskId, string detailText, string? stageText = null);

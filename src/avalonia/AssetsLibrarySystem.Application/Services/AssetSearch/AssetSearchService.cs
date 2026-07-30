@@ -54,11 +54,24 @@ public sealed class AssetSearchService : IAssetSearchService
     {
         var searchModels = SearchModelOptionsProvider.Current;
         var embeddingModelKey = searchModels.EmbeddingModelKey;
-        var indexManager = new LocalHnswSearchIndexManager(embeddingModelKey);
+        var indexManager = LocalHnswSearchIndexManagerCache.Get(embeddingModelKey);
         var records = await VectorRecordRepository.LoadAsync(embeddingModelKey, ct).ConfigureAwait(false);
         if (records.Count == 0)
         {
-            throw new InvalidOperationException("当前没有可用于本地检索的向量数据。");
+            // 删除最后一批向量后也允许 reindex：清空 HNSW 文件并返回 0 文档结果。
+            indexManager.Clear();
+            Log.Information(
+                "本地检索索引已清空（无向量数据）: databasePath={DatabasePath}, indexPath={IndexPath}",
+                AssetDatabase.DatabasePath,
+                indexManager.IndexPath);
+
+            return new AssetReindexResponseDocument(
+                DocumentCount: 0,
+                VectorDim: 0,
+                DatabasePath: AssetDatabase.DatabasePath,
+                IndexPath: indexManager.IndexPath,
+                MetadataPath: indexManager.MetadataPath,
+                EmbeddingModels: []);
         }
 
         var state = BuildIndexState(records);

@@ -35,8 +35,10 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         await WriteQueue.EnqueueAsync(async token =>
         {
             await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(token).ConfigureAwait(false);
 
             await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
             command.CommandText = """
             INSERT INTO asset_descriptions (
                 asset_id,
@@ -95,11 +97,17 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             AddParameter(command, "$prompt", (object?)document.Prompt ?? DBNull.Value);
             AddParameter(command, "$system_prompt", (object?)document.SystemPrompt ?? DBNull.Value);
             AddParameter(command, "$content_hash", (object?)document.ContentHash ?? DBNull.Value);
-            AddParameter(command, "$metadata_status", document.MetadataStatus);
+            // 新生成的描述恢复为 ready（覆盖 stale）
+            var metadataStatus = string.IsNullOrWhiteSpace(document.MetadataStatus) ||
+                                 string.Equals(document.MetadataStatus, "changed", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(document.MetadataStatus, "stale", StringComparison.OrdinalIgnoreCase)
+                ? "ready"
+                : document.MetadataStatus;
+            AddParameter(command, "$metadata_status", metadataStatus);
 
-            await command.ExecuteNonQueryAsync(token);
-
-            await UpdateAssetMetadataAsync(connection, document, token);
+            await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            await UpdateAssetMetadataAsync(connection, transaction, document, token).ConfigureAwait(false);
+            await transaction.CommitAsync(token).ConfigureAwait(false);
         }, ct);
     }
 
@@ -289,16 +297,19 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
 
     private static async Task UpdateAssetMetadataAsync(
         SqliteConnection connection,
+        SqliteTransaction transaction,
         AssetDescriptionDocument document,
         CancellationToken ct)
     {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = """
             INSERT INTO asset_metadata (
                 asset_id,
                 tags_json,
                 metadata_status,
                 vector_state,
+                subtype,
                 created_at,
                 updated_at
             )
@@ -307,24 +318,22 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 '[]',
                 'described',
                 'pending',
+                $subtype,
                 $created_at,
                 $updated_at
             )
             ON CONFLICT(asset_id) DO UPDATE SET
                 metadata_status = excluded.metadata_status,
-                vector_state = CASE
-                    WHEN asset_metadata.vector_state = 'indexed'
-                         AND excluded.vector_state = 'pending'
-                    THEN 'pending'
-                    ELSE asset_metadata.vector_state
-                END,
+                vector_state = 'pending',
+                subtype = COALESCE(excluded.subtype, asset_metadata.subtype),
                 updated_at = excluded.updated_at;
             """;
 
         AddParameter(command, "$asset_id", document.AssetId);
+        AddParameter(command, "$subtype", string.IsNullOrWhiteSpace(document.Subtype) ? DBNull.Value : document.Subtype.Trim());
         AddParameter(command, "$created_at", document.GeneratedAt.ToString("O"));
         AddParameter(command, "$updated_at", document.GeneratedAt.ToString("O"));
-        await command.ExecuteNonQueryAsync(ct);
+        await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     private static async Task ResetAssetMetadataAsync(

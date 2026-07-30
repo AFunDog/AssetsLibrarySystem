@@ -47,4 +47,18 @@ public sealed class BackgroundTaskEntry : ObservableModel
         get => field;
         set => SetProperty(ref field, value);
     }
+
+    /// <summary>进度百分比（0-100），-1 表示不确定</summary>
+    public double Progress
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
+
+    /// <summary>是否为不确定进度模式（如等待中）</summary>
+    public bool IsIndeterminate
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    }
 }

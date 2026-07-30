@@ -10,8 +10,15 @@ public sealed class BackgroundTaskService : ObservableModel, IBackgroundTaskServ
 {
     private const int MaxCompletedTaskHistory = 20;
 
+    private readonly object _gate = new();
+    private IBackgroundTaskUiScheduler UiScheduler { get; }
     private Dictionary<string, BackgroundTaskEntry> TaskIndex { get; } = new(StringComparer.Ordinal);
     private long SequenceCounter { get; set; }
+
+    public BackgroundTaskService(IBackgroundTaskUiScheduler? uiScheduler = null)
+    {
+        UiScheduler = uiScheduler ?? new InlineBackgroundTaskUiScheduler();
+    }
 
     public ObservableCollection<BackgroundTaskEntry> Tasks { get; } = [];
 
@@ -29,94 +36,169 @@ public sealed class BackgroundTaskService : ObservableModel, IBackgroundTaskServ
 
     public string BeginTask(string title, string stageText, string? detailText = null)
     {
-        var task = new BackgroundTaskEntry
+        BackgroundTaskEntry task;
+        lock (_gate)
         {
-            Id = Guid.NewGuid().ToString("N"),
-            Sequence = ++SequenceCounter,
-            Title = title,
-            StageText = stageText,
-            DetailText = detailText ?? string.Empty,
-            StatusText = "执行中",
-            StartedAtText = FormatTimestamp(DateTime.Now),
-            TimelineText = "刚刚开始",
-            IsActive = true
-        };
+            task = new BackgroundTaskEntry
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Sequence = ++SequenceCounter,
+                Title = title,
+                StageText = stageText,
+                DetailText = detailText ?? string.Empty,
+                StatusText = "执行中",
+                StartedAtText = FormatTimestamp(DateTime.Now),
+                TimelineText = "刚刚开始",
+                IsActive = true
+            };
+            TaskIndex[task.Id] = task;
+        }
 
-        TaskIndex[task.Id] = task;
-        Tasks.Insert(0, task);
-        RefreshSummary();
+        // TaskIndex 已同步写入，保证立即 Update/Complete 能命中；集合变更走 UI 调度。
+        ScheduleUi(() =>
+        {
+            if (!Tasks.Contains(task))
+            {
+                Tasks.Insert(0, task);
+            }
+
+            RefreshSummary();
+        });
         return task.Id;
     }
 
     public void UpdateTask(string taskId, string stageText, string? detailText = null)
     {
-        if (!TaskIndex.TryGetValue(taskId, out var task))
+        ScheduleUi(() =>
         {
-            return;
-        }
+            if (!TryGetTask(taskId, out var task))
+            {
+                return;
+            }
 
-        task.Sequence = ++SequenceCounter;
-        task.StageText = stageText;
-        if (!string.IsNullOrWhiteSpace(detailText))
+            task.Sequence = NextSequence();
+            task.StageText = stageText;
+            if (!string.IsNullOrWhiteSpace(detailText))
+            {
+                task.DetailText = detailText;
+            }
+
+            task.StatusText = "执行中";
+            task.TimelineText = $"最近更新：{FormatTimestamp(DateTime.Now)}";
+            task.IsActive = true;
+            EnsureInCollection(task);
+            MoveToTop(task);
+            RefreshSummary();
+        });
+    }
+
+    public void UpdateProgress(string taskId, double progress)
+    {
+        ScheduleUi(() =>
         {
-            task.DetailText = detailText;
-        }
+            if (!TryGetTask(taskId, out var task))
+            {
+                return;
+            }
 
-        task.StatusText = "执行中";
-        task.TimelineText = $"最近更新：{FormatTimestamp(DateTime.Now)}";
-        task.IsActive = true;
-        MoveToTop(task);
-        RefreshSummary();
+            task.Progress = Math.Clamp(progress, 0, 100);
+            task.IsIndeterminate = progress < 0;
+            task.StatusText = progress >= 0 ? $"{progress:F0}%" : "进行中";
+            task.TimelineText = $"进度：{task.StatusText} · {FormatTimestamp(DateTime.Now)}";
+            EnsureInCollection(task);
+            MoveToTop(task);
+            RefreshSummary();
+        });
     }
 
     public void CompleteTask(string taskId, string? stageText = null, string? detailText = null)
     {
-        if (!TaskIndex.TryGetValue(taskId, out var task))
+        ScheduleUi(() =>
         {
-            return;
-        }
+            if (!TryGetTask(taskId, out var task))
+            {
+                return;
+            }
 
-        task.Sequence = ++SequenceCounter;
-        if (!string.IsNullOrWhiteSpace(stageText))
-        {
-            task.StageText = stageText;
-        }
+            task.Sequence = NextSequence();
+            if (!string.IsNullOrWhiteSpace(stageText))
+            {
+                task.StageText = stageText;
+            }
 
-        if (!string.IsNullOrWhiteSpace(detailText))
-        {
-            task.DetailText = detailText;
-        }
+            if (!string.IsNullOrWhiteSpace(detailText))
+            {
+                task.DetailText = detailText;
+            }
 
-        var finishedAt = DateTime.Now;
-        task.StatusText = "已完成";
-        task.TimelineText = $"开始：{task.StartedAtText} · 完成：{FormatTimestamp(finishedAt)}";
-        task.IsActive = false;
-        MoveToTop(task);
-        TrimCompletedTaskHistory();
-        RefreshSummary();
+            var finishedAt = DateTime.Now;
+            task.StatusText = "已完成";
+            task.TimelineText = $"开始：{task.StartedAtText} · 完成：{FormatTimestamp(finishedAt)}";
+            task.IsActive = false;
+            task.Progress = 100;
+            task.IsIndeterminate = false;
+            EnsureInCollection(task);
+            MoveToTop(task);
+            TrimCompletedTaskHistory();
+            RefreshSummary();
+        });
     }
 
     public void FailTask(string taskId, string detailText, string? stageText = null)
     {
-        if (!TaskIndex.TryGetValue(taskId, out var task))
+        ScheduleUi(() =>
         {
-            return;
-        }
+            if (!TryGetTask(taskId, out var task))
+            {
+                return;
+            }
 
-        task.Sequence = ++SequenceCounter;
-        if (!string.IsNullOrWhiteSpace(stageText))
+            task.Sequence = NextSequence();
+            if (!string.IsNullOrWhiteSpace(stageText))
+            {
+                task.StageText = stageText;
+            }
+
+            task.DetailText = detailText;
+            var finishedAt = DateTime.Now;
+            task.StatusText = "失败";
+            task.TimelineText = $"开始：{task.StartedAtText} · 失败：{FormatTimestamp(finishedAt)}";
+            task.IsActive = false;
+            task.IsIndeterminate = false;
+            EnsureInCollection(task);
+            MoveToTop(task);
+            TrimCompletedTaskHistory();
+            RefreshSummary();
+        });
+    }
+
+    private void ScheduleUi(Action action)
+    {
+        UiScheduler.Schedule(() =>
         {
-            task.StageText = stageText;
-        }
+            lock (_gate)
+            {
+                action();
+            }
+        });
+    }
 
-        task.DetailText = detailText;
-        var finishedAt = DateTime.Now;
-        task.StatusText = "失败";
-        task.TimelineText = $"开始：{task.StartedAtText} · 失败：{FormatTimestamp(finishedAt)}";
-        task.IsActive = false;
-        MoveToTop(task);
-        TrimCompletedTaskHistory();
-        RefreshSummary();
+    private bool TryGetTask(string taskId, out BackgroundTaskEntry task)
+    {
+        return TaskIndex.TryGetValue(taskId, out task!);
+    }
+
+    private long NextSequence()
+    {
+        return ++SequenceCounter;
+    }
+
+    private void EnsureInCollection(BackgroundTaskEntry task)
+    {
+        if (!Tasks.Contains(task))
+        {
+            Tasks.Insert(0, task);
+        }
     }
 
     private void RefreshSummary()

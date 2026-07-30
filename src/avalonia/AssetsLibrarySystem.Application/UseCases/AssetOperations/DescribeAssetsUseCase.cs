@@ -33,13 +33,19 @@ public sealed class DescribeAssetsUseCase
     {
         var successCount = 0;
         var failureCount = 0;
+        var totalCount = assets.Count;
 
-        foreach (var asset in assets)
+        for (var index = 0; index < totalCount; index++)
         {
             ct.ThrowIfCancellationRequested();
+            var asset = assets[index];
 
             await ReportAsync(progress, DescribeAssetProgress.Queued(asset), ct).ConfigureAwait(false);
             var taskId = BackgroundTaskService.BeginTask(TaskTitle, $"正在生成素材描述：{asset.Name}", asset.LocalPath);
+
+            // 报告进度
+            var progressValue = (double)index / totalCount * 100;
+            BackgroundTaskService.UpdateProgress(taskId, progressValue);
 
             try
             {
@@ -48,6 +54,7 @@ public sealed class DescribeAssetsUseCase
                     .ConfigureAwait(false);
 
                 successCount++;
+                BackgroundTaskService.UpdateProgress(taskId, (double)(index + 1) / totalCount * 100);
                 BackgroundTaskService.CompleteTask(taskId, $"描述完成：{asset.Name}", "SQLite 已保存");
                 await ReportAsync(progress, DescribeAssetProgress.Completed(asset, document), ct).ConfigureAwait(false);
             }

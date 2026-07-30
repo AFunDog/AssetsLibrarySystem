@@ -25,21 +25,35 @@ public sealed class StructuredDescriptionHelperTests
     }
 
     [Fact]
-    public void ExtractPrimaryText_Extracts全面_ObjectFormat()
+    public void ExtractPrimaryText_Extracts整体_ObjectFormat()
+    {
+        const string json = """{"整体":{"text":"日常街景","tags":["街景"]},"风格":{"text":"纪实"}}""";
+        Assert.Equal("日常街景", StructuredDescriptionHelper.ExtractPrimaryText(json));
+    }
+
+    [Fact]
+    public void ExtractPrimaryText_Extracts全面_ObjectFormat_LegacyCompatible()
     {
         const string json = """{"全面":{"text":"一段舒缓的钢琴配乐","tags":["钢琴","舒缓"]}}""";
         Assert.Equal("一段舒缓的钢琴配乐", StructuredDescriptionHelper.ExtractPrimaryText(json));
     }
 
     [Fact]
-    public void ExtractPrimaryText_Extracts全面_StringFormat()
+    public void ExtractPrimaryText_Extracts全面_StringFormat_LegacyCompatible()
     {
         const string json = """{"全面":"一段安静的环境音"}""";
         Assert.Equal("一段安静的环境音", StructuredDescriptionHelper.ExtractPrimaryText(json));
     }
 
     [Fact]
-    public void ExtractPrimaryText_FallsBack_When全面Missing()
+    public void ExtractPrimaryText_Prefers整体_Over全面()
+    {
+        const string json = """{"整体":{"text":"新主角度"},"全面":{"text":"旧主角度"}}""";
+        Assert.Equal("新主角度", StructuredDescriptionHelper.ExtractPrimaryText(json));
+    }
+
+    [Fact]
+    public void ExtractPrimaryText_FallsBack_WhenPrimaryMissing()
     {
         const string json = """{"风格":{"text":"偏抒情"}}""";
         Assert.Equal(json, StructuredDescriptionHelper.ExtractPrimaryText(json));
@@ -218,6 +232,21 @@ public sealed class StructuredDescriptionHelperTests
     {
         const string json = """{"全面":{"text":"描述","tags":[]}}""";
         Assert.Empty(StructuredDescriptionHelper.ExtractAngleTags(json));
+    }
+
+    [Fact]
+    public void ExtractAngleTags_Excludes整体PrimaryAngle()
+    {
+        const string json = """
+        {
+            "整体": {"text": "总述", "tags": []},
+            "场景": {"text": "室内", "tags": []}
+        }
+        """;
+
+        var tags = StructuredDescriptionHelper.ExtractAngleTags(json);
+        Assert.Contains(tags, t => t == "场景：室内");
+        Assert.DoesNotContain(tags, t => t.Contains("整体"));
     }
 
     [Fact]

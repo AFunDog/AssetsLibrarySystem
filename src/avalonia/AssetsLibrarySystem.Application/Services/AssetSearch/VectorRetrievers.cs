@@ -75,7 +75,7 @@ public sealed class HnswVectorRetriever : IVectorRetrievalStrategy
         float[] queryVector,
         int topK)
     {
-        var indexManager = new LocalHnswSearchIndexManager(embeddingModelKey);
+        var indexManager = LocalHnswSearchIndexManagerCache.Get(embeddingModelKey);
         indexManager.EnsureCurrent(
             records.Select(record => record.Vector).ToArray(),
             records.Select(BuildVectorKey).ToArray(),
