@@ -1,4 +1,5 @@
 using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Avalonia.Models;
 
 namespace AssetsLibrarySystem.Avalonia.Services.Settings;
 
@@ -21,4 +22,6 @@ public interface IUserSettingsService : ISearchModelOptionsProvider
     int SearchRerankTopK { get; set; }
 
     int SearchFinalTopK { get; set; }
+
+    ExplorerViewMode ViewMode { get; set; }
 }

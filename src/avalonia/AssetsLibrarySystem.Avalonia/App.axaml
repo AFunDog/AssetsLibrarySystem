@@ -40,6 +40,13 @@
 
                     <!-- 徽章/标签背景 -->
                     <SolidColorBrush x:Key="AppBadgeBrush" Color="#EEEEEE" />
+
+                    <!-- 状态颜色 -->
+                    <SolidColorBrush x:Key="StatusDescribedBrush" Color="#52C41A" />
+                    <SolidColorBrush x:Key="StatusVectorizedBrush" Color="#4C94FF" />
+                    <SolidColorBrush x:Key="StatusPendingBrush" Color="#B8B8B8" />
+                    <SolidColorBrush x:Key="StatusFailedBrush" Color="#FF4D4F" />
+                    <SolidColorBrush x:Key="StatusProcessingBrush" Color="#FA8C16" />
                 </ResourceDictionary>
 
                 <ResourceDictionary x:Key="Dark">
@@ -71,6 +78,13 @@
 
                     <!-- 徽章/标签背景 -->
                     <SolidColorBrush x:Key="AppBadgeBrush" Color="#242424" />
+
+                    <!-- 状态颜色 -->
+                    <SolidColorBrush x:Key="StatusDescribedBrush" Color="#52C41A" />
+                    <SolidColorBrush x:Key="StatusVectorizedBrush" Color="#4C94FF" />
+                    <SolidColorBrush x:Key="StatusPendingBrush" Color="#555555" />
+                    <SolidColorBrush x:Key="StatusFailedBrush" Color="#FF4D4F" />
+                    <SolidColorBrush x:Key="StatusProcessingBrush" Color="#FA8C16" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>

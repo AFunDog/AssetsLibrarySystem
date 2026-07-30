@@ -1,9 +1,11 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -20,7 +22,43 @@ public sealed partial class AssetDetailViewModel : ObservableObject
     public AssetDetailViewModel(LibraryWorkspaceViewModel workspace)
     {
         Workspace = workspace;
-        Workspace.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
+        Workspace.PropertyChanged += (_, e) =>
+        {
+            OnPropertyChanged(e.PropertyName);
+            if (e.PropertyName == nameof(Workspace.SelectedAssetType) ||
+                e.PropertyName == nameof(Workspace.SelectedAssetName) ||
+                e.PropertyName == nameof(Workspace.SelectedAssetPath))
+            {
+                _ = LoadPreviewAsync();
+            }
+
+            if (e.PropertyName == nameof(Workspace.SelectedAssetDescriptionText) ||
+                e.PropertyName == nameof(Workspace.SelectedAsset))
+            {
+                SyncEditDescriptionFromWorkspace();
+                OnPropertyChanged(nameof(SelectedAssetTags));
+            }
+        };
+
+        SyncEditDescriptionFromWorkspace();
+    }
+
+    private void SyncEditDescriptionFromWorkspace()
+    {
+        // 占位文案不写入编辑框，避免用户误保存
+        var text = Workspace.SelectedAssetDescriptionText;
+        if (string.IsNullOrWhiteSpace(text)
+            || text.Contains("还没有可显示", StringComparison.Ordinal)
+            || text.Contains("点击“描述", StringComparison.Ordinal)
+            || text.Contains("描述记录已删除", StringComparison.Ordinal)
+            || text.Contains("描述存储未就绪", StringComparison.Ordinal)
+            || text.Contains("描述记录读取失败", StringComparison.Ordinal))
+        {
+            EditDescriptionText = string.Empty;
+            return;
+        }
+
+        EditDescriptionText = text;
     }
 
     [Obsolete("仅供设计器使用")]
@@ -119,5 +157,137 @@ public sealed partial class AssetDetailViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(EditDescriptionText)) return;
         await Workspace.UpdateSelectedAssetDescriptionAsync(EditDescriptionText.Trim());
+    }
+
+    // ===== 预览 =====
+    private int PreviewGeneration { get; set; }
+
+    [ObservableProperty]
+    public partial Bitmap? PreviewImage { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasPreview { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsImagePreview { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsTextPreview { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsMediaPlaceholder { get; set; }
+
+    [ObservableProperty]
+    public partial string PreviewText { get; set; } = string.Empty;
+
+    private async Task LoadPreviewAsync()
+    {
+        var generation = ++PreviewGeneration;
+        var assetType = Workspace.SelectedAssetType;
+        var assetPath = Workspace.SelectedAssetPath;
+
+        var previous = PreviewImage;
+        HasPreview = false;
+        IsImagePreview = false;
+        IsTextPreview = false;
+        IsMediaPlaceholder = false;
+        PreviewImage = null;
+        previous?.Dispose();
+        PreviewText = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(assetPath) || !File.Exists(assetPath))
+            return;
+
+        switch (assetType)
+        {
+            case "图片":
+                await LoadImagePreviewAsync(assetPath, generation);
+                break;
+            case "文本":
+                await LoadTextPreviewAsync(assetPath, generation);
+                break;
+            case "视频":
+            case "音频":
+                if (generation != PreviewGeneration)
+                    return;
+                HasPreview = true;
+                IsMediaPlaceholder = true;
+                break;
+        }
+    }
+
+    private async Task LoadImagePreviewAsync(string path, int generation)
+    {
+        try
+        {
+            var bitmap = await Task.Run(() =>
+            {
+                var bmp = new Bitmap(path);
+                // 缩放至最大 300px
+                var maxSide = 300;
+                if (bmp.PixelSize.Width <= maxSide && bmp.PixelSize.Height <= maxSide)
+                    return bmp;
+                var scale = Math.Min(
+                    (double)maxSide / bmp.PixelSize.Width,
+                    (double)maxSide / bmp.PixelSize.Height);
+                var w = (int)(bmp.PixelSize.Width * scale);
+                var h = (int)(bmp.PixelSize.Height * scale);
+                var resized = bmp.CreateScaledBitmap(
+                    new global::Avalonia.PixelSize(w, h),
+                    BitmapInterpolationMode.HighQuality);
+                bmp.Dispose();
+                return resized;
+            });
+
+            if (generation != PreviewGeneration)
+            {
+                bitmap.Dispose();
+                return;
+            }
+
+            var previous = PreviewImage;
+            PreviewImage = bitmap;
+            previous?.Dispose();
+            HasPreview = true;
+            IsImagePreview = true;
+        }
+        catch
+        {
+            // 预览失败时静默回退
+        }
+    }
+
+    private async Task LoadTextPreviewAsync(string path, int generation)
+    {
+        try
+        {
+            var text = await Task.Run(() =>
+            {
+                foreach (var encoding in new[] { "utf-8-sig", "utf-8", "gb18030" })
+                {
+                    try
+                    {
+                        var content = File.ReadAllText(path, System.Text.Encoding.GetEncoding(encoding));
+                        return content.Length > 500 ? content[..500] + "..." : content;
+                    }
+                    catch { }
+                }
+                return null;
+            });
+
+            if (generation != PreviewGeneration)
+                return;
+
+            if (text is not null)
+            {
+                PreviewText = text;
+                HasPreview = true;
+                IsTextPreview = true;
+            }
+        }
+        catch
+        {
+            // 预览失败时静默回退
+        }
     }
 }

@@ -5,7 +5,9 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
+using AssetsLibrarySystem.Avalonia.Services.Shell;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
@@ -14,6 +16,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private BackendStatusViewModel BackendStatus { get; }
     private LibraryWorkspaceViewModel Workspace { get; }
     private IBackgroundTaskService BackgroundTaskService { get; }
+    private IShellWindowService? ShellWindowService { get; }
 
     [Obsolete("仅供设计器使用。运行时请通过 DI 构造。", false)]
     public MainWindowViewModel()
@@ -23,7 +26,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             new BackgroundTaskService(),
             new OverviewPageViewModel(),
             new LibraryPageViewModel(),
-            new SettingsPageViewModel())
+            new SettingsPageViewModel(),
+            null)
     {
     }
 
@@ -33,11 +37,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IBackgroundTaskService backgroundTaskService,
         OverviewPageViewModel overviewPage,
         LibraryPageViewModel libraryPage,
-        SettingsPageViewModel settingsPage)
+        SettingsPageViewModel settingsPage,
+        IShellWindowService? shellWindowService)
     {
         BackendStatus = backendStatus;
         Workspace = workspace;
         BackgroundTaskService = backgroundTaskService;
+        ShellWindowService = shellWindowService;
         OverviewPage = overviewPage;
         LibraryPage = libraryPage;
         SettingsPage = settingsPage;
@@ -115,5 +121,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
         LatestBackgroundTaskText = BackgroundTasks.Count == 0
             ? "暂无后台任务"
             : $"{BackgroundTasks[0].Title} · {BackgroundTasks[0].StageText} · {BackgroundTasks[0].StatusText}";
+    }
+
+    [RelayCommand]
+    private void ShowQuickSearch()
+    {
+        ShellWindowService?.ShowQuickSearchWindow();
+    }
+
+    [RelayCommand]
+    private async Task RefreshWorkspaceAsync()
+    {
+        if (Workspace is not null)
+            await Workspace.ScanSelectedLibraryAsync();
     }
 }

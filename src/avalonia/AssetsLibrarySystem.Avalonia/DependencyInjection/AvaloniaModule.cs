@@ -1,12 +1,16 @@
 using System;
 using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Services.AssetLibrary;
+using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
 using AssetsLibrarySystem.Avalonia.Services.Library;
+using AssetsLibrarySystem.Avalonia.Services.Search;
 using AssetsLibrarySystem.Avalonia.Services.Settings;
+using AssetsLibrarySystem.Avalonia.Services.Thumbnail;
 using AssetsLibrarySystem.Avalonia.Services.Shell;
 using Autofac;
+using Avalonia.Threading;
 
 namespace AssetsLibrarySystem.Avalonia.DependencyInjection;
 
@@ -24,7 +28,19 @@ public sealed class AvaloniaServiceModule : Module
 {
     protected override void Load(ContainerBuilder builder)
     {
+        builder.RegisterType<AvaloniaBackgroundTaskUiScheduler>()
+            .As<IBackgroundTaskUiScheduler>()
+            .SingleInstance();
+
         builder.RegisterType<ActivityFeedService>()
+            .AsSelf()
+            .SingleInstance();
+
+        builder.RegisterType<ThumbnailCacheService>()
+            .AsSelf()
+            .SingleInstance();
+
+        builder.RegisterType<SearchHistoryService>()
             .AsSelf()
             .SingleInstance();
 
@@ -40,6 +56,21 @@ public sealed class AvaloniaServiceModule : Module
             .As<IUserSettingsService>()
             .As<ISearchModelOptionsProvider>()
             .SingleInstance();
+    }
+}
+
+/// <summary>将后台任务状态变更派发到 Avalonia UI 线程。</summary>
+file sealed class AvaloniaBackgroundTaskUiScheduler : IBackgroundTaskUiScheduler
+{
+    public void Schedule(Action action)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        Dispatcher.UIThread.Post(action, DispatcherPriority.Background);
     }
 }
 

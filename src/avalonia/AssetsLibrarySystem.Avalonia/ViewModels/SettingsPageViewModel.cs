@@ -96,7 +96,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public string SearchModelStatusStage => BackendStatus.SearchModelStatusStage;
     public string SearchModelStatusDetail => BackendStatus.SearchModelStatusDetail;
     public ObservableCollection<AiCapabilityRecord> AiCapabilities => BackendStatus.AiCapabilities;
-    public ObservableCollection<string> ActivityFeed { get; }
+    public ObservableCollection<ActivityFeedEntry> ActivityFeed { get; }
 
     partial void OnEmbeddingModelChanged(string value)
     {

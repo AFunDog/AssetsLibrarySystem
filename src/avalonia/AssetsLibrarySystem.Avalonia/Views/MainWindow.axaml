@@ -238,6 +238,15 @@
                                                                 </StackPanel>
                                                                 <TextBlock Grid.Column="1" Text="{Binding StatusText}" />
                                                             </Grid>
+                                                            <!-- 进度条 -->
+                                                            <ProgressBar Value="{Binding Progress}"
+                                                                         Minimum="0"
+                                                                         Maximum="100"
+                                                                         Height="4"
+                                                                         CornerRadius="2"
+                                                                         IsIndeterminate="{Binding IsIndeterminate}"
+                                                                         IsVisible="{Binding IsActive}"
+                                                                         Foreground="{DynamicResource AppAccentBrush}" />
                                                             <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                                        TextWrapping="Wrap"
                                                                        Text="{Binding DetailText}" />

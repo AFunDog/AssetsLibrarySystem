@@ -1,8 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
 using Avalonia.Interactivity;
-using AssetsLibrarySystem.Avalonia;
+using AssetsLibrarySystem.Avalonia.ViewModels;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AssetsLibrarySystem.Avalonia.Views;
 
@@ -12,6 +14,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Closing += MainWindow_Closing;
+        KeyDown += MainWindow_KeyDown;
     }
 
     private void MinimizeWindow_Click(object? sender, RoutedEventArgs e)
@@ -35,6 +38,30 @@ public partial class MainWindow : Window
         {
             e.Cancel = true;
             Hide();
+        }
+    }
+
+    private void MainWindow_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+            return;
+
+        // Ctrl+F: 打开快速搜索
+        if (e.Key == Key.F && e.KeyModifiers == KeyModifiers.Control)
+        {
+            if (viewModel.ShowQuickSearchCommand is { } cmd)
+                cmd.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        // F5: 刷新当前素材库
+        if (e.Key == Key.F5 && e.KeyModifiers == KeyModifiers.None)
+        {
+            if (viewModel.RefreshWorkspaceCommand is { } cmd)
+                _ = cmd.ExecuteAsync(null);
+            e.Handled = true;
+            return;
         }
     }
 }

@@ -21,6 +21,18 @@ src/avalonia/
 
 用户设置采用 500ms 防抖保存，并通过同目录临时文件原子替换；应用退出释放容器时会刷新最后一次待保存修改。
 
+### 工作台 ViewModel 结构
+
+- `LibraryWorkspaceViewModel`：素材库树、浏览区、选中详情与描述展示（选中时从 SQLite 加载描述）
+- `AssetDescriptionPanelViewModel` / `AssetVectorizationPanelViewModel`：描述与向量化任务
+- `LibraryPageViewModel`：组合上述子 VM，工具栏与右键菜单统一转发到面板实现
+- 结构化描述主角度为 **「整体」**，读取时兼容历史 **「全面」**
+- 内容 hash 变化：描述标 `stale`、删除向量；向量化会跳过过期描述
+- 后台任务状态通过 `IBackgroundTaskUiScheduler` 调度到 UI 线程，避免跨线程改集合
+- 浏览区支持图标 / 列表 / 详情三视图；`ViewMode` 写入 `user-settings.json`
+- 树节点缩略图支持属性变更通知；详情侧可编辑主描述并保存
+- 本地 HNSW 按 embedding 模型进程内缓存，指纹用 float 二进制哈希
+
 ## 功能概览
 
 | 功能 | 说明 |
@@ -29,7 +41,7 @@ src/avalonia/
 | **描述生成** | 调用 Python 后端 AI 模型，生成多角度结构化描述 |
 | **语义搜索** | 本地 HNSW 近似召回 + 远程精排 + 混合评分 |
 | **搜索索引** | 向量持久化 + HNSW 图文件持久化 + 指纹校验 |
-| **后端管理** | Python 子进程生命周期管理、健康检查、心跳 |
+| **模型引擎** | 默认嵌入 Python.NET 初始化；就绪前不放行描述/检索 |
 | **快捷搜索** | 全局热键 `Ctrl+Shift+Space`，快速搜索任意素材 |
 | **系统托盘** | 最小化到托盘，后台常驻 |
 
@@ -68,9 +80,9 @@ dotnet run --project AssetsLibrarySystem.Console -- --help
 
 | 配置 | 默认值 | 说明 |
 |---|---|---|
-| `BackendLauncher.Host` | `127.0.0.1` | Python 后端地址 |
-| `BackendLauncher.Port` | `8000` | Python 后端端口 |
-| `BackendLauncher.StartupTimeoutSeconds` | `30` | 后端启动超时 |
+| `BackendLauncher.Host` | `127.0.0.1` | 备用 HTTP 后端地址（默认走进程内引擎） |
+| `BackendLauncher.Port` | `8000` | 备用 HTTP 后端端口 |
+| `BackendLauncher.StartupTimeoutSeconds` | `30` | 备用 HTTP 后端启动超时 |
 | `Runtime.DataRoot` | `""` | 数据根目录（空=自动检测） |
 
 ## 相关文档

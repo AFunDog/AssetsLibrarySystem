@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
@@ -12,6 +13,8 @@ using AssetsLibrarySystem.Application.Services.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Library;
+using AssetsLibrarySystem.Avalonia.Services.Settings;
+using AssetsLibrarySystem.Avalonia.Services.Thumbnail;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Serilog;
@@ -30,20 +33,27 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     private IAssetDatabase? AssetDatabase { get; }
     private AngleProfileManager? AngleProfileManager { get; }
     private ActivityFeedService ActivityFeedService { get; }
+    private ThumbnailCacheService? ThumbnailCache { get; }
+    private IUserSettingsService? UserSettings { get; }
     private List<ManagedAssetRecord> AllAssets { get; } = [];
+    private int DescriptionLoadGeneration { get; set; }
 
     public LibraryWorkspaceViewModel(
         ILibraryCatalogService catalogService,
         IAssetDescriptionStore? descriptionStore,
         IAssetDatabase? assetDatabase,
         AngleProfileManager? angleProfileManager,
-        ActivityFeedService activityFeedService)
+        ActivityFeedService activityFeedService,
+        ThumbnailCacheService? thumbnailCache = null,
+        IUserSettingsService? userSettings = null)
     {
         CatalogService = catalogService;
         DescriptionStore = descriptionStore;
         AssetDatabase = assetDatabase;
         AngleProfileManager = angleProfileManager;
         ActivityFeedService = activityFeedService;
+        ThumbnailCache = thumbnailCache;
+        UserSettings = userSettings;
 
         Metrics = [];
         AssetTreeRoots = [];
@@ -101,6 +111,110 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     [ObservableProperty] public partial string SelectedAssetDescriptionSystemPrompt { get; set; } = "尚未生成 system prompt。";
     [ObservableProperty] public partial string SelectedAssetDescriptionText { get; set; } = "当前素材还没有可显示的 AI 描述。";
     [ObservableProperty] public partial string DescriptionSelectionSummary { get; set; } = "请选择左侧素材库、目录或单个素材，再安排描述任务。";
+
+    // ===== 筛选与排序 =====
+    [ObservableProperty] public partial string FilterAssetType { get; set; } = "全部";
+    [ObservableProperty] public partial string FilterStatus { get; set; } = "全部";
+    [ObservableProperty] public partial string FilterSortBy { get; set; } = "名称";
+    [ObservableProperty] public partial bool FilterSortAscending { get; set; } = true;
+
+    /// <summary>当前视图模式</summary>
+    public ExplorerViewMode ViewMode
+    {
+        get => UserSettings?.ViewMode ?? ExplorerViewMode.Icon;
+        set
+        {
+            if (UserSettings is not null)
+                UserSettings.ViewMode = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsIconView));
+            OnPropertyChanged(nameof(IsListView));
+            OnPropertyChanged(nameof(IsDetailView));
+        }
+    }
+
+    public bool IsIconView => ViewMode == ExplorerViewMode.Icon;
+    public bool IsListView => ViewMode == ExplorerViewMode.List;
+    public bool IsDetailView => ViewMode == ExplorerViewMode.Detail;
+
+    [RelayCommand]
+    private void SwitchToIconView() => ViewMode = ExplorerViewMode.Icon;
+    [RelayCommand]
+    private void SwitchToListView() => ViewMode = ExplorerViewMode.List;
+    [RelayCommand]
+    private void SwitchToDetailView() => ViewMode = ExplorerViewMode.Detail;
+
+    public static string[] FilterAssetTypeOptions => ["全部", "文本", "图片", "视频", "音频"];
+    public static string[] FilterStatusOptions => ["全部", "已描述", "未描述", "已向量化", "待处理"];
+    public static string[] FilterSortByOptions => ["名称", "类型", "大小"];
+
+    /// <summary>经过筛选和排序后的资源管理器项</summary>
+    public ObservableCollection<AssetLibraryTreeNode> FilteredExplorerItems { get; } = [];
+
+    partial void OnFilterAssetTypeChanged(string value) => ApplyFilterAndSort();
+    partial void OnFilterStatusChanged(string value) => ApplyFilterAndSort();
+    partial void OnFilterSortByChanged(string value) => ApplyFilterAndSort();
+    partial void OnFilterSortAscendingChanged(bool value) => ApplyFilterAndSort();
+
+    [RelayCommand]
+    private void ToggleSortDirection()
+    {
+        FilterSortAscending = !FilterSortAscending;
+    }
+
+    private void ApplyFilterAndSort()
+    {
+        FilteredExplorerItems.Clear();
+
+        // 从 CurrentExplorerItems 中筛选
+        var items = CurrentExplorerItems.AsEnumerable();
+
+        // 类型筛选
+        if (FilterAssetType != "全部")
+        {
+            items = items.Where(item =>
+                item.Kind == AssetLibraryTreeNodeKind.Directory ||
+                item.Kind == AssetLibraryTreeNodeKind.Library ||
+                string.Equals(item.TypeLabel, FilterAssetType, StringComparison.Ordinal));
+        }
+
+        // 状态筛选（仅对文件节点有效）
+        if (FilterStatus != "全部")
+        {
+            items = items.Where(item =>
+            {
+                if (item.Kind != AssetLibraryTreeNodeKind.File || item.Asset is null)
+                    return true; // 目录和库始终显示
+                return FilterStatus switch
+                {
+                    "已描述" => item.Asset.IsDescribed,
+                    "未描述" => !item.Asset.IsDescribed,
+                    "已向量化" => item.Asset.IsVectorized,
+                    "待处理" => !item.Asset.IsDescribed && !item.Asset.IsVectorized,
+                    _ => true
+                };
+            });
+        }
+
+        // 排序：大小按数值，避免 "2 KB" / "10 KB" 字典序错误
+        items = FilterSortBy switch
+        {
+            "类型" => FilterSortAscending
+                ? items.OrderBy(item => item.Kind).ThenBy(item => item.TypeLabel, StringComparer.OrdinalIgnoreCase)
+                : items.OrderBy(item => item.Kind).ThenByDescending(item => item.TypeLabel, StringComparer.OrdinalIgnoreCase),
+            "大小" => FilterSortAscending
+                ? items.OrderBy(item => item.Kind).ThenBy(item => item.Asset?.FileSize ?? 0L)
+                : items.OrderBy(item => item.Kind).ThenByDescending(item => item.Asset?.FileSize ?? 0L),
+            _ => FilterSortAscending // 默认按名称
+                ? items.OrderBy(item => item.Kind).ThenBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+                : items.OrderBy(item => item.Kind).ThenByDescending(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
+        };
+
+        foreach (var item in items)
+            FilteredExplorerItems.Add(item);
+
+        LoadThumbnailsForCurrentItems();
+    }
 
     // ===== 初始化 =====
     public async Task InitializeAsync()
@@ -250,6 +364,9 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         SelectedAsset = null;
         SelectedAssetTreeNode = null;
         SetEmptyWorkspaceState();
+        RebuildAssetTree();
+        CurrentExplorerItems.Clear();
+        FilteredExplorerItems.Clear();
         RebuildMetrics();
     }
 
@@ -284,6 +401,11 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         if (SelectedAsset is null || DescriptionStore is null) return;
         await DescriptionStore.UpdateDescriptionAsync(SelectedAsset.DatabaseId, newDescription);
         SelectedAssetDescriptionText = newDescription;
+        SelectedAssetDescriptionState = "已描述（已编辑）";
+        SelectedAsset.IsDescribed = true;
+        SelectedAsset.AiState = SelectedAssetDescriptionState;
+        SelectedAssetAiState = SelectedAssetDescriptionState;
+        RefreshDescriptionAngles(SelectedAsset, newDescription);
     }
 
     // ===== 辅助方法 =====
@@ -294,12 +416,26 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
 
     public IReadOnlyList<ManagedAssetRecord> GetDescriptionSelectionAssets()
     {
-        if (SelectedAsset is not null) return [SelectedAsset];
-        if (SelectedAssetTreeNode is null) return [];
-        if (SelectedAssetTreeNode.Kind == AssetLibraryTreeNodeKind.Library && SelectedAssetTreeNode.Library is not null)
-            return AllAssets.Where(a => a.LibraryName == SelectedAssetTreeNode.Library.Name).ToList();
-        var prefix = NormalizePathPrefix(SelectedAssetTreeNode.FullPath);
-        return AllAssets.Where(a => NormalizePathPrefix(a.LocalPath).StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
+        // 右键/范围描述以树节点为准；仅当节点是文件时用 SelectedAsset。
+        if (SelectedAssetTreeNode is not null)
+        {
+            if (SelectedAssetTreeNode.Kind == AssetLibraryTreeNodeKind.File && SelectedAssetTreeNode.Asset is not null)
+                return [SelectedAssetTreeNode.Asset];
+            if (SelectedAssetTreeNode.Kind == AssetLibraryTreeNodeKind.Library && SelectedAssetTreeNode.Library is not null)
+                return AllAssets.Where(a => a.LibraryName == SelectedAssetTreeNode.Library.Name).ToList();
+            if (SelectedAssetTreeNode.Kind == AssetLibraryTreeNodeKind.Directory)
+            {
+                var prefix = NormalizePathPrefix(SelectedAssetTreeNode.FullPath);
+                return AllAssets
+                    .Where(a => NormalizePathPrefix(a.LocalPath).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+        }
+
+        if (SelectedAsset is not null)
+            return [SelectedAsset];
+
+        return [];
     }
 
     public IReadOnlyList<ManagedAssetRecord> GetAllLibraryAssets() => AllAssets.ToList();
@@ -312,14 +448,14 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         else RebuildAssetTree();
     }
 
-    public void CompleteAssetDescription(ManagedAssetRecord asset, string description)
+    public void CompleteAssetDescription(ManagedAssetRecord asset, AssetDescriptionDocument document)
     {
-        asset.Stage = "已描述";
-        asset.AiState = "已描述";
+        asset.Stage = document.Mode == "live" ? "已描述" : "已描述（占位）";
+        asset.AiState = asset.Stage;
         asset.IsDescribed = true;
         if (ReferenceEquals(SelectedAsset, asset))
         {
-            SelectedAssetDescriptionText = description;
+            ApplySelectedAssetDescription(document);
             SyncSelectedAssetFields();
         }
         else RebuildAssetTree();
@@ -329,6 +465,11 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     public void MarkAssetVectorized(ManagedAssetRecord asset)
     {
         asset.IsVectorized = true;
+        if (ReferenceEquals(SelectedAsset, asset))
+            SyncSelectedAssetFields();
+        else
+            RebuildAssetTree();
+        RebuildMetrics();
     }
 
     public void FailAssetDescription(ManagedAssetRecord asset, string error)
@@ -348,6 +489,8 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         if (ReferenceEquals(SelectedAsset, asset))
         {
             ResetSelectedAssetDescription();
+            SelectedAssetDescriptionStorePath = DescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
+            SelectedAssetDescriptionText = "当前素材的描述记录已删除。";
             SyncSelectedAssetFields();
         }
         else RebuildAssetTree();
@@ -362,6 +505,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     {
         if (value is null)
         {
+            DescriptionLoadGeneration++;
             SelectedAssetName = "尚未选择素材";
             SelectedAssetLibrary = "请先扫描一个素材库";
             SelectedAssetPath = "当前未加载本地文件路径";
@@ -369,9 +513,11 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
             SelectedAssetStage = "待选择";
             SelectedAssetAiState = "未描述";
             SelectedAssetDetail = "当前素材还没有可显示的 AI 描述。";
+            SelectedAssetSubtype = "";
             ResetSelectedAssetDescription();
             return;
         }
+
         SelectedAssetName = value.Name;
         SelectedAssetLibrary = value.LibraryName;
         SelectedAssetPath = value.LocalPath;
@@ -379,7 +525,167 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         SelectedAssetStage = value.Stage;
         SelectedAssetAiState = value.AiState;
         SelectedAssetDetail = value.Summary;
+        SelectedAssetSubtype = string.IsNullOrWhiteSpace(value.Subtype) ? "" : value.Subtype;
         ResetSelectedAssetDescription();
+        _ = LoadSelectedAssetDescriptionAsync(value);
+    }
+
+    private async Task LoadSelectedAssetDescriptionAsync(ManagedAssetRecord asset)
+    {
+        var generation = ++DescriptionLoadGeneration;
+
+        if (DescriptionStore is null)
+        {
+            if (generation != DescriptionLoadGeneration || !ReferenceEquals(SelectedAsset, asset))
+                return;
+
+            SelectedAssetDescriptionState = "描述存储未就绪";
+            SelectedAssetDescriptionStorePath = "SQLite 存储未就绪";
+            SelectedAssetDescriptionText = "当前环境尚未注入描述 SQLite 存储。";
+            SelectedAssetAiState = "描述存储未就绪";
+            return;
+        }
+
+        try
+        {
+            var document = await DescriptionStore.TryGetForAssetAsync(asset).ConfigureAwait(true);
+            if (generation != DescriptionLoadGeneration || !ReferenceEquals(SelectedAsset, asset))
+                return;
+
+            if (document is null)
+            {
+                SelectedAssetDescriptionState = "未描述";
+                SelectedAssetDescriptionStorePath = DescriptionStore.DatabasePath;
+                SelectedAssetDescriptionText = "点击“描述当前素材”后，这里会展示 AI 返回的中文描述。";
+                SelectedAssetAiState = asset.IsDescribed ? asset.AiState : "未描述";
+                return;
+            }
+
+            ApplySelectedAssetDescription(document);
+        }
+        catch (Exception ex)
+        {
+            if (generation != DescriptionLoadGeneration || !ReferenceEquals(SelectedAsset, asset))
+                return;
+
+            Log.Error(
+                ex,
+                "读取素材描述失败: assetId={AssetId}, assetUid={AssetUid}, assetName={AssetName}",
+                asset.DatabaseId,
+                asset.AssetUid,
+                asset.Name);
+            ResetSelectedAssetDescription();
+            SelectedAssetDescriptionState = "描述记录读取失败";
+            SelectedAssetDescriptionStorePath = DescriptionStore.DatabasePath;
+            SelectedAssetDescriptionText = ex.Message;
+            SelectedAssetAiState = "描述读取失败";
+        }
+    }
+
+    private void ApplySelectedAssetDescription(AssetDescriptionDocument document)
+    {
+        var tokenUsage = document.TokenUsage is null
+            ? "未返回 token 用量"
+            : FormatTokenUsage(document.TokenUsage);
+
+        SelectedAssetDescriptionState = document.Mode == "live" ? "已描述" : "已描述（占位）";
+        SelectedAssetDescriptionStorePath = DescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
+        SelectedAssetDescriptionGeneratedAt = document.GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+        SelectedAssetDescriptionMode = document.Mode;
+        SelectedAssetDescriptionTokenUsage = tokenUsage;
+        SelectedAssetDescriptionPrompt = string.IsNullOrWhiteSpace(document.Prompt)
+            ? "使用配置中的默认 prompt。"
+            : document.Prompt;
+        SelectedAssetDescriptionSystemPrompt = string.IsNullOrWhiteSpace(document.SystemPrompt)
+            ? "使用配置中的默认 system prompt。"
+            : document.SystemPrompt;
+        SelectedAssetDescriptionText = document.PrimaryDescription;
+        SelectedAssetAiState = SelectedAssetDescriptionState;
+        SelectedAssetDetail = document.PrimaryDescription;
+
+        var subtype = document.Subtype;
+        if (string.IsNullOrWhiteSpace(subtype) && SelectedAsset is not null)
+            subtype = SelectedAsset.Subtype;
+        if (string.IsNullOrWhiteSpace(subtype))
+            subtype = "默认";
+        SelectedAssetSubtype = subtype;
+
+        if (SelectedAsset is not null)
+        {
+            SelectedAsset.IsDescribed = true;
+            SelectedAsset.AiState = SelectedAssetDescriptionState;
+            SelectedAsset.Stage = SelectedAssetDescriptionState.StartsWith("已描述", StringComparison.Ordinal)
+                ? SelectedAssetDescriptionState
+                : SelectedAsset.Stage;
+            RefreshDescriptionAngles(SelectedAsset, document.Description);
+        }
+    }
+
+    private void RefreshDescriptionAngles(ManagedAssetRecord asset, string? descriptionJson)
+    {
+        SelectedAssetDescriptionAngles.Clear();
+        if (string.IsNullOrWhiteSpace(descriptionJson))
+            return;
+
+        var subtype = SelectedAssetSubtype;
+        if (string.IsNullOrWhiteSpace(subtype))
+            subtype = "默认";
+
+        try
+        {
+            var tagsByAngle = new Dictionary<string, string[]>(StringComparer.Ordinal);
+            try
+            {
+                using var doc = JsonDocument.Parse(descriptionJson);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        if (prop.Value.ValueKind == JsonValueKind.Object
+                            && prop.Value.TryGetProperty("tags", out var tagsEl)
+                            && tagsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            tagsByAngle[prop.Name] = tagsEl.EnumerateArray()
+                                .Where(t => t.ValueKind == JsonValueKind.String)
+                                .Select(t => t.GetString() ?? "")
+                                .Where(t => !string.IsNullOrEmpty(t))
+                                .ToArray()!;
+                        }
+                    }
+                }
+            }
+            catch (JsonException)
+            {
+                // tags 解析失败不影响主体描述
+            }
+
+            var segments = StructuredDescriptionHelper.ExtractSegments(descriptionJson);
+            var profile = AngleProfileManager?.GetProfile(asset.AssetType, subtype);
+
+            foreach (var segment in segments)
+            {
+                var angleDef = profile?.Angles.FirstOrDefault(a => a.Key == segment.NormalizedAngleType);
+                var tags = tagsByAngle.GetValueOrDefault(segment.NormalizedAngleType, []);
+                SelectedAssetDescriptionAngles.Add(new AngleDescriptionRecord(
+                    AngleKey: segment.NormalizedAngleType,
+                    Label: angleDef?.Label ?? segment.NormalizedAngleType,
+                    Text: segment.NormalizedText,
+                    Tags: tags,
+                    MaxLength: angleDef?.MaxLength ?? 120));
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug("解析角度描述失败: {Error}", ex.Message);
+        }
+    }
+
+    private static string FormatTokenUsage(AssetDescriptionTokenUsage usage)
+    {
+        var baseText = $"input={usage.InputTokens}, output={usage.OutputTokens}, total={usage.TotalTokens}";
+        return usage.ImageTokens is null && usage.VideoTokens is null && usage.AudioTokens is null
+            ? baseText
+            : $"{baseText}; image={usage.ImageTokens ?? 0}, video={usage.VideoTokens ?? 0}, audio={usage.AudioTokens ?? 0}";
     }
 
     private void ResetSelectedAssetDescription()
@@ -524,6 +830,8 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
             ExplorerPath = "未选择";
             CanNavigateUp = false;
             foreach (var r in AssetTreeRoots) CurrentExplorerItems.Add(r);
+            ApplyFilterAndSort();
+            LoadThumbnailsForCurrentItems();
             return;
         }
         foreach (var item in container.Children) CurrentExplorerItems.Add(item);
@@ -531,6 +839,35 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         ExplorerSummary = container.Kind == AssetLibraryTreeNodeKind.Library ? container.Summary : $"{container.MetaLabel} · {container.CategorySummary}";
         ExplorerPath = container.FullPath;
         CanNavigateUp = container.Kind != AssetLibraryTreeNodeKind.Library && FindParentTreeNode(container) is not null;
+        ApplyFilterAndSort();
+        LoadThumbnailsForCurrentItems();
+    }
+
+    private async void LoadThumbnailsForCurrentItems()
+    {
+        if (ThumbnailCache is null)
+            return;
+
+        // 在 Filtered 集合上也加载：UI 绑定的是 FilteredExplorerItems
+        var candidates = FilteredExplorerItems
+            .Concat(CurrentExplorerItems)
+            .Distinct()
+            .Where(item => item.Kind == AssetLibraryTreeNodeKind.File
+                           && item.Asset is not null
+                           && !item.HasThumbnail
+                           && string.Equals(item.Asset.AssetType, "图片", StringComparison.Ordinal))
+            .ToList();
+
+        foreach (var item in candidates)
+        {
+            var thumbnail = await ThumbnailCache.GetThumbnailAsync(
+                item.FullPath, item.Asset!.AssetType);
+            if (thumbnail is not null)
+            {
+                // AssetLibraryTreeNode 已实现 INotifyPropertyChanged，直接赋值即可刷新绑定
+                item.Thumbnail = thumbnail;
+            }
+        }
     }
 
     private AssetLibraryTreeNode? GetExplorerContainerNode(AssetLibraryTreeNode? node)
@@ -592,8 +929,8 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         WorkspaceTitle = value.DisplayName;
         WorkspaceSummary = value.FullPath;
         AssetSummary = value.Summary;
+        // 通过 SelectedAsset setter 统一触发详情与描述加载
         SelectedAsset = value.Asset;
-        UpdateSelectedAssetDetails(value.Asset);
         UpdateExplorerView(value);
     }
 

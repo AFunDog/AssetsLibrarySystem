@@ -12,31 +12,35 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
 /// <summary>
 /// 素材库页面 ViewModel，组合子 ViewModel 并暴露给 View。
-/// 不再有属性转发，AXAML 直接绑定到子 ViewModel 的属性。
+/// 描述/向量化命令转发到对应面板，右键菜单与工具栏共用同一路径。
 /// </summary>
 public sealed partial class LibraryPageViewModel : ObservableObject
 {
-    // ===== 子 ViewModel =====
     public LibraryWorkspaceViewModel Workspace { get; }
     public AssetDetailViewModel AssetDetail { get; }
     public AssetSearchPanelViewModel SearchPanel { get; }
+    public AssetDescriptionPanelViewModel DescriptionPanel { get; }
+    public AssetVectorizationPanelViewModel VectorizationPanel { get; }
     public BackendStatusViewModel BackendStatus { get; }
-    public ObservableCollection<string> ActivityFeed { get; }
+    public ObservableCollection<ActivityFeedEntry> ActivityFeed { get; }
 
     public LibraryPageViewModel(
         LibraryWorkspaceViewModel workspace,
         AssetDetailViewModel assetDetail,
         AssetSearchPanelViewModel searchPanel,
+        AssetDescriptionPanelViewModel descriptionPanel,
+        AssetVectorizationPanelViewModel vectorizationPanel,
         BackendStatusViewModel backendStatus,
         ActivityFeedService activityFeedService)
     {
         Workspace = workspace;
         AssetDetail = assetDetail;
         SearchPanel = searchPanel;
+        DescriptionPanel = descriptionPanel;
+        VectorizationPanel = vectorizationPanel;
         BackendStatus = backendStatus;
         ActivityFeed = activityFeedService.Entries;
 
-        // 子 ViewModel 属性变更冒泡到本层
         Workspace.PropertyChanged += BubblePropertyChanged;
         AssetDetail.PropertyChanged += BubblePropertyChanged;
         SearchPanel.PropertyChanged += BubblePropertyChanged;
@@ -49,29 +53,18 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             new LibraryWorkspaceViewModel(),
             new AssetDetailViewModel(),
             new AssetSearchPanelViewModel(),
+            new AssetDescriptionPanelViewModel(),
+            new AssetVectorizationPanelViewModel(),
             new BackendStatusViewModel(),
             new ActivityFeedService())
     {
     }
 
-    // ===== 转发方法（非属性，从 code-behind 调用） =====
     public Task AddLibraryDirectoryAsync(string folderPath)
         => Workspace.AddLibraryDirectoryAsync(folderPath);
 
     public void RevealInFileExplorer(AssetLibraryTreeNode? node)
-    {
-        if (node is null || string.IsNullOrWhiteSpace(node.FullPath))
-            return;
-        var path = System.IO.Path.GetFullPath(node.FullPath);
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = "explorer.exe",
-            UseShellExecute = true,
-            Arguments = node.Kind == AssetLibraryTreeNodeKind.File
-                ? $"/select,\"{path}\""
-                : $"\"{path}\""
-        });
-    }
+        => RevealInExplorer(node);
 
     public void RevealSearchResultInExplorer(AssetSearchDocument? result)
         => SearchPanel.RevealSearchResultInExplorer(result);
@@ -80,42 +73,32 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         => Workspace.SelectLibrary(library);
 
     public Task QueueDescriptionForNodeAsync(AssetLibraryTreeNode? node)
-        => Task.CompletedTask; // 由子 ViewModel 处理
+        => DescriptionPanel.QueueDescriptionForNodeAsync(node);
 
     public Task DeleteDescriptionForNodeAsync(AssetLibraryTreeNode? node)
-        => Task.CompletedTask;
+        => DescriptionPanel.DeleteDescriptionForNodeAsync(node);
 
-    // ===== Command 包装，供 AXAML 绑定 =====
-
-    [RelayCommand]
-    private void QueueDescriptionsForSelection()
-    {
-        // 将当前范围的所有素材排入描述队列
-        var assets = Workspace.GetDescriptionSelectionAssets();
-        if (assets.Count == 0)
-            Workspace.SetOperatorNotice("当前范围内没有可描述的素材。");
-    }
+    public Task VectorizeDescriptionsForNodeAsync(AssetLibraryTreeNode? node)
+        => VectorizationPanel.VectorizeDescriptionsForNodeAsync(node);
 
     [RelayCommand]
-    private void QueueSelectedDescription()
-    {
-        if (Workspace.SelectedAsset is null)
-            Workspace.SetOperatorNotice("请先选择一个素材。");
-    }
+    private Task QueueDescriptionsForSelectionAsync()
+        => DescriptionPanel.QueueDescriptionsForSelectionCommand.ExecuteAsync(null);
 
     [RelayCommand]
-    private void VectorizeDescriptions()
-    {
-        var assets = Workspace.GetAllLibraryAssets();
-        if (assets.Count == 0)
-            Workspace.SetOperatorNotice("当前没有可向量化的素材。");
-    }
+    private Task QueueSelectedDescriptionAsync()
+        => DescriptionPanel.QueueSelectedDescriptionCommand.ExecuteAsync(null);
+
+    [RelayCommand]
+    private Task VectorizeDescriptionsAsync()
+        => VectorizationPanel.VectorizeDescriptionsCommand.ExecuteAsync(null);
 
     [RelayCommand]
     private void RevealInExplorer(AssetLibraryTreeNode? node)
     {
         if (node is null || string.IsNullOrWhiteSpace(node.FullPath))
             return;
+
         var path = System.IO.Path.GetFullPath(node.FullPath);
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {

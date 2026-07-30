@@ -17,7 +17,7 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
     private BackendStatusViewModel BackendStatus { get; }
     private LibraryWorkspaceViewModel Workspace { get; }
     private VectorizeDescriptionsUseCase? VectorizeDescriptionsUseCase { get; }
-    private ObservableCollection<string> ActivityFeed { get; }
+    private ActivityFeedService _activityFeedService;
 
     public AssetVectorizationPanelViewModel()
         : this(new BackendStatusViewModel(), new LibraryWorkspaceViewModel(), null, new ActivityFeedService())
@@ -33,7 +33,7 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
         BackendStatus = backendStatus;
         Workspace = workspace;
         VectorizeDescriptionsUseCase = vectorizeDescriptionsUseCase;
-        ActivityFeed = activityFeedService.Entries;
+        _activityFeedService = activityFeedService;
 
         VectorizeDescriptionsCommand = new AsyncRelayCommand(VectorizeDescriptionsAsync);
     }
@@ -100,7 +100,7 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
         }
 
         Workspace.SetOperatorNotice($"正在增量向量化{scopeName}：{assets.Count} 个素材");
-        ActivityFeed.Insert(0, $"{activityPrefix}开始：{scopeName}，共 {assets.Count} 个素材");
+        _activityFeedService.Add($"{activityPrefix}开始：{scopeName}，共 {assets.Count} 个素材");
         Log.Information(
             "用户触发向量化: activityPrefix={ActivityPrefix}, scopeName={ScopeName}, assetCount={AssetCount}",
             activityPrefix,
@@ -125,7 +125,7 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
             Workspace.RefreshMetrics();
             Workspace.SetOperatorNotice(
                 $"{scopeName}向量化完成：成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}。");
-            ActivityFeed.Insert(0, $"{activityPrefix}完成：{scopeName}，成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}");
+            _activityFeedService.Add($"{activityPrefix}完成：{scopeName}，成功 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}");
             Log.Information(
                 "向量化完成: activityPrefix={ActivityPrefix}, scopeName={ScopeName}, success={SuccessCount}, skipped={SkipCount}, failed={FailureCount}",
                 activityPrefix,
@@ -137,7 +137,7 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
         catch (Exception ex)
         {
             Workspace.SetOperatorNotice($"{scopeName}向量化失败：{ex.Message}");
-            ActivityFeed.Insert(0, $"{activityPrefix}失败：{scopeName} -> {ex.Message}");
+            _activityFeedService.Add($"{activityPrefix}失败：{scopeName} -> {ex.Message}");
             Log.Error(ex, "向量化失败: activityPrefix={ActivityPrefix}, scopeName={ScopeName}, assetCount={AssetCount}", activityPrefix, scopeName, assets.Count);
         }
     }

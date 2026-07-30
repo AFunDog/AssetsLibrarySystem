@@ -21,6 +21,7 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
     private ActivityFeedService ActivityFeedService { get; }
     private CancellationTokenSource? _initCts;
     private Task? _initTask;
+    private bool _isBackendReady;
 
     public BackendSessionService()
         : this(null, null, new ActivityFeedService(), new UserSettingsService(), null)
@@ -75,7 +76,7 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
     [ObservableProperty]
     public partial string SearchModelStatusDetail { get; set; }
 
-    public bool IsBackendReady => PythonEngine is not null;
+    public bool IsBackendReady => _isBackendReady;
 
     public string BaseUrl => BackendEndpoint;
 
@@ -84,6 +85,7 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
         if (PythonEngine is null)
         {
             Log.Debug("BackendSessionService 处于设计时模式，跳过 Python 引擎初始化。");
+            _isBackendReady = false;
             BackendStatusTitle = "设计时模式";
             BackendStatusStage = "本地预览";
             BackendStatusDetail = "Python 引擎未注入，仅使用桌面端本地逻辑。";
@@ -102,21 +104,25 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
         Log.Information("开始初始化嵌入的 Python 引擎。");
         _initCts = new CancellationTokenSource();
         _initTask = InitializePythonEngineAsync(_initCts.Token);
-        return Task.CompletedTask;
+        // 返回初始化任务本身，调用方 await 后才能依赖 IsBackendReady。
+        return _initTask;
     }
 
     private async Task InitializePythonEngineAsync(CancellationToken ct)
     {
         var taskId = BackgroundTaskService?.BeginTask("Python 引擎", "正在初始化嵌入的 Python 运行时");
+        _isBackendReady = false;
         BackendStatusTitle = "Python 引擎初始化中";
         BackendStatusStage = "正在初始化";
         BackendStatusDetail = "Python 引擎嵌入在桌面端进程中，无需独立 HTTP 服务。";
         Log.Information("开始初始化 Python 引擎。");
+        BackendStatusChanged?.Invoke();
 
         try
         {
             await Task.Run(() => PythonEngine!.Initialize(), ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
+            _isBackendReady = true;
             BackendStatusTitle = "Python 引擎已就绪";
             BackendStatusStage = "就绪";
             BackendStatusDetail = "Python 引擎嵌入在桌面端进程中，直接调用模型 API。";
@@ -127,11 +133,14 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
         }
         catch (OperationCanceledException)
         {
+            _isBackendReady = false;
             Log.Information("Python 引擎初始化已取消（应用退出）。");
             CompleteTask(taskId, "引擎初始化已取消", "应用已退出");
+            BackendStatusChanged?.Invoke();
         }
         catch (Exception ex)
         {
+            _isBackendReady = false;
             BackendStatusTitle = "Python 引擎初始化失败";
             BackendStatusStage = "启动失败";
             BackendStatusDetail = ex.Message;

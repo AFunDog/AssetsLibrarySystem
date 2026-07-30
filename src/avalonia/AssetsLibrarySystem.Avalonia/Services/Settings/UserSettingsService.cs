@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using AssetsLibrarySystem.Application.Infrastructure;
+using AssetsLibrarySystem.Avalonia.Models;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 
@@ -28,6 +29,7 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
     private int _searchExpandedCandidateTopK = 160;
     private int _searchRerankTopK = 50;
     private int _searchFinalTopK = 5;
+    private ExplorerViewMode _viewMode = ExplorerViewMode.Icon;
     private readonly object _saveGate = new();
     private Timer? _saveTimer;
     private bool _hasPendingSave;
@@ -213,6 +215,17 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
         }
     }
 
+    public ExplorerViewMode ViewMode
+    {
+        get => _viewMode;
+        set
+        {
+            if (_viewMode == value) return;
+            _viewMode = value;
+            SaveIfReady();
+        }
+    }
+
     public SearchModelOptions Current => new(EmbeddingProvider, EmbeddingModel, EmbeddingDimensions, RerankProvider, RerankModel);
 
     private ProviderEmbeddingSettings CurrentEmbeddingSettings => _dashScopeEmbedding;
@@ -270,9 +283,12 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
             SearchFinalTopK = snapshot.SearchFinalTopK;
             EmbeddingProvider = snapshot.EmbeddingProvider;
             RerankProvider = snapshot.RerankProvider;
+            _viewMode = Enum.IsDefined(typeof(ExplorerViewMode), snapshot.ViewMode)
+                ? snapshot.ViewMode
+                : ExplorerViewMode.Icon;
 
             Log.Debug(
-                "用户设置已加载: settingsPath={SettingsPath}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}",
+                "用户设置已加载: settingsPath={SettingsPath}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}, viewMode={ViewMode}",
                 SettingsPath,
                 EmbeddingProvider,
                 EmbeddingModel,
@@ -282,7 +298,8 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
                 SearchCandidateTopK,
                 SearchExpandedCandidateTopK,
                 SearchRerankTopK,
-                SearchFinalTopK);
+                SearchFinalTopK,
+                ViewMode);
         }
         catch (Exception ex)
         {
@@ -340,6 +357,7 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
                 SearchExpandedCandidateTopK = SearchExpandedCandidateTopK,
                 SearchRerankTopK = SearchRerankTopK,
                 SearchFinalTopK = SearchFinalTopK,
+                ViewMode = ViewMode,
             };
 
             var json = JsonSerializer.Serialize(snapshot, JsonOptions);
@@ -354,7 +372,7 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
                 File.Move(tempPath, SettingsPath);
             }
             Log.Information(
-                "用户设置已保存: settingsPath={SettingsPath}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}",
+                "用户设置已保存: settingsPath={SettingsPath}, embeddingProvider={EmbeddingProvider}, embeddingModel={EmbeddingModel}, embeddingDimensions={EmbeddingDimensions}, rerankProvider={RerankProvider}, rerankModel={RerankModel}, searchCandidateTopK={SearchCandidateTopK}, searchExpandedCandidateTopK={SearchExpandedCandidateTopK}, searchRerankTopK={SearchRerankTopK}, searchFinalTopK={SearchFinalTopK}, viewMode={ViewMode}",
                 SettingsPath,
                 EmbeddingProvider,
                 EmbeddingModel,
@@ -364,7 +382,8 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
                 SearchCandidateTopK,
                 SearchExpandedCandidateTopK,
                 SearchRerankTopK,
-                SearchFinalTopK);
+                SearchFinalTopK,
+                ViewMode);
         }
         catch (Exception ex)
         {
@@ -431,6 +450,7 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
         public int SearchRerankTopK { get; set; } = 50;
 
         public int SearchFinalTopK { get; set; } = 5;
+        public ExplorerViewMode ViewMode { get; set; } = ExplorerViewMode.Icon;
     }
 
     private sealed class ProviderEmbeddingSettings

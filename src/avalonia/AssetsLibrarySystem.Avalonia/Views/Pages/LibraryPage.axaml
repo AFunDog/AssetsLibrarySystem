@@ -4,9 +4,15 @@
              xmlns:pagevm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
              xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
+             xmlns:converters="using:AssetsLibrarySystem.Avalonia.Converters"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.LibraryPage"
              x:DataType="pagevm:LibraryPageViewModel"
              FontSize="14">
+    <UserControl.Resources>
+        <converters:StatusColorConverter x:Key="StatusColorConverter" />
+        <converters:BoolToOpacityConverter x:Key="BoolToOpacityConverter" />
+    </UserControl.Resources>
+
     <Design.DataContext>
         <pagevm:LibraryPageViewModel />
     </Design.DataContext>
@@ -115,7 +121,7 @@
             </Border>
 
             <Grid Grid.Row="1" ColumnDefinitions="*,332" ColumnSpacing="12">
-                <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
                     <Border Classes="page-card">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="4">
@@ -151,14 +157,97 @@
                                    Text="大图标视图，点击文件夹继续进入，点击文件可在右侧查看详情。" />
                     </Border>
 
-                    <Border Grid.Row="2" Classes="page-card">
+                    <!-- 筛选工具栏 -->
+                    <Border Grid.Row="2" Classes="sub-card" Padding="8,6">
+                        <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto" ColumnSpacing="0">
+                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                <TextBlock Classes="eyebrow" Text="类型" VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding Workspace.FilterAssetTypeOptions}"
+                                          SelectedItem="{Binding Workspace.FilterAssetType, Mode=TwoWay}"
+                                          MinWidth="80"
+                                          FontSize="12"
+                                          Padding="4,2"
+                                          Background="{DynamicResource AppWindowBackgroundBrush}"
+                                          BorderBrush="{DynamicResource AppBorderBrush}"
+                                          Foreground="{DynamicResource AppTextBrush}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                <TextBlock Classes="eyebrow" Text="状态" VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding Workspace.FilterStatusOptions}"
+                                          SelectedItem="{Binding Workspace.FilterStatus, Mode=TwoWay}"
+                                          MinWidth="80"
+                                          FontSize="12"
+                                          Padding="4,2"
+                                          Background="{DynamicResource AppWindowBackgroundBrush}"
+                                          BorderBrush="{DynamicResource AppBorderBrush}"
+                                          Foreground="{DynamicResource AppTextBrush}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                <TextBlock Classes="eyebrow" Text="排序" VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding Workspace.FilterSortByOptions}"
+                                          SelectedItem="{Binding Workspace.FilterSortBy, Mode=TwoWay}"
+                                          MinWidth="70"
+                                          FontSize="12"
+                                          Padding="4,2"
+                                          Background="{DynamicResource AppWindowBackgroundBrush}"
+                                          BorderBrush="{DynamicResource AppBorderBrush}"
+                                          Foreground="{DynamicResource AppTextBrush}" />
+                                <Button Background="Transparent"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="0"
+                                        Padding="2"
+                                        Command="{Binding Workspace.ToggleSortDirectionCommand}"
+                                        ToolTip.Tip="切换排序方向">
+                                    <lucide:LucideIcon Kind="ArrowUpDown" Size="12" />
+                                </Button>
+                            </StackPanel>
+                            <!-- 视图模式切换 -->
+                            <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                <Button Background="Transparent"
+                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="4"
+                                        Command="{Binding Workspace.SwitchToIconViewCommand}"
+                                        ToolTip.Tip="大图标视图"
+                                        Opacity="{Binding Workspace.IsIconView, Converter={StaticResource BoolToOpacityConverter}}">
+                                    <lucide:LucideIcon Kind="AppWindow" Size="14" />
+                                </Button>
+                                <Button Background="Transparent"
+                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="4"
+                                        Command="{Binding Workspace.SwitchToListViewCommand}"
+                                        ToolTip.Tip="列表视图"
+                                        Opacity="{Binding Workspace.IsListView, Converter={StaticResource BoolToOpacityConverter}}">
+                                    <lucide:LucideIcon Kind="List" Size="14" />
+                                </Button>
+                                <Button Background="Transparent"
+                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="4"
+                                        Command="{Binding Workspace.SwitchToDetailViewCommand}"
+                                        ToolTip.Tip="详情视图"
+                                        Opacity="{Binding Workspace.IsDetailView, Converter={StaticResource BoolToOpacityConverter}}">
+                                    <lucide:LucideIcon Kind="Table" Size="14" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="3" Classes="page-card"
+                              x:Name="ExplorerDropArea">
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding Workspace.CurrentExplorerItems}">
+                            <StackPanel>
+                            <!-- 大图标视图 -->
+                            <ItemsControl ItemsSource="{Binding Workspace.FilteredExplorerItems}"
+                                          IsVisible="{Binding Workspace.IsIconView}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <WrapPanel 
-                                                   Orientation="Horizontal" />
+                                        <WrapPanel Orientation="Horizontal" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
@@ -205,9 +294,23 @@
                                                         CornerRadius="8"
                                                         Padding="14"
                                                         HorizontalAlignment="Left">
-                                                    <lucide:LucideIcon Kind="{Binding IconKind}" Size="28" />
+                                                    <Grid>
+                                                        <Image Source="{Binding Thumbnail}"
+                                                               Width="56" Height="56"
+                                                               Stretch="Uniform"
+                                                               IsVisible="{Binding HasThumbnail}" />
+                                                        <lucide:LucideIcon Kind="{Binding IconKind}"
+                                                                           Size="28"
+                                                                           IsVisible="{Binding !HasThumbnail}" />
+                                                        <Ellipse Width="8" Height="8"
+                                                                 HorizontalAlignment="Right"
+                                                                 VerticalAlignment="Top"
+                                                                 Margin="4,-4,0,0"
+                                                                 IsVisible="{Binding ShowStatusDot}"
+                                                                 Fill="{Binding StatusColorKey, Converter={StaticResource StatusColorConverter}}" />
+                                                    </Grid>
                                                 </Border>
-                                                <StackPanel Spacing="2" >
+                                                <StackPanel Spacing="2">
                                                     <TextBlock Foreground="{DynamicResource AppTextBrush}"
                                                                FontWeight="SemiBold"
                                                                TextTrimming="CharacterEllipsis"
@@ -234,12 +337,170 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+
+                            <!-- 列表视图 -->
+                            <ItemsControl ItemsSource="{Binding Workspace.FilteredExplorerItems}"
+                                          IsVisible="{Binding Workspace.IsListView}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:AssetLibraryTreeNode">
+                                        <Button Classes="secondary-action"
+                                                Margin="0,0,0,2"
+                                                Padding="8,6"
+                                                CornerRadius="4"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Stretch"
+                                                Click="OpenExplorerItem_Click"
+                                                CommandParameter="{Binding}">
+                                            <Grid ColumnDefinitions="32,*,Auto,Auto,Auto" ColumnSpacing="8">
+                                                <Grid>
+                                                    <Image Source="{Binding Thumbnail}"
+                                                           Width="24" Height="24"
+                                                           Stretch="Uniform"
+                                                           IsVisible="{Binding HasThumbnail}" />
+                                                    <lucide:LucideIcon Kind="{Binding IconKind}"
+                                                                       Size="16"
+                                                                       IsVisible="{Binding !HasThumbnail}" />
+                                                </Grid>
+                                                <StackPanel Grid.Column="1" Spacing="0">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding PathLabel}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding TypeLabel}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding MetaLabel}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource AppAccentBrush}"
+                                                           VerticalAlignment="Center" />
+                                                <Ellipse Grid.Column="4"
+                                                         Width="6" Height="6"
+                                                         VerticalAlignment="Center"
+                                                         IsVisible="{Binding ShowStatusDot}"
+                                                         Fill="{Binding StatusColorKey, Converter={StaticResource StatusColorConverter}}" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- 详情视图：多列表格行 -->
+                            <ItemsControl ItemsSource="{Binding Workspace.FilteredExplorerItems}"
+                                          IsVisible="{Binding Workspace.IsDetailView}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:AssetLibraryTreeNode">
+                                        <Button Classes="secondary-action"
+                                                Margin="0,0,0,2"
+                                                Padding="8,6"
+                                                CornerRadius="4"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Stretch"
+                                                Click="OpenExplorerItem_Click"
+                                                CommandParameter="{Binding}">
+                                            <Grid ColumnDefinitions="28,*,80,70,90,120" ColumnSpacing="10">
+                                                <Grid>
+                                                    <Image Source="{Binding Thumbnail}"
+                                                           Width="22" Height="22"
+                                                           Stretch="Uniform"
+                                                           IsVisible="{Binding HasThumbnail}" />
+                                                    <lucide:LucideIcon Kind="{Binding IconKind}"
+                                                                       Size="14"
+                                                                       IsVisible="{Binding !HasThumbnail}" />
+                                                </Grid>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding DisplayName}"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding TypeLabel}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding SizeLabel}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="4"
+                                                           Text="{Binding MetaLabel}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource AppAccentBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                    <Ellipse Width="6" Height="6"
+                                                             IsVisible="{Binding ShowStatusDot}"
+                                                             Fill="{Binding StatusColorKey, Converter={StaticResource StatusColorConverter}}" />
+                                                    <TextBlock Text="{Binding PathLabel}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            </StackPanel>
                         </ScrollViewer>
                     </Border>
                 </Grid>
 
-                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="8">
-                    <Border Classes="page-card">
+                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
+                    <!-- 预览区域 -->
+                    <Border Classes="sub-card"
+                            Padding="8"
+                            IsVisible="{Binding AssetDetail.HasPreview}">
+                        <Grid>
+                            <!-- 图片预览 -->
+                            <Image Source="{Binding AssetDetail.PreviewImage}"
+                                   MaxHeight="160"
+                                   Stretch="Uniform"
+                                   HorizontalAlignment="Center"
+                                   IsVisible="{Binding AssetDetail.IsImagePreview}" />
+                            <!-- 文本预览 -->
+                            <ScrollViewer IsVisible="{Binding AssetDetail.IsTextPreview}"
+                                          MaxHeight="160"
+                                          VerticalScrollBarVisibility="Auto">
+                                <TextBlock Text="{Binding AssetDetail.PreviewText}"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource AppTextBrush}" />
+                            </ScrollViewer>
+                            <!-- 视频/音频占位 -->
+                            <Border IsVisible="{Binding AssetDetail.IsMediaPlaceholder}"
+                                    Height="80"
+                                    Background="{DynamicResource AppAccentSurfaceBrush}"
+                                    CornerRadius="6"
+                                    HorizontalAlignment="Center">
+                                <StackPanel Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <lucide:LucideIcon Kind="File" Size="32" />
+                                    <TextBlock Text="{Binding AssetDetail.SelectedAssetType, StringFormat={}{0} 素材}"
+                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                               FontSize="12" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="1" Classes="page-card">
                         <Grid ColumnDefinitions="200,*" ColumnSpacing="12">
                             <!-- 左侧：基本信息 -->
                             <Border Classes="sub-card">
@@ -319,6 +580,12 @@
                             <!-- 右侧：角度描述列表 -->
                             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
                                 <StackPanel Spacing="8">
+                                    <TextBox Text="{Binding AssetDetail.EditDescriptionText}"
+                                             PlaceholderText="编辑主描述文本后可保存；结构化角度列表在下方只读展示。"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             MinHeight="88"
+                                             MaxHeight="160" />
                                     <Button Classes="secondary-action"
                                             Command="{Binding AssetDetail.SaveDescriptionCommand}"
                                             Content="保存描述修改"
@@ -367,7 +634,7 @@
                         </Grid>
                     </Border>
 
-                    <Border Grid.Row="1" Classes="page-card">
+                    <Border Grid.Row="2" Classes="page-card">
                         <StackPanel Spacing="8">
                             <TextBlock Classes="eyebrow" Text="动态" />
                             <TextBlock Classes="section-title" Text="活动纪要" />
@@ -380,11 +647,18 @@
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
+                                        <DataTemplate x:DataType="models:ActivityFeedEntry">
                                             <Border Classes="sub-card" Margin="0,0,0,4">
-                                                <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                           TextWrapping="Wrap"
-                                                           Text="{Binding .}" />
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                                                    <TextBlock Text="{Binding TimeText}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                                               VerticalAlignment="Top" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               TextWrapping="Wrap"
+                                                               Text="{Binding Message}" />
+                                                </Grid>
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>

@@ -2,6 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:pagevm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:models="using:AssetsLibrarySystem.Application.Models"
+             xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.Avalonia;assembly=LiveChartsCore.SkiaSharpView.Avalonia"
+             xmlns:converters="using:AssetsLibrarySystem.Avalonia.Converters"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.OverviewPage"
              x:DataType="pagevm:OverviewPageViewModel"
              FontSize="14">
@@ -53,6 +55,10 @@
             <Setter Property="Padding" Value="14,8" />
         </Style>
     </UserControl.Styles>
+
+    <UserControl.Resources>
+        <converters:StringToIntConverter x:Key="StringToIntConverter" />
+    </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid RowDefinitions="Auto,*" RowSpacing="18" Margin="28,18,28,28">
@@ -190,6 +196,33 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <!-- 图表区域 -->
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="16" Margin="0,8,0,0">
+                            <!-- 素材类型分布饼图 -->
+                            <Border Classes="settings-row">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Classes="subtle" FontWeight="SemiBold" Text="素材类型分布" />
+                                    <lvc:PieChart Series="{Binding AssetTypeSeries}"
+                                                  Width="240"
+                                                  Height="200"
+                                                  HorizontalAlignment="Center"
+                                                  AnimationsSpeed="0:0:0.5" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 处理进度柱状图 -->
+                            <Border Grid.Column="1" Classes="settings-row">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Classes="subtle" FontWeight="SemiBold" Text="处理进度" />
+                                    <lvc:CartesianChart Series="{Binding ProgressSeries}"
+                                                        Width="300"
+                                                        Height="200"
+                                                        HorizontalAlignment="Center"
+                                                        AnimationsSpeed="0:0:0.5" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </Grid>

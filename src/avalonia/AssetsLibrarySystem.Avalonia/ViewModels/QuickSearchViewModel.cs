@@ -2,11 +2,13 @@ using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Application.Services.BackendLauncher;
+using AssetsLibrarySystem.Avalonia.Services.Search;
 using AssetsLibrarySystem.Avalonia.Services.Settings;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -22,20 +24,23 @@ public partial class QuickSearchViewModel : ObservableObject
     private IAssetSearchService? AssetSearchService { get; }
     private IBackendLauncher? BackendLauncher { get; }
     private IUserSettingsService? UserSettingsService { get; }
+    private SearchHistoryService SearchHistory { get; }
 
     public QuickSearchViewModel()
-        : this(null, null, null)
+        : this(null, null, null, null)
     {
     }
 
     public QuickSearchViewModel(
         IBackendLauncher? backendLauncher,
         IAssetSearchService? assetSearchService,
-        IUserSettingsService? userSettingsService)
+        IUserSettingsService? userSettingsService,
+        SearchHistoryService? searchHistoryService)
     {
         BackendLauncher = backendLauncher;
         AssetSearchService = assetSearchService;
         UserSettingsService = userSettingsService;
+        SearchHistory = searchHistoryService ?? new SearchHistoryService();
         SearchResults = new ObservableCollection<AssetSearchDocument>();
         SearchAssetFormats = [AllAssetFormat, SmartAssetFormat, "文本", "图片", "视频", "音频"];
         SearchStatus = "输入素材描述并按回车检索，点击卡片可定位到素材文件。";
@@ -64,6 +69,59 @@ public partial class QuickSearchViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string SearchMetricsSummary { get; set; }
+
+    // ===== 搜索历史 =====
+
+    /// <summary>是否显示历史建议下拉列表</summary>
+    [ObservableProperty]
+    public partial bool IsHistoryDropdownVisible { get; set; }
+
+    /// <summary>当前筛选后的历史建议列表</summary>
+    public ObservableCollection<string> HistorySuggestions { get; } = [];
+
+    /// <summary>从历史中选择一条建议并回填搜索</summary>
+    [RelayCommand]
+    private void SelectHistorySuggestion(string? suggestion)
+    {
+        if (string.IsNullOrWhiteSpace(suggestion))
+            return;
+
+        SearchQuery = suggestion;
+        IsHistoryDropdownVisible = false;
+        _ = ExecuteSearchAsync();
+    }
+
+    /// <summary>清空搜索历史</summary>
+    [RelayCommand]
+    private void ClearSearchHistory()
+    {
+        SearchHistory.ClearHistory();
+        HistorySuggestions.Clear();
+        IsHistoryDropdownVisible = false;
+    }
+
+    /// <summary>删除单条历史记录</summary>
+    [RelayCommand]
+    private void RemoveHistoryItem(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return;
+
+        SearchHistory.RemoveQuery(query);
+        HistorySuggestions.Remove(query);
+        if (HistorySuggestions.Count == 0)
+            IsHistoryDropdownVisible = false;
+    }
+
+    /// <summary>更新历史建议列表（在文本变化时调用）</summary>
+    public void UpdateHistorySuggestions(string? input)
+    {
+        var suggestions = SearchHistory.GetSuggestions(input);
+        HistorySuggestions.Clear();
+        foreach (var s in suggestions)
+            HistorySuggestions.Add(s);
+        IsHistoryDropdownVisible = suggestions.Count > 0;
+    }
 
     [RelayCommand]
     private async Task ExecuteSearchAsync()
@@ -128,8 +186,15 @@ public partial class QuickSearchViewModel : ObservableObject
             SearchResults.Clear();
             foreach (var item in response.Results)
             {
+                // 预计算高亮分段
+                item.HighlightedDescription = StructuredDescriptionHelper.HighlightMatches(
+                    item.Description, SearchQuery);
                 SearchResults.Add(item);
             }
+
+            // 记录搜索历史
+            SearchHistory.AddQuery(SearchQuery);
+            IsHistoryDropdownVisible = false;
 
             SearchStatus = response.Results.Length == 0
                 ? "没有找到匹配的素材。"

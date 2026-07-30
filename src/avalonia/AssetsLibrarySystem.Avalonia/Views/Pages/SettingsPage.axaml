@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:pagevm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:models="using:AssetsLibrarySystem.Application.Models"
+             xmlns:avaloniamodels="using:AssetsLibrarySystem.Avalonia.Models"
              xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.SettingsPage"
              x:DataType="pagevm:SettingsPageViewModel"
@@ -213,14 +214,21 @@
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Classes="settings-sub-card" Margin="0,0,0,6">
-                                                    <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                        <DataTemplate x:DataType="avaloniamodels:ActivityFeedEntry">
+                                            <Border Classes="settings-sub-card" Margin="0,0,0,6">
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                                                    <TextBlock Text="{Binding TimeText}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                                               VerticalAlignment="Top" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                                TextWrapping="Wrap"
-                                                               Text="{Binding .}" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
+                                                               Text="{Binding Message}" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </ScrollViewer>
                             </StackPanel>

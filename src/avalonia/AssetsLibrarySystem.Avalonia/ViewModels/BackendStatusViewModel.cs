@@ -56,11 +56,12 @@ public sealed partial class BackendStatusViewModel : ObservableObject
     {
         BackendStatusTitle = "Python 引擎初始化中";
         BackendStatusStage = "正在初始化";
+        OnPropertyChanged(nameof(IsBackendReady));
         try
         {
             await BackendSession.InitializeAsync();
-            BackendStatusTitle = "Python 引擎已就绪";
-            BackendStatusStage = "就绪";
+            // 真实状态以 Session 为准（成功/失败/设计时模式）。
+            SyncFromSession();
         }
         catch (Exception ex)
         {
@@ -68,11 +69,28 @@ public sealed partial class BackendStatusViewModel : ObservableObject
             BackendStatusStage = "启动失败";
             BackendStatusDetail = ex.Message;
             Log.Error(ex, "Python 引擎初始化失败。");
+            OnPropertyChanged(nameof(IsBackendReady));
         }
     }
 
     private void OnBackendStatusChanged()
     {
+        SyncFromSession();
+    }
+
+    private void SyncFromSession()
+    {
+        if (BackendSession is BackendSessionService session)
+        {
+            BackendStatusTitle = session.BackendStatusTitle;
+            BackendStatusStage = session.BackendStatusStage;
+            BackendStatusDetail = session.BackendStatusDetail;
+            BackendEndpoint = session.BackendEndpoint;
+            SearchModelStatusTitle = session.SearchModelStatusTitle;
+            SearchModelStatusStage = session.SearchModelStatusStage;
+            SearchModelStatusDetail = session.SearchModelStatusDetail;
+        }
+
         OnPropertyChanged(nameof(IsBackendReady));
         OnPropertyChanged(nameof(BaseUrl));
     }

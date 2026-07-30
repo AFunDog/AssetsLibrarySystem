@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
 using AssetsLibrarySystem.Application.UseCases.AssetOperations;
+using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -19,7 +20,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
     private LibraryWorkspaceViewModel Workspace { get; }
     private IAssetSearchService? AssetSearchService { get; }
     private RebuildSearchIndexUseCase? RebuildSearchIndexUseCase { get; }
-    private ObservableCollection<string> ActivityFeed { get; }
+    private ActivityFeedService _activityFeedService;
 
     public AssetSearchPanelViewModel()
         : this(new BackendStatusViewModel(), new LibraryWorkspaceViewModel(), null, null, new ActivityFeedService())
@@ -37,7 +38,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         Workspace = workspace;
         AssetSearchService = assetSearchService;
         RebuildSearchIndexUseCase = rebuildSearchIndexUseCase;
-        ActivityFeed = activityFeedService.Entries;
+        _activityFeedService = activityFeedService;
 
         SearchResults = [];
         SearchQuery = "紧张氛围的音乐";
@@ -95,7 +96,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         });
 
         Workspace.SetOperatorNotice($"已在文件资源管理器中显示：{path}");
-        ActivityFeed.Insert(0, $"搜索结果定位：{result.AssetName}");
+        _activityFeedService.Add($"搜索结果定位：{result.AssetName}");
         Log.Information("搜索结果定位成功: assetName={AssetName}, assetPath={AssetPath}", result.AssetName, path);
     }
 
@@ -143,7 +144,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
 
         SearchStatus = "正在执行向量召回与重排序...";
         Workspace.SetOperatorNotice($"正在检索：“{SearchQuery}”");
-        ActivityFeed.Insert(0, $"开始检索：{SearchQuery}");
+        _activityFeedService.Add($"开始检索：{SearchQuery}");
         Log.Information(
             "用户在库页发起检索: queryLength={QueryLength}, candidateTopK={CandidateTopK}, finalTopK={FinalTopK}, assetFormat={AssetFormat}",
             SearchQuery.Length,
@@ -168,7 +169,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
 
             SearchStatus = $"检索完成：候选 {response.CandidateTopK} 条，返回 {response.Results.Length} 条。";
             Workspace.SetOperatorNotice(SearchStatus);
-            ActivityFeed.Insert(0, $"检索完成：{SearchQuery} -> {response.Results.Length} 条结果");
+            _activityFeedService.Add($"检索完成：{SearchQuery} -> {response.Results.Length} 条结果");
             Log.Information(
                 "库页检索完成: resultCount={ResultCount}, embeddingModel={EmbeddingModel}, rerankModel={RerankModel}",
                 response.Results.Length,
@@ -179,7 +180,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         {
             SearchStatus = $"检索失败：{ex.Message}";
             Workspace.SetOperatorNotice(SearchStatus);
-            ActivityFeed.Insert(0, $"检索失败：{SearchQuery} -> {ex.Message}");
+            _activityFeedService.Add($"检索失败：{SearchQuery} -> {ex.Message}");
             Log.Error(ex, "库页检索失败。");
         }
     }
@@ -197,7 +198,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         SearchIndexSummary = "正在重建向量索引...";
         SearchIndexDetail = "桌面端会重新扫描本地 SQLite 向量数据；当前阶段不再依赖 Python 后端读库建索引。";
         Workspace.SetOperatorNotice(SearchIndexSummary);
-        ActivityFeed.Insert(0, "开始重建向量索引。");
+        _activityFeedService.Add("开始重建向量索引。");
         Log.Information("用户触发向量索引重建。");
 
         try
@@ -206,7 +207,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
             SearchIndexSummary = $"索引已重建：{response.DocumentCount} 条，{response.VectorDim} 维。";
             SearchIndexDetail = $"数据库：{response.DatabasePath}\n索引：{response.IndexPath}\n元数据：{response.MetadataPath}\n模型：{string.Join(", ", response.EmbeddingModels)}";
             Workspace.SetOperatorNotice(SearchIndexSummary);
-            ActivityFeed.Insert(0, $"索引重建完成：{response.DocumentCount} 条素材描述。");
+            _activityFeedService.Add($"索引重建完成：{response.DocumentCount} 条素材描述。");
             Log.Information(
                 "索引重建完成: documentCount={DocumentCount}, vectorDim={VectorDim}, databasePath={DatabasePath}, indexPath={IndexPath}",
                 response.DocumentCount,
@@ -219,7 +220,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
             SearchIndexSummary = $"索引重建失败：{ex.Message}";
             SearchIndexDetail = ex.Message;
             Workspace.SetOperatorNotice(SearchIndexSummary);
-            ActivityFeed.Insert(0, $"索引重建失败：{ex.Message}");
+            _activityFeedService.Add($"索引重建失败：{ex.Message}");
             Log.Error(ex, "索引重建失败。");
         }
     }

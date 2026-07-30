@@ -18,7 +18,7 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
     private LibraryWorkspaceViewModel Workspace { get; }
     private DescribeAssetsUseCase? DescribeAssetsUseCase { get; }
     private DeleteAssetDescriptionUseCase? DeleteAssetDescriptionUseCase { get; }
-    private ObservableCollection<string> ActivityFeed { get; }
+    private ActivityFeedService _activityFeedService;
 
     public AssetDescriptionPanelViewModel()
         : this(new BackendStatusViewModel(), new LibraryWorkspaceViewModel(), null, null, new ActivityFeedService())
@@ -36,7 +36,7 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
         Workspace = workspace;
         DescribeAssetsUseCase = describeAssetsUseCase;
         DeleteAssetDescriptionUseCase = deleteAssetDescriptionUseCase;
-        ActivityFeed = activityFeedService.Entries;
+        _activityFeedService = activityFeedService;
 
         QueueDescriptionsForSelectionCommand = new AsyncRelayCommand(QueueDescriptionsForSelectionAsync);
         QueueSelectedDescriptionCommand = new AsyncRelayCommand(QueueSelectedDescriptionAsync);
@@ -83,7 +83,7 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
         }
 
         Workspace.SetOperatorNotice($"已将 {assets.Count} 个素材排入后端描述任务。");
-        ActivityFeed.Insert(0, $"右键描述任务排队：{node.DisplayName}，共 {assets.Count} 个素材");
+        _activityFeedService.Add($"右键描述任务排队：{node.DisplayName}，共 {assets.Count} 个素材");
         Log.Information(
             "用户通过右键菜单加入描述任务: nodeName={NodeName}, nodeKind={NodeKind}, path={Path}, assetCount={AssetCount}",
             node.DisplayName,
@@ -143,26 +143,40 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
             return;
         }
 
-        await DescribeAssetsUseCase.ExecuteAsync(
-            assets,
-            BackendStatus.BaseUrl,
-            progress: progress =>
-            {
-                if (progress.Kind == DescribeAssetProgressKind.Queued)
+        try
+        {
+            var result = await DescribeAssetsUseCase.ExecuteAsync(
+                assets,
+                BackendStatus.BaseUrl,
+                progress: progress =>
                 {
-                    Workspace.MarkAssetDescriptionQueued(progress.Asset);
-                }
-                else if (progress.Kind == DescribeAssetProgressKind.Completed && progress.Document is not null)
-                {
-                    Workspace.CompleteAssetDescription(progress.Asset, progress.Document?.Description ?? "");
-                }
-                else if (progress.Kind == DescribeAssetProgressKind.Failed && progress.Error is not null)
-                {
-                    Workspace.FailAssetDescription(progress.Asset, progress.Error.Message);
-                }
+                    if (progress.Kind == DescribeAssetProgressKind.Queued)
+                    {
+                        Workspace.MarkAssetDescriptionQueued(progress.Asset);
+                    }
+                    else if (progress.Kind == DescribeAssetProgressKind.Completed && progress.Document is not null)
+                    {
+                        Workspace.CompleteAssetDescription(progress.Asset, progress.Document);
+                    }
+                    else if (progress.Kind == DescribeAssetProgressKind.Failed && progress.Error is not null)
+                    {
+                        Workspace.FailAssetDescription(progress.Asset, progress.Error.Message);
+                    }
 
-                return Task.CompletedTask;
-            });
+                    return Task.CompletedTask;
+                });
+
+            Workspace.SetOperatorNotice(
+                $"描述任务完成：成功 {result.SuccessCount}，失败 {result.FailureCount}。");
+            _activityFeedService.Add(
+                $"描述任务完成：成功 {result.SuccessCount}，失败 {result.FailureCount}");
+        }
+        catch (Exception ex)
+        {
+            Workspace.SetOperatorNotice($"描述任务失败：{ex.Message}");
+            _activityFeedService.Add($"描述任务失败：{ex.Message}");
+            Log.Error(ex, "批量描述任务失败，assetCount={AssetCount}", assets.Count);
+        }
     }
 
     private async Task DeleteSelectedDescriptionAsync()
@@ -191,17 +205,17 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
             if (!result.DeletedAny)
             {
                 Workspace.SetOperatorNotice($"当前素材没有可删除的描述记录：{asset.Name}");
-                ActivityFeed.Insert(0, $"描述删除跳过：{asset.Name} 没有记录");
+                _activityFeedService.Add($"描述删除跳过：{asset.Name} 没有记录");
                 return;
             }
 
             Workspace.RemoveAssetDescription(asset, result.VectorDeleted);
-            ActivityFeed.Insert(0, $"描述删除完成：{asset.Name}");
+            _activityFeedService.Add($"描述删除完成：{asset.Name}");
         }
         catch (Exception ex)
         {
             Workspace.SetOperatorNotice($"删除描述失败：{ex.Message}");
-            ActivityFeed.Insert(0, $"描述删除失败：{asset.Name} -> {ex.Message}");
+            _activityFeedService.Add($"描述删除失败：{asset.Name} -> {ex.Message}");
             Log.Error(ex, "删除素材描述失败: assetUid={AssetUid}, assetName={AssetName}", asset.AssetUid, asset.Name);
         }
     }
