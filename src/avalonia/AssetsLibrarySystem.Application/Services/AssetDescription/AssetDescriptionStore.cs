@@ -219,6 +219,9 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             await using var connection = await AssetDatabase.OpenConnectionAsync(token);
             await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(token).ConfigureAwait(false);
 
+            // 剪辑素材保护：编辑文本合并进 JSON 的「整体」字段，保留 segments 片段结构
+            var mergedDescription = await MergeEditedDescriptionAsync(connection, assetId, newDescription, token).ConfigureAwait(false);
+
             // 更新描述文本，同时更新 generated_at 使向量化检测认为描述已更新
             await using var cmd1 = connection.CreateCommand();
             cmd1.Transaction = transaction;
@@ -230,7 +233,7 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
                 WHERE asset_id = $asset_id;
                 """;
             AddParameter(cmd1, "$asset_id", assetId);
-            AddParameter(cmd1, "$description", newDescription.Trim());
+            AddParameter(cmd1, "$description", mergedDescription);
             AddParameter(cmd1, "$generated_at", DateTimeOffset.UtcNow.ToString("O"));
             var affected = await cmd1.ExecuteNonQueryAsync(token).ConfigureAwait(false);
 
@@ -255,6 +258,20 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
 
             await transaction.CommitAsync(token).ConfigureAwait(false);
         }, ct);
+    }
+
+    private static async Task<string> MergeEditedDescriptionAsync(
+        SqliteConnection connection,
+        long assetId,
+        string newDescription,
+        CancellationToken ct)
+    {
+        // 读取原描述，判断是否为剪辑 JSON（含 segments）
+        await using var read = connection.CreateCommand();
+        read.CommandText = "SELECT description FROM asset_descriptions WHERE asset_id = $asset_id;";
+        AddParameter(read, "$asset_id", assetId);
+        var existing = await read.ExecuteScalarAsync(ct).ConfigureAwait(false) as string;
+        return StructuredDescriptionHelper.SetPrimaryText(existing, newDescription);
     }
 
     private static AssetDescriptionDocument ReadDocument(SqliteDataReader reader)

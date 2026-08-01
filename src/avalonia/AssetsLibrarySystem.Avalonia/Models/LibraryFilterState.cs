@@ -70,7 +70,7 @@ public sealed class LibraryFilterState : INotifyPropertyChanged
     }
 
     /// <summary>可选的素材类型值列表</summary>
-    public static readonly string[] AssetTypeOptions = ["全部", "文本", "图片", "视频", "音频"];
+    public static readonly string[] AssetTypeOptions = ["全部", "文本", "图片", "视频", "音频", "视频剪辑"];
 
     /// <summary>可选的状态值列表</summary>
     public static readonly string[] StatusOptions = ["全部", "已描述", "未描述", "已向量化", "待处理"];

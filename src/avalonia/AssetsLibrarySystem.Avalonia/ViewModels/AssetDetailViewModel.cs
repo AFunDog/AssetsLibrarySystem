@@ -207,6 +207,7 @@ public sealed partial class AssetDetailViewModel : ObservableObject
                 await LoadTextPreviewAsync(assetPath, generation);
                 break;
             case "视频":
+            case "视频剪辑":
             case "音频":
                 if (generation != PreviewGeneration)
                     return;

@@ -405,4 +405,28 @@ public sealed class StructuredDescriptionHelperTests
         var missing = StructuredDescriptionHelper.ExtractTextByAngle(ClipDescription, "seg5_场景");
         Assert.Equal("", missing);
     }
+
+    [Fact]
+    public void SetPrimaryText_MergesIntoOverallAndKeepsSegments()
+    {
+        var merged = StructuredDescriptionHelper.SetPrimaryText(ClipDescription, "新的整体摘要");
+
+        using var doc = System.Text.Json.JsonDocument.Parse(merged);
+        var root = doc.RootElement;
+        // 整体被替换为新文本
+        Assert.Equal("新的整体摘要", root.GetProperty("整体").GetProperty("text").GetString());
+        // 片段结构完整保留
+        Assert.Equal(3, root.GetProperty("segments").GetArrayLength());
+        var missing = StructuredDescriptionHelper.GetMissingSegmentRanges(merged);
+        Assert.Single(missing); // 片段 2 仍缺失
+    }
+
+    [Fact]
+    public void SetPrimaryText_ReturnsPlainText_WhenNotClipJson()
+    {
+        // 非 JSON / 无 segments 的 JSON → 直接覆盖（保持原行为）
+        Assert.Equal("新文本", StructuredDescriptionHelper.SetPrimaryText(null, "新文本"));
+        Assert.Equal("新文本", StructuredDescriptionHelper.SetPrimaryText("旧文本", "新文本"));
+        Assert.Equal("新文本", StructuredDescriptionHelper.SetPrimaryText("""{"整体":"旧"}""", "新文本"));
+    }
 }

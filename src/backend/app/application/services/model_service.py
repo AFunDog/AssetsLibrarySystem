@@ -140,11 +140,11 @@ class ModelService:
             or payload.existing_segments is not None
             or payload.asset_format == "视频剪辑"
         )
+        is_video_format = payload.asset_format in ("视频", "视频剪辑")
         if (
-            payload.asset_format in ("视频", "视频剪辑")
-            and payload.enable_slicing
-            and payload.angles
-            or payload.slicing_only
+            (is_video_format and payload.enable_slicing and payload.angles)
+            or (payload.slicing_only and is_video_format)
+            or (payload.existing_segments is not None and is_video_format)
         ):
             from app.application.services.video_scene_detector import VideoSceneDetector
 

@@ -777,6 +777,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         Metrics.Add(new DashboardMetric("图片", AllAssets.Count(a => a.AssetType == "图片").ToString("D2"), ""));
         Metrics.Add(new DashboardMetric("视频", AllAssets.Count(a => a.AssetType == "视频").ToString("D2"), ""));
         Metrics.Add(new DashboardMetric("音频", AllAssets.Count(a => a.AssetType == "音频").ToString("D2"), ""));
+        Metrics.Add(new DashboardMetric("视频剪辑", AllAssets.Count(a => a.AssetType == "视频剪辑").ToString("D2"), ""));
         Metrics.Add(new DashboardMetric("已描述", AllAssets.Count(a => a.IsDescribed).ToString("D2"), ""));
         Metrics.Add(new DashboardMetric("已向量化", AllAssets.Count(a => a.IsVectorized).ToString("D2"), ""));
         Metrics.Add(new DashboardMetric("待描述", AllAssets.Count(a => !a.IsDescribed).ToString("D2"), ""));

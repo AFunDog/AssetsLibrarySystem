@@ -289,27 +289,33 @@ public sealed class VectorRecordRepository : IVectorRecordRepository
 
         await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
         var records = new List<LocalVectorRecord>();
+        var descriptionCache = new Dictionary<string, DescriptionContext>(StringComparer.Ordinal);
         while (await reader.ReadAsync(ct).ConfigureAwait(false))
         {
             var rawDescription = reader.IsDBNull(6) ? string.Empty : reader.GetString(6);
             var angleType = reader.GetString(2);
+            var context = GetDescriptionContext(rawDescription, descriptionCache);
 
             // 片段向量（segN_角度）：解析片段序号与时间范围
             int? segmentIndex = null;
             double? startTime = null;
             double? endTime = null;
+            var segmentText = string.Empty;
             if (SegmentAngleType.TryParse(angleType, out var parsedIndex, out _))
             {
-                foreach (var segment in StructuredDescriptionHelper.EnumerateSegmentAngleTexts(rawDescription))
+                if (context.SegmentInfos.TryGetValue(angleType, out var segmentInfo))
                 {
-                    if (segment.SegmentIndex == parsedIndex)
-                    {
-                        segmentIndex = parsedIndex;
-                        startTime = segment.StartTime;
-                        endTime = segment.EndTime;
-                        break;
-                    }
+                    segmentIndex = segmentInfo.Index;
+                    startTime = segmentInfo.Start;
+                    endTime = segmentInfo.End;
+                    segmentText = segmentInfo.Text;
                 }
+            }
+            else
+            {
+                segmentText = context.TopLevelTexts.TryGetValue(angleType, out var topLevelText)
+                    ? topLevelText
+                    : context.PrimaryText;
             }
 
             records.Add(new LocalVectorRecord(
@@ -318,10 +324,10 @@ public sealed class VectorRecordRepository : IVectorRecordRepository
                 AssetName: reader.GetString(3),
                 AssetType: reader.GetString(4),
                 AssetPath: reader.GetString(5),
-                PrimaryDescription: StructuredDescriptionHelper.ExtractPrimaryText(rawDescription),
-                SegmentText: StructuredDescriptionHelper.ExtractTextByAngle(rawDescription, angleType),
+                PrimaryDescription: context.PrimaryText,
+                SegmentText: segmentText,
                 Tags: DeserializeTags(reader.IsDBNull(7) ? null : reader.GetString(7)),
-                AngleTags: StructuredDescriptionHelper.ExtractAngleTags(rawDescription),
+                AngleTags: context.AngleTags,
                 GeneratedAt: reader.IsDBNull(8) ? null : DateTimeOffset.Parse(reader.GetString(8)),
                 VectorizedAt: reader.IsDBNull(9) ? DateTimeOffset.MinValue : DateTimeOffset.Parse(reader.GetString(9)),
                 EmbeddingModel: reader.GetString(10),
@@ -332,6 +338,54 @@ public sealed class VectorRecordRepository : IVectorRecordRepository
         }
 
         return records;
+    }
+
+    /// <summary>单个素材描述的一次性解析结果（同一素材多向量共享，避免重复 JSON 解析）</summary>
+    private sealed record DescriptionContext(
+        string PrimaryText,
+        IReadOnlyDictionary<string, string> TopLevelTexts,
+        IReadOnlyDictionary<string, VideoSegmentInfo> SegmentInfos,
+        string[] AngleTags);
+
+    private sealed record VideoSegmentInfo(int Index, double Start, double End, string Text);
+
+    private static DescriptionContext GetDescriptionContext(
+        string rawDescription,
+        Dictionary<string, DescriptionContext> cache)
+    {
+        if (cache.TryGetValue(rawDescription, out var cached))
+        {
+            return cached;
+        }
+
+        var primaryText = StructuredDescriptionHelper.ExtractPrimaryText(rawDescription);
+        var topLevelTexts = new Dictionary<string, string>(StringComparer.Ordinal);
+        try
+        {
+            foreach (var segment in StructuredDescriptionHelper.ExtractSegments(rawDescription))
+            {
+                topLevelTexts[segment.NormalizedAngleType] = segment.NormalizedText;
+            }
+        }
+        catch (JsonException)
+        {
+            // 顶层角度解析失败不影响片段信息与主文本
+        }
+
+        var segmentInfos = new Dictionary<string, VideoSegmentInfo>(StringComparer.Ordinal);
+        foreach (var segment in StructuredDescriptionHelper.EnumerateSegmentAngleTexts(rawDescription))
+        {
+            var key = SegmentAngleType.Build(segment.SegmentIndex, segment.AngleType);
+            segmentInfos[key] = new VideoSegmentInfo(segment.SegmentIndex, segment.StartTime, segment.EndTime, segment.Text);
+        }
+
+        var context = new DescriptionContext(
+            PrimaryText: primaryText,
+            TopLevelTexts: topLevelTexts,
+            SegmentInfos: segmentInfos,
+            AngleTags: StructuredDescriptionHelper.ExtractAngleTags(rawDescription));
+        cache[rawDescription] = context;
+        return context;
     }
 
     private static float[] DeserializeVector(byte[] bytes, int expectedDim)

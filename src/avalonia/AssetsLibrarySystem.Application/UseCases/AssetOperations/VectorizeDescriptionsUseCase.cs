@@ -88,7 +88,7 @@ public sealed class VectorizeDescriptionsUseCase
                 // 剪辑素材：片段级增量判定（按角度文本指纹对比，避免重复向量化未变化片段）
                 var isClip = string.Equals(description.AssetType, "视频剪辑", StringComparison.Ordinal);
                 Dictionary<string, AssetDescriptionVectorDocument>? existingByAngle = null;
-                if (!needsVectorization || isClip)
+                if (isClip)
                 {
                     var existingVectors = await VectorStore.ListByAssetIdAsync(asset.DatabaseId, ct).ConfigureAwait(false);
                     existingByAngle = existingVectors

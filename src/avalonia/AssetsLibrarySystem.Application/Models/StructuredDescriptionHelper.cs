@@ -531,6 +531,28 @@ public static string ExtractPrimaryText(string? rawDescription)
         return false;
     }
 
+    /// <summary>
+    /// 手动编辑主描述文本：对剪辑素材（含 segments）把新文本合并进「整体」并保留片段结构；
+    /// 非 JSON 或非剪辑 JSON 时直接返回新文本（保持原覆盖行为）。
+    /// </summary>
+    public static string SetPrimaryText(string? description, string newText)
+    {
+        var root = ParseJsonObject(description);
+        if (root is null || root["segments"] is not JsonArray)
+        {
+            return newText;
+        }
+
+        var overall = root["整体"] as JsonObject ?? [];
+        var tags = overall["tags"]?.DeepClone() ?? new JsonArray();
+        root["整体"] = new JsonObject
+        {
+            ["text"] = newText.Trim(),
+            ["tags"] = tags,
+        };
+        return root.ToJsonString();
+    }
+
     private static JsonObject? ParseJsonObject(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))

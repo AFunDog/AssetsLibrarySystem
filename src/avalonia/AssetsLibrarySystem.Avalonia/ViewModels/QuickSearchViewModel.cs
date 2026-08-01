@@ -42,7 +42,7 @@ public partial class QuickSearchViewModel : ObservableObject
         UserSettingsService = userSettingsService;
         SearchHistory = searchHistoryService ?? new SearchHistoryService();
         SearchResults = new ObservableCollection<AssetSearchDocument>();
-        SearchAssetFormats = [AllAssetFormat, SmartAssetFormat, "文本", "图片", "视频", "音频"];
+        SearchAssetFormats = [AllAssetFormat, SmartAssetFormat, "文本", "图片", "视频", "音频", "视频剪辑"];
         SearchStatus = "输入素材描述并按回车检索，点击卡片可定位到素材文件。";
         SearchMetricsSummary = $"参数：候选 {SearchCandidateTopK}，扩展候选 {SearchExpandedCandidateTopK}，Top-K {SearchFinalTopK}；重排 {SearchRerankTopK}；类型：全部。";
         SearchQuery = string.Empty;

@@ -72,6 +72,7 @@ public sealed class OverviewPageViewModel : ObservableObject
         new SolidColorPaint(SKColor.Parse("#52C41A")), // 图片 - 绿色
         new SolidColorPaint(SKColor.Parse("#FA8C16")), // 视频 - 橙色
         new SolidColorPaint(SKColor.Parse("#FF4D4F")), // 音频 - 红色
+        new SolidColorPaint(SKColor.Parse("#B37FEB")), // 视频剪辑 - 紫色
     ];
 
     /// <summary>柱状图颜色</summary>
@@ -91,7 +92,7 @@ public sealed class OverviewPageViewModel : ObservableObject
         AssetTypeSeries.Clear();
         var typeColors = new Dictionary<string, int>
         {
-            ["文本"] = 0, ["图片"] = 1, ["视频"] = 2, ["音频"] = 3
+            ["文本"] = 0, ["图片"] = 1, ["视频"] = 2, ["音频"] = 3, ["视频剪辑"] = 4
         };
 
         foreach (var metric in Metrics)
