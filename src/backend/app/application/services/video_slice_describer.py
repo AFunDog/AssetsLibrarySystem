@@ -140,6 +140,7 @@ class VideoSliceDescriber:
         angles: list[dict[str, Any]],
         system_prompt: str,
         prompt: str,
+        external_scenes: list[SceneRange] | None = None,
     ) -> dict[str, Any]:
         """切片描述主流程。
 
@@ -149,15 +150,21 @@ class VideoSliceDescriber:
             angles: 角度定义列表。
             system_prompt: 系统提示词。
             prompt: 用户提示词。
+            external_scenes: 可选，外部已确认的片段时间点（跳过场景检测）。
+                传入时即使只有一个片段也按片段路径描述（剪辑模式不退化整体描述）。
 
         Returns:
             {"整体": {...}, "segments": [{...}, ...]}
         """
-        # 1. 检测场景
-        scenes = self._scene_detector.detect(video_path)
-        logger.info("视频场景检测完成: scenes=%d, path=%s", len(scenes), video_path)
+        # 1. 检测场景（外部已给定时间点则跳过检测）
+        if external_scenes is not None:
+            scenes = external_scenes
+            logger.info("使用外部已确认片段时间点: segments=%d, path=%s", len(scenes), video_path)
+        else:
+            scenes = self._scene_detector.detect(video_path)
+            logger.info("视频场景检测完成: scenes=%d, path=%s", len(scenes), video_path)
 
-        if len(scenes) <= 1:
+        if len(scenes) <= 1 and external_scenes is None:
             logger.info("视频只有一个场景，无需切片，直接描述")
             return await self._describe_single(video_path, asset_format, angles, system_prompt, prompt)
 
@@ -240,6 +247,35 @@ class VideoSliceDescriber:
         return {
             "整体": overall,
             "segments": segment_descriptions,
+        }
+
+    @staticmethod
+    def build_skeleton(
+        scenes: list[SceneRange],
+        angles: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """从场景时间点构建描述骨架 JSON（不调用 LLM）。
+
+        用于「分割结果先落库」：先保存片段时间点，描述任务按已存时间点逐片段执行。
+
+        Returns:
+            {"整体": {"text": "", "tags": []},
+             "segments": [{"start_time": ..., "end_time": ..., "<角度>": {"text": "", "tags": []}, ...}]}
+        """
+        segments: list[dict[str, Any]] = []
+        for scene in scenes:
+            segment: dict[str, Any] = {
+                "start_time": round(scene.start_sec, 3),
+                "end_time": round(scene.end_sec, 3),
+            }
+            for angle in angles:
+                key = angle.get("key", "")
+                if key:
+                    segment[key] = {"text": "", "tags": []}
+            segments.append(segment)
+        return {
+            "整体": {"text": "", "tags": []},
+            "segments": segments,
         }
 
     async def _describe_single(

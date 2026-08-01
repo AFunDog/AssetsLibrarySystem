@@ -43,11 +43,18 @@ class VideoSceneDetector:
         self._min_scene_len = min_scene_len
         self._min_seconds = min_seconds
 
-    def detect(self, video_path: str | Path) -> list[SceneRange]:
+    def detect(
+        self,
+        video_path: str | Path,
+        range_start: float | None = None,
+        range_end: float | None = None,
+    ) -> list[SceneRange]:
         """检测视频中的场景，返回场景时间范围列表。
 
         Args:
             video_path: 视频文件路径。
+            range_start: 可选，只保留该时间点之后的场景（秒）。
+            range_end: 可选，只保留该时间点之前的场景（秒）。
 
         Returns:
             SceneRange 列表，按时间顺序排列。
@@ -90,6 +97,9 @@ class VideoSceneDetector:
 
             # 合并过短的相邻场景
             scenes = self._merge_short_scenes(scenes)
+            # 裁剪到指定时间范围（用于「在特定时间范围内描述」）
+            if range_start is not None or range_end is not None:
+                scenes = self._clip_to_range(scenes, range_start, range_end)
             logger.info("场景检测完成: raw=%d, merged=%d", len(scene_list), len(scenes))
             return scenes
         finally:
@@ -99,6 +109,34 @@ class VideoSceneDetector:
                     close()
                 except Exception:
                     logger.debug("关闭视频资源失败: path=%s", video_path, exc_info=True)
+
+    def _clip_to_range(
+        self,
+        scenes: list[SceneRange],
+        range_start: float | None,
+        range_end: float | None,
+    ) -> list[SceneRange]:
+        """把场景列表裁剪到 [range_start, range_end] 时间范围内（秒）。"""
+        clipped: list[SceneRange] = []
+        for scene in scenes:
+            start = max(scene.start_sec, range_start if range_start is not None else scene.start_sec)
+            end = min(scene.end_sec, range_end if range_end is not None else scene.end_sec)
+            if end > start:
+                clipped.append(
+                    SceneRange(
+                        start_frame=scene.start_frame,
+                        end_frame=scene.end_frame,
+                        start_sec=start,
+                        end_sec=end,
+                    )
+                )
+        if not clipped and scenes:
+            # 范围内没有任何场景边界：把范围本身作为一个片段返回
+            start = range_start if range_start is not None else 0.0
+            end = range_end if range_end is not None else max((s.end_sec for s in scenes), default=start)
+            if end > start:
+                clipped.append(SceneRange(0, 0, start, end))
+        return clipped
 
     def _merge_short_scenes(self, scenes: list[SceneRange]) -> list[SceneRange]:
         """合并时长低于 min_seconds 的相邻场景"""

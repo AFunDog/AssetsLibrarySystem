@@ -6,15 +6,140 @@ import tempfile
 import types
 from pathlib import Path
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.application.services.media_preprocessor import MediaPreprocessor
 from app.application.services.model_service import ModelRuntimeContext, ModelService
 from app.core.provider_config import ProviderConfig, ProviderConfigManager
-from app.schemas.model import ModelGenerateRequest
+from app.schemas.model import AngleDef, ModelGenerateRequest, SegmentRange
 
 
 class ModelServiceTestCase(unittest.TestCase):
+    def test_slicing_only_returns_segment_skeleton_without_llm(self) -> None:
+        """slicing_only：只返回片段时间点骨架，不调用 LLM"""
+        service = ModelService()
+
+        fake_scenes = [
+            types.SimpleNamespace(start_frame=0, end_frame=300, start_sec=0.0, end_sec=10.0),
+            types.SimpleNamespace(start_frame=300, end_frame=600, start_sec=10.0, end_sec=20.0),
+        ]
+        with (
+            patch.object(
+                ModelService,
+                "_resolve_provider_context_for_asset_format",
+                return_value=ModelRuntimeContext(
+                    config_slot="视频",
+                    provider="dashscope",
+                    model="qwen-vl-max",
+                    system_prompt="",
+                    prompt="",
+                    supports_live_call=True,
+                ),
+            ),
+            patch(
+                "app.application.services.video_scene_detector.VideoSceneDetector",
+            ) as detector_cls,
+            patch.object(
+                ModelService,
+                "_call_model",
+                side_effect=AssertionError("slicing_only 不应调用 LLM"),
+            ) as call_model_mock,
+        ):
+            detector = MagicMock()
+            detector.detect.return_value = fake_scenes
+            detector_cls.return_value = detector
+
+            import asyncio
+            response = asyncio.run(
+                service.generate_text(
+                    ModelGenerateRequest(
+                        asset_format="视频剪辑",
+                        asset_path=r"D:\Data\clip.mp4",
+                        angles=[
+                            AngleDef(key="整体", label="整体", prompt="概括", max_length=120),
+                        ],
+                        enable_slicing=True,
+                        slicing_only=True,
+                    )
+                )
+            )
+
+        self.assertEqual(response.mode, "slicing")
+        import json
+        parsed = json.loads(response.output_text)
+        self.assertEqual(len(parsed["segments"]), 2)
+        self.assertEqual(parsed["segments"][0]["start_time"], 0.0)
+        self.assertEqual(parsed["segments"][0]["end_time"], 10.0)
+        self.assertEqual(parsed["segments"][1]["start_time"], 10.0)
+        self.assertEqual(parsed["segments"][1]["end_time"], 20.0)
+        self.assertEqual(parsed["segments"][0]["整体"], {"text": "", "tags": []})
+        call_model_mock.assert_not_called()
+
+    def test_generate_text_passes_existing_segments_to_describer(self) -> None:
+        """existing_segments：剪辑模式按已确认时间点描述，跳过场景检测"""
+        service = ModelService()
+
+        with (
+            patch.object(
+                ModelService,
+                "_resolve_provider_context_for_asset_format",
+                return_value=ModelRuntimeContext(
+                    config_slot="视频",
+                    provider="dashscope",
+                    model="qwen-vl-max",
+                    system_prompt="",
+                    prompt="",
+                    supports_live_call=True,
+                ),
+            ),
+            patch(
+                "app.application.services.model_service.VideoSliceDescriber"
+            ) as describer_cls,
+            patch(
+                "app.application.services.video_scene_detector.VideoSceneDetector",
+            ) as detector_cls,
+        ):
+            describer = MagicMock()
+            describer.should_slice.return_value = False
+            describer.describe_sliced = AsyncMock(
+                return_value={
+                    "整体": {"text": "摘要", "tags": []},
+                    "segments": [
+                        {"start_time": 0.0, "end_time": 10.0, "整体": {"text": "片段A", "tags": []}},
+                        {"start_time": 10.0, "end_time": 20.0, "整体": {"text": "片段B", "tags": []}},
+                    ],
+                }
+            )
+            describer_cls.return_value = describer
+            detector_cls.return_value = MagicMock()
+
+            import asyncio
+
+            async def run():
+                return await service.generate_text(
+                    ModelGenerateRequest(
+                        asset_format="视频剪辑",
+                        asset_path=r"D:\Data\clip.mp4",
+                        angles=[
+                            AngleDef(key="整体", label="整体", prompt="概括", max_length=120),
+                        ],
+                        enable_slicing=True,
+                        existing_segments=[SegmentRange(start=0.0, end=10.0), SegmentRange(start=10.0, end=20.0)],
+                    )
+                )
+
+            response = asyncio.run(run())
+
+        self.assertEqual(response.mode, "live")
+        # 已确认时间点传入 describe_sliced 的 external_scenes
+        _, kwargs = describer.describe_sliced.call_args
+        external = kwargs["external_scenes"]
+        self.assertEqual(len(external), 2)
+        self.assertEqual(external[0].start_sec, 0.0)
+        self.assertEqual(external[0].end_sec, 10.0)
+        self.assertEqual(external[1].start_sec, 10.0)
+        self.assertEqual(external[1].end_sec, 20.0)
+
     def test_capabilities_falls_back_to_example_config(self) -> None:
         fake_manager = self._build_fake_provider_manager(
             raw={

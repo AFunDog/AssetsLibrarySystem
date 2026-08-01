@@ -200,6 +200,58 @@ class VideoSliceDescriberTestCase(unittest.IsolatedAsyncioTestCase):
         result = describer._synthesize_overall(segments, [])
         self.assertLessEqual(len(result["text"]), 500)
 
+    def test_build_skeleton_creates_empty_angle_fields(self):
+        """build_skeleton：按场景时间点生成骨架，角度字段为空"""
+        scenes = [
+            SceneRange(0, 300, 0.0, 10.0),
+            SceneRange(300, 600, 10.0, 20.0),
+        ]
+        angles = [
+            {"key": "整体", "label": "整体", "prompt": "概括", "max_length": 120},
+            {"key": "场景", "label": "场景环境", "prompt": "描述场景", "max_length": 100},
+        ]
+
+        skeleton = VideoSliceDescriber.build_skeleton(scenes, angles)
+
+        self.assertEqual(skeleton["整体"], {"text": "", "tags": []})
+        self.assertEqual(len(skeleton["segments"]), 2)
+        self.assertEqual(skeleton["segments"][0]["start_time"], 0.0)
+        self.assertEqual(skeleton["segments"][0]["end_time"], 10.0)
+        self.assertEqual(skeleton["segments"][1]["start_time"], 10.0)
+        self.assertEqual(skeleton["segments"][1]["end_time"], 20.0)
+        # 每个片段都含角度占位
+        self.assertEqual(skeleton["segments"][0]["整体"], {"text": "", "tags": []})
+        self.assertEqual(skeleton["segments"][0]["场景"], {"text": "", "tags": []})
+
+    async def test_describe_sliced_with_external_scenes_skips_detect(self):
+        """外部时间点：跳过场景检测，按给定时间点描述（单片段也不退化整体）"""
+        describer = VideoSliceDescriber(
+            self.mock_llm,
+            slice_threshold=10.0,
+        )
+        describer._scene_detector.detect = MagicMock(
+            side_effect=AssertionError("不应触发场景检测")
+        )
+
+        with patch(
+            "app.application.services.video_slice_describer.get_video_duration",
+            return_value=30.0,
+        ):
+            result = await describer.describe_sliced(
+                "test.mp4",
+                "视频剪辑",
+                [{"key": "整体", "label": "整体", "prompt": "概括", "max_length": 120}],
+                "你是描述助手",
+                "请描述",
+                external_scenes=[SceneRange(0, 0, 5.0, 8.0)],
+            )
+
+        # 单片段也走片段描述路径（不退化 _describe_single）
+        self.assertIn("整体", result)
+        self.assertEqual(len(result["segments"]), 1)
+        self.assertEqual(result["segments"][0]["start_time"], 4.5)  # 5.0 - 0.5 重叠
+        self.assertEqual(result["segments"][0]["end_time"], 8.5)  # 8.0 + 0.5 重叠
+
 
 if __name__ == "__main__":
     unittest.main()

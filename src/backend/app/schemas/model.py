@@ -7,7 +7,13 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 
-AssetFormat = Literal["文本", "图片", "视频", "音频"]
+AssetFormat = Literal["文本", "图片", "视频", "音频", "视频剪辑"]
+
+
+class SegmentRange(BaseModel):
+    """已确认的片段时间范围（秒），由 C# 端在分割落库后传入"""
+    start: float = Field(ge=0, description="片段开始时间（秒）")
+    end: float = Field(description="片段结束时间（秒）")
 
 
 class AngleDef(BaseModel):
@@ -32,6 +38,14 @@ class ModelGenerateRequest(BaseModel):
     fps: int = Field(default=5, ge=1, le=30, description="视频帧采样率（帧/秒），默认 5fps")
     min_scene_len: int = Field(default=15, description="最小场景长度（帧），低于此长度的场景会被合并")
     adaptive_threshold: float = Field(default=3.0, description="场景检测自适应阈值，越高越不敏感")
+    # 视频剪辑两阶段：只分割 / 按已有时间点描述 / 子范围
+    slicing_only: bool = Field(default=False, description="只做场景分割，返回片段时间点骨架，不调用 LLM")
+    existing_segments: list[SegmentRange] | None = Field(
+        default=None,
+        description="已确认的片段时间点（秒），传入后跳过场景检测，按给定时间点逐片段描述",
+    )
+    range_start: float | None = Field(default=None, ge=0, description="子范围分割起点（秒），仅 slicing_only 使用")
+    range_end: float | None = Field(default=None, ge=0, description="子范围分割终点（秒），仅 slicing_only 使用")
 
     @field_validator("asset_path")
     @classmethod
@@ -56,12 +70,12 @@ class ModelGenerateResponse(BaseModel):
     provider_slot: str
     provider: str
     model: str
-    mode: Literal["mock", "live"]
+    mode: Literal["mock", "live", "slicing"]
     output_text: str
     system_prompt: str
     token_usage: TokenUsage | None = Field(
         default=None,
-        description="本次调用消耗的 token 统计；mock 模式下通常为空。",
+        description="本次调用消耗的 token 统计；mock/slicing 模式下通常为空。",
     )
 
 

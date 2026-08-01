@@ -37,6 +37,7 @@ ASSET_PROVIDER_SLOTS = {
     "文本": "文本",
     "图片": "图片",
     "视频": "视频",
+    "视频剪辑": "视频",
     "音频": "音频",
 }
 DEFAULT_SYSTEM_PROMPT = (
@@ -134,10 +135,16 @@ class ModelService:
             )
 
         # 视频切片描述：对长视频启用场景检测和分段描述
+        is_clip_mode = (
+            payload.slicing_only
+            or payload.existing_segments is not None
+            or payload.asset_format == "视频剪辑"
+        )
         if (
-            payload.asset_format == "视频"
+            payload.asset_format in ("视频", "视频剪辑")
             and payload.enable_slicing
             and payload.angles
+            or payload.slicing_only
         ):
             from app.application.services.video_scene_detector import VideoSceneDetector
 
@@ -155,7 +162,76 @@ class ModelService:
                 overlap_seconds=0.5,
                 temp_dir=self._temp_dir,
             )
-            if slice_describer.should_slice(payload.asset_path):
+
+            # 只分割：返回片段时间点骨架，不调用 LLM（分割结果先落库）
+            if payload.slicing_only:
+                import json
+
+                scenes = scene_detector.detect(
+                    payload.asset_path,
+                    range_start=payload.range_start,
+                    range_end=payload.range_end,
+                )
+                skeleton = slice_describer.build_skeleton(scenes, [a.model_dump() for a in (payload.angles or [])])
+                output_text = json.dumps(skeleton, ensure_ascii=False)
+                logger.info(
+                    "视频分割完成（slicing-only）: segments=%d, path=%s",
+                    len(skeleton["segments"]),
+                    payload.asset_path,
+                )
+                return ModelGenerateResponse(
+                    provider_slot=DEFAULT_PROVIDER_SLOT,
+                    provider=provider_context.provider,
+                    model=call_model,
+                    mode="slicing",
+                    output_text=output_text,
+                    system_prompt=system_prompt,
+                    token_usage=None,
+                )
+
+            # 剪辑模式：按外部已确认时间点描述；普通视频才做阈值判断
+            if payload.existing_segments is not None:
+                from app.application.services.video_scene_detector import SceneRange
+
+                external_scenes = [
+                    SceneRange(
+                        start_frame=0,
+                        end_frame=0,
+                        start_sec=seg.start,
+                        end_sec=seg.end,
+                    )
+                    for seg in payload.existing_segments
+                ]
+                logger.info(
+                    "视频按已确认时间点描述: segments=%d, path=%s",
+                    len(external_scenes),
+                    payload.asset_path,
+                )
+                sliced_result = await slice_describer.describe_sliced(
+                    video_path=payload.asset_path,
+                    asset_format=payload.asset_format,
+                    angles=[a.model_dump() for a in (payload.angles or [])],
+                    system_prompt=system_prompt,
+                    prompt=prompt,
+                    external_scenes=external_scenes,
+                )
+                import json
+                output_text = json.dumps(sliced_result, ensure_ascii=False)
+                output_text = self._clean_llm_output(output_text)
+                logger.info(
+                    "视频片段描述完成: segments=%d", len(sliced_result.get("segments", []))
+                )
+                return ModelGenerateResponse(
+                    provider_slot=DEFAULT_PROVIDER_SLOT,
+                    provider=provider_context.provider,
+                    model=call_model,
+                    mode="live",
+                    output_text=output_text,
+                    system_prompt=system_prompt,
+                    token_usage=None,
+                )
+
+            if is_clip_mode or slice_describer.should_slice(payload.asset_path):
                 logger.info(
                     "视频启用切片描述: path=%s, threshold=%ss",
                     payload.asset_path,
@@ -164,7 +240,7 @@ class ModelService:
                 sliced_result = await slice_describer.describe_sliced(
                     video_path=payload.asset_path,
                     asset_format=payload.asset_format,
-                    angles=[a.model_dump() for a in payload.angles],
+                    angles=[a.model_dump() for a in (payload.angles or [])],
                     system_prompt=system_prompt,
                     prompt=prompt,
                 )
