@@ -100,7 +100,7 @@ public sealed partial class BackendStatusViewModel : ObservableObject
 file sealed class NullBackendSessionService : IBackendSessionService
 {
     public bool IsBackendReady => false;
-    public string BaseUrl => "http://127.0.0.1:8000";
+    public string BaseUrl => "in-process";
     public event Action? BackendStatusChanged;
     public Task InitializeAsync() => Task.CompletedTask;
 }

@@ -94,7 +94,7 @@ public partial class DesktopShellViewModel : ObservableObject, IDisposable
         TrayStatusTitle = BackendLauncher?.IsRunning == true
             ? "Python 模型服务已连接"
             : "Python 模型服务未运行";
-        TrayStatusDetail = BackendLauncher?.BaseUrl ?? "http://127.0.0.1:8000";
+        TrayStatusDetail = BackendLauncher?.BaseUrl ?? "in-process";
         Log.Debug(
             "刷新托盘状态: backendRunning={BackendRunning}, baseUrl={BaseUrl}",
             BackendLauncher?.IsRunning == true,

@@ -175,7 +175,7 @@ public partial class QuickSearchViewModel : ObservableObject
                 SearchAssetFormat);
 
             var response = await AssetSearchService.SearchAsync(
-                BackendLauncher?.BaseUrl ?? "http://127.0.0.1:8000",
+                BackendLauncher?.BaseUrl ?? "in-process",
                 SearchQuery,
                 candidateTopK,
                 finalTopK,
