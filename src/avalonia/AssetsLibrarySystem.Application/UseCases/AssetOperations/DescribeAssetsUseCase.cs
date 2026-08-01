@@ -49,21 +49,26 @@ public sealed class DescribeAssetsUseCase
                 var isClip = string.Equals(asset.AssetType, "视频剪辑", StringComparison.Ordinal);
                 var taskTitle = isClip ? "剪辑素材描述" : TaskTitle;
                 taskId = BackgroundTaskService.BeginTask(taskTitle, $"正在生成素材描述：{asset.Name}", asset.LocalPath);
+                BackgroundTaskService.UpdateProgress(taskId, 0);
 
-                // 等待后端期间没有可量化的中间进度：切到不确定进度（进度条动画），避免一直钉在 0%
-                BackgroundTaskService.UpdateProgress(taskId, -1);
+                // 合并调用方取消令牌与任务取消按钮令牌
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    ct, BackgroundTaskService.GetCancellationToken(taskId));
+                var taskCt = linkedCts.Token;
 
                 AssetDescriptionDocument document;
                 if (isClip)
                 {
+                    // 剪辑素材：分割阶段透传进度百分比，描述（LLM）阶段无细分进度
                     document = await DescriptionService
-                        .DescribeClipAsync(asset, backendBaseUrl, rangeStart, rangeEnd, ct)
+                        .DescribeClipAsync(asset, backendBaseUrl, rangeStart, rangeEnd, taskCt,
+                            progress: percent => BackgroundTaskService.UpdateProgress(taskId, percent))
                         .ConfigureAwait(false);
                 }
                 else
                 {
                     document = await DescriptionService
-                        .DescribeAsync(asset, backendBaseUrl, prompt, systemPrompt, ct)
+                        .DescribeAsync(asset, backendBaseUrl, prompt, systemPrompt, taskCt)
                         .ConfigureAwait(false);
                 }
 
@@ -72,7 +77,17 @@ public sealed class DescribeAssetsUseCase
                 BackgroundTaskService.CompleteTask(taskId, $"描述完成：{asset.Name}", "SQLite 已保存");
                 await ReportAsync(progress, DescribeAssetProgress.Completed(asset, document), ct).ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException)
+            {
+                // 任务被取消（调用方或取消按钮）：标记状态后重新抛出，由调用方提示
+                if (taskId is not null)
+                {
+                    BackgroundTaskService.FailTask(taskId, "任务已取消", $"描述已取消：{asset.Name}");
+                }
+
+                throw;
+            }
+            catch (Exception ex)
             {
                 failureCount++;
                 if (taskId is not null)

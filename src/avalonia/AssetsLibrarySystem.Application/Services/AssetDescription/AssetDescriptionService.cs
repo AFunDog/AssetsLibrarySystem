@@ -65,6 +65,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             MinSceneLen: slicing?.MinSceneLength ?? 15,
             AdaptiveThreshold: slicing?.AdaptiveThreshold ?? 3.0);
 
+        ct.ThrowIfCancellationRequested(); // 取消检查：取消时不发起 LLM 调用
         var backendResponse = await BackendModelClient.GenerateAsync(backendBaseUrl, request, ct).ConfigureAwait(false);
 
         // 6. 构建文档
@@ -98,7 +99,8 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         string backendBaseUrl,
         double? rangeStart,
         double? rangeEnd,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Action<int>? progress = null)
     {
         var subtype = asset.Subtype;
         if (string.IsNullOrWhiteSpace(subtype))
@@ -116,7 +118,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         var existing = await Store.TryGetAsync(asset.DatabaseId, ct).ConfigureAwait(false);
         var existingJson = existing?.Description;
         var mergedJson = await EnsureSkeletonAsync(
-            asset, backendBaseUrl, angleDtos, slicing, existingJson, rangeStart, rangeEnd, subtype, ct).ConfigureAwait(false);
+            asset, backendBaseUrl, angleDtos, slicing, existingJson, rangeStart, rangeEnd, subtype, ct, progress).ConfigureAwait(false);
 
         // 2. 计算缺失（未描述）片段
         var missing = StructuredDescriptionHelper.GetMissingSegmentRanges(mergedJson, rangeStart, rangeEnd);
@@ -127,6 +129,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         }
 
         // 3. 按缺失片段时间点描述（跳过场景检测）
+        ct.ThrowIfCancellationRequested(); // 取消检查：取消时不发起 LLM 调用
         var request = new BackendModelGenerateRequest(
             AssetFormat: asset.AssetType,
             AssetPath: asset.LocalPath,
@@ -144,6 +147,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         var backendResponse = await BackendModelClient.GenerateAsync(backendBaseUrl, request, ct).ConfigureAwait(false);
 
         // 4. 合并回写（保留范围外旧片段与已描述片段）
+        ct.ThrowIfCancellationRequested(); // 取消检查：不保存取消后的结果
         var finalJson = StructuredDescriptionHelper.MergeClipSegments(mergedJson, backendResponse.OutputText);
         var document = BuildDocument(asset, backendBaseUrl, finalJson, backendResponse.Mode, MapTokenUsage(backendResponse.TokenUsage), subtype);
         await Store.SaveAsync(document, ct);
@@ -159,7 +163,8 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         string backendBaseUrl,
         double? rangeStart,
         double? rangeEnd,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Action<int>? progress = null)
     {
         var subtype = asset.Subtype;
         if (string.IsNullOrWhiteSpace(subtype))
@@ -188,7 +193,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         }
 
         var mergedJson = await EnsureSkeletonAsync(
-            asset, backendBaseUrl, angleDtos, slicing, existingJson, rangeStart, rangeEnd, subtype, ct).ConfigureAwait(false);
+            asset, backendBaseUrl, angleDtos, slicing, existingJson, rangeStart, rangeEnd, subtype, ct, progress).ConfigureAwait(false);
         var skeletonDocument = BuildDocument(asset, backendBaseUrl, mergedJson, "slicing", null, subtype);
         return new ClipSplitResult(
             skeletonDocument,
@@ -205,7 +210,8 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         double? rangeStart,
         double? rangeEnd,
         string subtype,
-        CancellationToken ct)
+        CancellationToken ct,
+        Action<int>? progress = null)
     {
         // 已有片段且（无范围或范围已覆盖）→ 直接复用
         if (StructuredDescriptionHelper.GetSegmentCount(existingJson) > 0
@@ -231,7 +237,7 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             RangeStart: rangeStart,
             RangeEnd: rangeEnd);
 
-        var skeletonResponse = await BackendModelClient.GenerateAsync(backendBaseUrl, slicingRequest, ct).ConfigureAwait(false);
+        var skeletonResponse = await BackendModelClient.GenerateAsync(backendBaseUrl, slicingRequest, ct, progress).ConfigureAwait(false);
 
         // mock 模式（未配置 API Key）下后端不执行真实场景检测，分割结果无意义
         if (string.Equals(skeletonResponse.Mode, "mock", StringComparison.OrdinalIgnoreCase))

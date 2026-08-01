@@ -21,7 +21,8 @@ public sealed class PythonModelService : IBackendModelClient
     public Task<BackendModelGenerateResponse> GenerateAsync(
         string backendBaseUrl,
         BackendModelGenerateRequest request,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Action<int>? progress = null)
     {
         return Task.Run(() =>
         {
@@ -39,11 +40,38 @@ public sealed class PythonModelService : IBackendModelClient
                     // generate_text 是 Python async 函数：必须用 asyncio.run 执行，
                     // 否则拿到的是未执行的 coroutine，访问属性会抛 AttributeError。
                     dynamic asyncio = Py.Import("asyncio");
-                    dynamic pyResponse = asyncio.run(modelService.generate_text(pyRequest));
+                    dynamic pyResponse;
+                    if (progress is not null)
+                    {
+                        // 把 .NET 回调包装成 Python 可调用对象：返回 False 表示请求取消
+                        dynamic progressCallback = PyObject.FromManagedObject(
+                            new Func<int, bool>(percent =>
+                            {
+                                if (ct.IsCancellationRequested)
+                                {
+                                    return false;
+                                }
+
+                                progress(percent);
+                                return true;
+                            }));
+                        pyResponse = asyncio.run(modelService.generate_text(pyRequest, progress_callback: progressCallback));
+                    }
+                    else
+                    {
+                        pyResponse = asyncio.run(modelService.generate_text(pyRequest));
+                    }
+
                     return ConvertResponse(pyResponse);
                 }
                 catch (PythonException ex)
                 {
+                    // Python 侧场景检测取消（进度回调返回 False 触发）
+                    if (ex.Type?.Name.Contains("SceneDetectionCancelled", StringComparison.Ordinal) == true)
+                    {
+                        throw new OperationCanceledException("分割任务已取消", ex);
+                    }
+
                     Log.Error("Python generate_text 调用失败: {Traceback}", ex.StackTrace);
                     throw new InvalidOperationException(
                         $"Python 描述服务调用失败：{ex.Message}", ex);

@@ -1,8 +1,16 @@
+using System.Threading;
+
 namespace AssetsLibrarySystem.Application.Models;
 
 public sealed class BackgroundTaskEntry : ObservableModel
 {
     public required string Id { get; init; }
+
+    /// <summary>任务取消令牌源（取消按钮触发 CancelTask 时取消）</summary>
+    public CancellationTokenSource Cancellation { get; } = new();
+
+    /// <summary>任务取消令牌</summary>
+    public CancellationToken Token => Cancellation.Token;
 
     public long Sequence { get; set; }
 

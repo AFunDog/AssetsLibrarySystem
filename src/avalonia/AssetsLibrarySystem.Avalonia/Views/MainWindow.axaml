@@ -232,13 +232,25 @@
                                                             Padding="8"
                                                             Margin="0,0,0,4">
                                                         <StackPanel Spacing="4">
-                                                            <Grid ColumnDefinitions="*,Auto">
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
                                                                 <StackPanel>
                                                                     <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
                                                                     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                                                Text="{Binding StageText}" />
                                                                 </StackPanel>
-                                                                <TextBlock Grid.Column="1" Text="{Binding StatusText}" />
+                                                                <StackPanel Grid.Column="1"
+                                                                            Orientation="Horizontal"
+                                                                            Spacing="6"
+                                                                            VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding StatusText}" />
+                                                                    <Button Content="取消"
+                                                                            FontSize="11"
+                                                                            Padding="6,2"
+                                                                            IsVisible="{Binding IsActive}"
+                                                                            Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).CancelBackgroundTaskCommand}"
+                                                                            CommandParameter="{Binding Id}"
+                                                                            ToolTip.Tip="取消该任务" />
+                                                                </StackPanel>
                                                             </Grid>
                                                             <!-- 进度条 -->
                                                             <ProgressBar Value="{Binding Progress}"

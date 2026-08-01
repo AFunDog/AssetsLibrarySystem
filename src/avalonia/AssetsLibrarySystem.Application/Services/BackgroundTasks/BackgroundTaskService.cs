@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using AssetsLibrarySystem.Application.Models;
 
 namespace AssetsLibrarySystem.Application.Services.BackgroundTasks;
@@ -170,6 +171,40 @@ public sealed class BackgroundTaskService : ObservableModel, IBackgroundTaskServ
             TrimCompletedTaskHistory();
             RefreshSummary();
         });
+    }
+
+    public void CancelTask(string taskId)
+    {
+        ScheduleUi(() =>
+        {
+            if (!TryGetTask(taskId, out var task))
+            {
+                return;
+            }
+
+            // 已完成/失败的任务不再覆盖状态（CancelTask 与 CompleteTask 的 UI 队列竞态防护）
+            if (!task.IsActive)
+            {
+                return;
+            }
+
+            task.Cancellation.Cancel();
+            task.Sequence = NextSequence();
+            task.StageText = "正在取消…";
+            task.StatusText = "取消中";
+            task.TimelineText = $"请求取消：{FormatTimestamp(DateTime.Now)}";
+            EnsureInCollection(task);
+            MoveToTop(task);
+            RefreshSummary();
+        });
+    }
+
+    public CancellationToken GetCancellationToken(string taskId)
+    {
+        lock (_gate)
+        {
+            return TryGetTask(taskId, out var task) ? task.Token : CancellationToken.None;
+        }
     }
 
     private void ScheduleUi(Action action)

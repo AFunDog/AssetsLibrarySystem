@@ -52,6 +52,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         BackgroundTaskService.Tasks.CollectionChanged += OnBackgroundTasksCollectionChanged;
         BackendStatus.PropertyChanged += (_, e) => OnPropertyChanged(e.PropertyName);
 
+        CancelBackgroundTaskCommand = new RelayCommand<string>(taskId =>
+            BackgroundTaskService.CancelTask(taskId), taskId => !string.IsNullOrWhiteSpace(taskId));
+
         foreach (var task in BackgroundTaskService.Tasks)
         {
             task.PropertyChanged += OnBackgroundTaskPropertyChanged;
@@ -64,6 +67,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public LibraryPageViewModel LibraryPage { get; }
     public SettingsPageViewModel SettingsPage { get; }
     public ObservableCollection<BackgroundTaskEntry> BackgroundTasks => BackgroundTaskService.Tasks;
+
+    /// <summary>取消指定后台任务（按任务 Id）</summary>
+    public IRelayCommand<string> CancelBackgroundTaskCommand { get; }
 
     public string BackendStatusTitle => BackendStatus.BackendStatusTitle;
     public string BackendStatusStage => BackendStatus.BackendStatusStage;

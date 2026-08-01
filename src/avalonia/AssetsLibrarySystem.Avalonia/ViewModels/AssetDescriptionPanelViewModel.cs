@@ -162,6 +162,11 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
             _activityFeedService.Add(
                 $"分割任务完成：新增 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}。{rangeSuffix}");
         }
+        catch (OperationCanceledException)
+        {
+            Workspace.SetOperatorNotice("分割任务已取消。");
+            _activityFeedService.Add("分割任务已取消");
+        }
         catch (Exception ex)
         {
             Workspace.SetOperatorNotice($"分割任务失败：{ex.Message}");
@@ -387,6 +392,11 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
                 $"描述任务完成：成功 {result.SuccessCount}，失败 {result.FailureCount}。{rangeSuffix}");
             _activityFeedService.Add(
                 $"描述任务完成：成功 {result.SuccessCount}，失败 {result.FailureCount}。{rangeSuffix}");
+        }
+        catch (OperationCanceledException)
+        {
+            Workspace.SetOperatorNotice("描述任务已取消。");
+            _activityFeedService.Add("描述任务已取消");
         }
         catch (Exception ex)
         {

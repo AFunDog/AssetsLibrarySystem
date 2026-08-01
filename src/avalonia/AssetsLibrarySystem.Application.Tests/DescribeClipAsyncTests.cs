@@ -61,7 +61,8 @@ public sealed class DescribeClipAsyncTests
         public Task<BackendModelGenerateResponse> GenerateAsync(
             string backendBaseUrl,
             BackendModelGenerateRequest request,
-            CancellationToken ct = default)
+            CancellationToken ct = default,
+            Action<int>? progress = null)
         {
             Requests.Add(request);
             var index = _callIndex++;

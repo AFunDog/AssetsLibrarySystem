@@ -50,11 +50,16 @@ public sealed class SplitClipSegmentsUseCase
             {
                 await ReportAsync(progress, SplitClipProgress.Queued(asset), ct).ConfigureAwait(false);
                 taskId = BackgroundTaskService.BeginTask(TaskTitle, $"正在场景分割：{asset.Name}", asset.LocalPath);
-                // 等待后端期间没有可量化的中间进度：切到不确定进度（进度条动画），避免一直钉在 0%
-                BackgroundTaskService.UpdateProgress(taskId, -1);
+                BackgroundTaskService.UpdateProgress(taskId, 0);
+
+                // 合并调用方取消令牌与任务取消按钮令牌
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    ct, BackgroundTaskService.GetCancellationToken(taskId));
+                var taskCt = linkedCts.Token;
 
                 var result = await DescriptionService
-                    .SplitOnlyAsync(asset, backendBaseUrl, rangeStart, rangeEnd, ct)
+                    .SplitOnlyAsync(asset, backendBaseUrl, rangeStart, rangeEnd, taskCt,
+                        progress: percent => BackgroundTaskService.UpdateProgress(taskId, percent))
                     .ConfigureAwait(false);
 
                 if (result.AlreadySplit)
@@ -71,7 +76,17 @@ public sealed class SplitClipSegmentsUseCase
                     await ReportAsync(progress, SplitClipProgress.Completed(asset, result.SegmentCount), ct).ConfigureAwait(false);
                 }
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException)
+            {
+                // 任务被取消（调用方或取消按钮）：标记状态后重新抛出，由调用方提示
+                if (taskId is not null)
+                {
+                    BackgroundTaskService.FailTask(taskId, "任务已取消", $"分割已取消：{asset.Name}");
+                }
+
+                throw;
+            }
+            catch (Exception ex)
             {
                 failureCount++;
                 if (taskId is not null)

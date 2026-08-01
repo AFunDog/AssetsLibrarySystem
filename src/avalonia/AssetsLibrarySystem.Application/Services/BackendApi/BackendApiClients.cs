@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -21,5 +22,6 @@ public interface IBackendModelClient
     Task<BackendModelGenerateResponse> GenerateAsync(
         string backendBaseUrl,
         BackendModelGenerateRequest request,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        Action<int>? progress = null);
 }
