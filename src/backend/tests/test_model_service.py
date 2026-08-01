@@ -295,6 +295,15 @@ class ModelServiceTestCase(unittest.TestCase):
         self.assertEqual(content[0], {"image": "file://D:/Data/全资源/music/cover.png"})
         self.assertEqual(content[1], {"text": "请打标"})
 
+    def test_multimodal_content_clip_asset_uses_video(self) -> None:
+        """视频剪辑素材构建多模态内容时应按视频处理（不能抛'不支持的多模态素材格式'）"""
+        service = ModelService()
+
+        content = service._build_multimodal_content("视频剪辑", r"D:\Data\clip\01.mkv", "请打标")
+
+        self.assertEqual(content[0], {"video": "file://D:/Data/clip/01.mkv", "fps": 5})
+        self.assertEqual(content[1], {"text": "请打标"})
+
     def test_prepare_media_asset_returns_original_when_disabled(self) -> None:
         service = ModelService()
         service._enable_media_preprocess = False

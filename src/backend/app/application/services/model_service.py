@@ -571,6 +571,9 @@ class ModelService:
 
     def _build_media_item(self, asset_format: str, asset_path: str, fps: int = 5) -> dict[str, Any]:
         file_uri = self._to_file_uri(asset_path)
+        # 视频剪辑素材按视频处理（多模态 API 仅区分 image/video/audio 三类）
+        if asset_format == "视频剪辑":
+            asset_format = "视频"
         if asset_format == "图片":
             return {"image": file_uri}
         if asset_format == "视频":
