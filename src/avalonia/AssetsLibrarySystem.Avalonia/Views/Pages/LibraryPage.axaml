@@ -3,6 +3,7 @@
              xmlns:vm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:pagevm="using:AssetsLibrarySystem.Avalonia.ViewModels"
              xmlns:models="using:AssetsLibrarySystem.Avalonia.Models"
+             xmlns:appmodels="using:AssetsLibrarySystem.Application.Models"
              xmlns:lucide="clr-namespace:Lucide.Avalonia;assembly=Lucide.Avalonia"
              xmlns:converters="using:AssetsLibrarySystem.Avalonia.Converters"
              x:Class="AssetsLibrarySystem.Avalonia.Views.Pages.LibraryPage"
@@ -420,7 +421,8 @@
                                                     <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
                                                                FontSize="11"
                                                                TextTrimming="CharacterEllipsis"
-                                                               Text="{Binding PathLabel}" />
+                                                               Text="{Binding PathLabel}"
+                                                               IsVisible="{Binding ShowPathLabel}" />
                                                 </StackPanel>
                                                 <TextBlock Foreground="{DynamicResource AppAccentBrush}"
                                                            FontSize="11"
@@ -471,7 +473,8 @@
                                                     <TextBlock Text="{Binding PathLabel}"
                                                                FontSize="11"
                                                                Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                               TextTrimming="CharacterEllipsis" />
+                                                               TextTrimming="CharacterEllipsis"
+                                                               IsVisible="{Binding ShowPathLabel}" />
                                                 </StackPanel>
                                                 <TextBlock Grid.Column="2"
                                                            Text="{Binding TypeLabel}"
@@ -550,7 +553,8 @@
                                                     <TextBlock Text="{Binding PathLabel}"
                                                                FontSize="11"
                                                                Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                               TextTrimming="CharacterEllipsis" />
+                                                               TextTrimming="CharacterEllipsis"
+                                                               IsVisible="{Binding ShowPathLabel}" />
                                                 </StackPanel>
                                             </Grid>
                                         </Button>
@@ -567,161 +571,399 @@
                                   ResizeDirection="Auto" />
 
                 <Grid Grid.Column="2">
-                    <!-- 详情面板（预览区域并入顶部，保证与左栏面板顶部对齐） -->
+                    <!-- 详情面板（类型感知单列布局：封面/标题/操作/标签/信息/描述） -->
                     <Border Classes="page-card">
-                        <Grid RowDefinitions="Auto,*" ColumnDefinitions="200,*" ColumnSpacing="12">
-                            <!-- 预览区域（选中素材时显示） -->
-                            <Border Grid.Row="0" Grid.ColumnSpan="2" Classes="sub-card"
-                                    Padding="8"
-                                    IsVisible="{Binding AssetDetail.HasPreview}">
-                                <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
-                                    <!-- 图片预览 -->
-                                    <Image Source="{Binding AssetDetail.PreviewImage}"
-                                           MaxHeight="160"
-                                           Stretch="Uniform"
-                                           HorizontalAlignment="Center"
-                                           IsVisible="{Binding AssetDetail.IsImagePreview}" />
-                                    <!-- 文本预览 -->
-                                    <ScrollViewer IsVisible="{Binding AssetDetail.IsTextPreview}"
-                                                  MaxHeight="160"
-                                                  VerticalScrollBarVisibility="Auto">
-                                        <TextBlock Text="{Binding AssetDetail.PreviewText}"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource AppTextBrush}" />
-                                    </ScrollViewer>
-                                    <!-- 视频/音频占位 -->
-                                    <Border IsVisible="{Binding AssetDetail.IsMediaPlaceholder}"
-                                            Height="80"
-                                            Background="{DynamicResource AppAccentSurfaceBrush}"
+                        <Grid RowDefinitions="Auto,*">
+                            <!-- ① 头部：封面 + 标题 + 操作 + 标签 + 信息（选中素材时显示） -->
+                            <StackPanel Grid.Row="0" Spacing="10"
+                                        IsVisible="{Binding AssetDetail.HasSelectedAsset}">
+                                <!-- 封面区（类型感知：图片/视频首帧/文本预览/类型占位 + 剪辑分段列表） -->
+                                <Border Classes="sub-card" Padding="10"
+                                        IsVisible="{Binding AssetDetail.HasPreview}">
+                                    <StackPanel Spacing="8">
+                                        <Grid>
+                                            <!-- 图片大图 -->
+                                            <Image Source="{Binding AssetDetail.PreviewImage}"
+                                                   MaxHeight="200"
+                                                   Stretch="Uniform"
+                                                   HorizontalAlignment="Center"
+                                                   IsVisible="{Binding AssetDetail.IsImagePreview}" />
+                                            <!-- 视频/剪辑首帧封面 -->
+                                            <Image Source="{Binding AssetDetail.PreviewCoverImage}"
+                                                   MaxHeight="200"
+                                                   Stretch="Uniform"
+                                                   HorizontalAlignment="Center"
+                                                   IsVisible="{Binding AssetDetail.HasPreviewCover}" />
+                                            <!-- 文本预览 -->
+                                            <ScrollViewer IsVisible="{Binding AssetDetail.IsTextPreview}"
+                                                          MaxHeight="160"
+                                                          VerticalScrollBarVisibility="Auto">
+                                                <TextBlock Text="{Binding AssetDetail.PreviewText}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource AppTextBrush}" />
+                                            </ScrollViewer>
+                                            <!-- 音频/视频占位（首帧失败回退） -->
+                                            <Border IsVisible="{Binding AssetDetail.IsMediaPlaceholder}"
+                                                    Height="80"
+                                                    Background="{DynamicResource AppAccentSurfaceBrush}"
+                                                    CornerRadius="6"
+                                                    HorizontalAlignment="Center">
+                                                <StackPanel Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                    <lucide:LucideIcon Kind="File" Size="32" />
+                                                    <TextBlock Text="{Binding AssetDetail.SelectedAssetType, StringFormat={}{0} 素材}"
+                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               FontSize="12" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                        <!-- 剪辑素材分段列表：缩略图 + 时间范围 + 标签摘要 -->
+                                        <ScrollViewer MaxHeight="190"
+                                                      VerticalScrollBarVisibility="Auto"
+                                                      IsVisible="{Binding AssetDetail.HasSelectedAssetSegments}">
+                                            <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetSegmentItems}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <VirtualizingStackPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:SegmentListItemViewModel">
+                                                        <Border Classes="sub-card" Margin="0,0,0,6" Padding="6">
+                                                            <Grid ColumnDefinitions="64,*" ColumnSpacing="8">
+                                                                <Border Width="64" Height="36"
+                                                                        CornerRadius="3"
+                                                                        ClipToBounds="True"
+                                                                        Background="{DynamicResource AppSoftSurfaceBrush}">
+                                                                    <Grid>
+                                                                        <Image Source="{Binding Thumbnail}"
+                                                                               Stretch="UniformToFill"
+                                                                               IsVisible="{Binding HasThumbnail}" />
+                                                                        <lucide:LucideIcon Kind="Video" Size="16"
+                                                                                           IsVisible="{Binding HasThumbnail, Converter={x:Static BoolConverters.Not}}"
+                                                                                           HorizontalAlignment="Center"
+                                                                                           VerticalAlignment="Center" />
+                                                                    </Grid>
+                                                                </Border>
+                                                                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding TimeRangeText}"
+                                                                               FontWeight="SemiBold" FontSize="13"
+                                                                               Foreground="{DynamicResource AppTextBrush}" />
+                                                                    <TextBlock Text="{Binding TagsSummary}"
+                                                                               FontSize="12"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 标题行：类型徽章 + 名称/子类型/状态 + 类型切换 -->
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                    <Border Background="{DynamicResource AppAccentSurfaceBrush}"
+                                            BorderBrush="{DynamicResource AppAccentBrush}"
+                                            BorderThickness="1"
                                             CornerRadius="6"
-                                            HorizontalAlignment="Center">
-                                        <StackPanel Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                            <lucide:LucideIcon Kind="File" Size="32" />
-                                            <TextBlock Text="{Binding AssetDetail.SelectedAssetType, StringFormat={}{0} 素材}"
-                                                       Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                       FontSize="12" />
+                                            Padding="10,6"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding AssetDetail.SelectedAssetType}"
+                                                   Foreground="{DynamicResource AppTextBrush}"
+                                                   FontSize="13" FontWeight="SemiBold" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding AssetDetail.SelectedAssetName}"
+                                                   FontSize="18" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding AssetDetail.SelectedAssetSubtype}"
+                                                       FontSize="12"
+                                                       IsVisible="{Binding AssetDetail.SelectedAssetSubtype, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                       Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                            <TextBlock Text="·" FontSize="12"
+                                                       Foreground="{DynamicResource AppMutedTextBrush}"
+                                                       IsVisible="{Binding AssetDetail.SelectedAssetSubtype, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                            <TextBlock Text="{Binding AssetDetail.SelectedAssetAiState}"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource AppAccentBrush}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <Button Grid.Column="2"
+                                            Classes="secondary-action"
+                                            Content="{Binding AssetDetail.ChangeAssetTypeTargetLabel}"
+                                            Command="{Binding AssetDetail.ChangeAssetTypeCommand}"
+                                            IsVisible="{Binding AssetDetail.CanChangeAssetType}"
+                                            VerticalAlignment="Center"
+                                            FontSize="11"
+                                            Padding="8,4" />
+                                </Grid>
+
+                                <!-- 操作行：描述/仅分割/时间范围/向量化（随素材类型显示） -->
+                                <WrapPanel>
+                                    <Button Classes="primary-action"
+                                            Command="{Binding QueueSelectedDescriptionCommand}"
+                                            Content="描述当前素材" />
+                                    <Button Classes="secondary-action"
+                                            Command="{Binding DescriptionPanel.SplitSelectedCommand}"
+                                            Content="仅分割"
+                                            IsVisible="{Binding AssetDetail.IsClipAssetSelected}" />
+                                    <ToggleButton Classes="secondary-action"
+                                                  Content="时间范围"
+                                                  IsChecked="{Binding DescriptionPanel.HasTimeRange}"
+                                                  IsVisible="{Binding AssetDetail.IsClipAssetSelected}" />
+                                    <TextBox Width="64"
+                                             FontSize="11"
+                                             Padding="4,2"
+                                             Watermark="开始"
+                                             Text="{Binding DescriptionPanel.RangeStartText}"
+                                             IsVisible="{Binding DescriptionPanel.IsClipRangeVisible}" />
+                                    <TextBox Width="64"
+                                             FontSize="11"
+                                             Padding="4,2"
+                                             Watermark="结束"
+                                             Text="{Binding DescriptionPanel.RangeEndText}"
+                                             IsVisible="{Binding DescriptionPanel.IsClipRangeVisible}" />
+                                    <Button Classes="secondary-action"
+                                            Command="{Binding QueueDescriptionsForSelectionCommand}"
+                                            Content="描述当前范围"
+                                            IsVisible="{Binding DescriptionPanel.IsClipRangeVisible}" />
+                                    <Button Classes="secondary-action"
+                                            Command="{Binding VectorizeDescriptionsCommand}"
+                                            Content="批量向量化" />
+                                </WrapPanel>
+
+                                <!-- 标签行：chips + 添加 -->
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="eyebrow" Text="标签" />
+                                    <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetTags}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource AppAccentSurfaceBrush}"
+                                                        CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                                        <TextBlock Text="{Binding .}"
+                                                                   FontSize="12"
+                                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                                        <Button Grid.Column="1"
+                                                                Background="Transparent"
+                                                                BorderBrush="Transparent"
+                                                                BorderThickness="0"
+                                                                Padding="2"
+                                                                FontSize="10"
+                                                                Command="{Binding AssetDetail.RemoveTagCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type pagevm:LibraryPageViewModel}}}"
+                                                                CommandParameter="{Binding .}"
+                                                                Content="×"
+                                                                ToolTip.Tip="删除标签" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4" Margin="0,4,0,0">
+                                        <TextBox Text="{Binding AssetDetail.NewTagText}"
+                                                 PlaceholderText="添加标签..."
+                                                 Classes="compact-input" />
+                                        <Button Grid.Column="1"
+                                                Classes="primary-action"
+                                                Command="{Binding AssetDetail.AddTagCommand}"
+                                                Content="添加" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- 信息行：两列网格（路径/大小/描述状态/生成时间） -->
+                                <Border Classes="sub-card" Padding="10">
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                                        <StackPanel Spacing="6">
+                                            <StackPanel>
+                                                <TextBlock Classes="eyebrow" Text="素材库" />
+                                                <TextBlock Text="{Binding AssetDetail.SelectedAssetLibrary}"
+                                                           FontSize="12" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource AppTextBrush}" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Classes="eyebrow" Text="路径" />
+                                                <TextBlock Text="{Binding AssetDetail.SelectedAssetPath}"
+                                                           FontSize="12" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Classes="eyebrow" Text="描述状态" />
+                                                <TextBlock Text="{Binding AssetDetail.SelectedAssetDescriptionState}"
+                                                           FontSize="12" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource AppTextBrush}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Spacing="6">
+                                            <StackPanel>
+                                                <TextBlock Classes="eyebrow" Text="生成时间" />
+                                                <TextBlock Text="{Binding AssetDetail.SelectedAssetDescriptionGeneratedAt}"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource AppTextBrush}" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Classes="eyebrow" Text="描述模式" />
+                                                <TextBlock Text="{Binding AssetDetail.SelectedAssetDescriptionMode}"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Classes="eyebrow" Text="Token 用量" />
+                                                <TextBlock Text="{Binding AssetDetail.SelectedAssetDescriptionTokenUsage}"
+                                                           FontSize="12" TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ② 描述区：编辑框 + 保存 + 空态/角度卡片/片段分组 -->
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Spacing="8">
+                                    <TextBox Text="{Binding AssetDetail.EditDescriptionText}"
+                                             PlaceholderText="编辑主描述文本后可保存；结构化角度列表在下方只读展示。"
+                                             Classes="compact-input"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             MinHeight="88"
+                                             MaxHeight="160" />
+                                    <Button Classes="secondary-action"
+                                            Command="{Binding AssetDetail.SaveDescriptionCommand}"
+                                            Content="保存描述修改"
+                                            IsEnabled="{Binding AssetDetail.EditDescriptionText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    <!-- 空态引导：未描述素材替代大块空白 -->
+                                    <Border Classes="sub-card"
+                                            Padding="16"
+                                            IsVisible="{Binding AssetDetail.ShowAngleEmptyHint}">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Text="该素材尚未描述"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                            <TextBlock Text="可点击上方「描述当前素材」生成结构化角度描述；剪辑素材可先「仅分割」切分场景片段时间点。"
+                                                       FontSize="12"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppSecondaryTextBrush}" />
                                         </StackPanel>
                                     </Border>
-                                    <!-- 片段列表（已分割剪辑素材）：缩略图 + 时间范围 + 标签摘要 -->
-                                    <ScrollViewer Grid.Row="1" MaxHeight="190"
-                                                  VerticalScrollBarVisibility="Auto"
-                                                  IsVisible="{Binding AssetDetail.HasSelectedAssetSegments}">
-                                        <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetSegmentItems}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <VirtualizingStackPanel />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:SegmentListItemViewModel">
-                                                    <Border Classes="sub-card" Margin="0,0,0,6" Padding="6">
-                                                        <Grid ColumnDefinitions="64,*" ColumnSpacing="8">
-                                                            <Border Width="64" Height="36"
-                                                                    CornerRadius="3"
-                                                                    ClipToBounds="True"
-                                                                    Background="{DynamicResource AppSoftSurfaceBrush}">
-                                                                <Grid>
-                                                                    <Image Source="{Binding Thumbnail}"
-                                                                           Stretch="UniformToFill"
-                                                                           IsVisible="{Binding HasThumbnail}" />
-                                                                    <lucide:LucideIcon Kind="Video" Size="16"
-                                                                                       IsVisible="{Binding HasThumbnail, Converter={x:Static BoolConverters.Not}}"
-                                                                                       HorizontalAlignment="Center"
-                                                                                       VerticalAlignment="Center" />
-                                                                </Grid>
-                                                            </Border>
-                                                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                                                <TextBlock Text="{Binding TimeRangeText}"
-                                                                           FontWeight="SemiBold" FontSize="13"
-                                                                           Foreground="{DynamicResource AppTextBrush}" />
-                                                                <TextBlock Text="{Binding TagsSummary}"
-                                                                           FontSize="12"
-                                                                           TextTrimming="CharacterEllipsis"
-                                                                           Foreground="{DynamicResource AppSecondaryTextBrush}" />
-                                                            </StackPanel>
-                                                        </Grid>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ScrollViewer>
-                                </Grid>
-                            </Border>
-                            <!-- 左侧：基本信息 -->
-                            <Border Grid.Row="1" Classes="sub-card">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <StackPanel Spacing="8">
-                                    <StackPanel>
-                                        <TextBlock Classes="eyebrow" Text="类型" />
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                       FontSize="24" FontWeight="SemiLight"
-                                                       Text="{Binding AssetDetail.SelectedAssetType}" />
-                                            <Button Grid.Column="1"
-                                                    Classes="secondary-action"
-                                                    Content="{Binding AssetDetail.ChangeAssetTypeTargetLabel}"
-                                                    Command="{Binding AssetDetail.ChangeAssetTypeCommand}"
-                                                    IsVisible="{Binding AssetDetail.CanChangeAssetType}"
-                                                    VerticalAlignment="Center"
-                                                    FontSize="11"
-                                                    Padding="8,3" />
-                                        </Grid>
-                                    </StackPanel>
-                                    <StackPanel>
-                                        <TextBlock Classes="eyebrow" Text="子类型" />
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                   Text="{Binding AssetDetail.SelectedAssetSubtype}" />
-                                    </StackPanel>
-                                    <StackPanel>
-                                        <TextBlock Classes="eyebrow" Text="状态" />
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                   TextWrapping="Wrap"
-                                                   Text="{Binding AssetDetail.SelectedAssetAiState}" />
-                                    </StackPanel>
-                                    <!-- 标签编辑 -->
-                                    <StackPanel>
-                                        <TextBlock Classes="eyebrow" Text="标签" />
-                                        <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetTags}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <WrapPanel />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border Background="{DynamicResource AppAccentSurfaceBrush}"
-                                                            CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
-                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
-                                                            <TextBlock Text="{Binding .}"
-                                                                       FontSize="12"
+                                    <!-- 非剪辑素材：平铺角度卡片 -->
+                                    <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetDescriptionAngles}"
+                                                  IsVisible="{Binding AssetDetail.IsClipAssetSelected, Converter={x:Static BoolConverters.Not}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Classes="sub-card" Margin="0,0,0,8">
+                                                    <StackPanel Spacing="6">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <TextBlock Text="{Binding Label}"
+                                                                       FontWeight="SemiBold" FontSize="14"
                                                                        Foreground="{DynamicResource AppTextBrush}" />
-                                                            <Button Grid.Column="1"
-                                                                    Background="Transparent"
-                                                                    BorderBrush="Transparent"
-                                                                    BorderThickness="0"
-                                                                    Padding="2"
-                                                                    FontSize="10"
-                                                                    Command="{Binding AssetDetail.RemoveTagCommand, RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type pagevm:LibraryPageViewModel}}}"
-                                                                    CommandParameter="{Binding .}"
-                                                                    Content="×"
-                                                                    ToolTip.Tip="删除标签" />
+                                                            <TextBlock Classes="eyebrow" Grid.Column="1"
+                                                                       Text="{Binding SegmentLabel}"
+                                                                       IsVisible="{Binding IsSegmentRecord}" />
                                                         </Grid>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4" Margin="0,4,0,0">
-                                            <TextBox Text="{Binding AssetDetail.NewTagText}"
-                                                     PlaceholderText="添加标签..."
-                                                     Classes="compact-input" />
-                                            <Button Grid.Column="1"
-                                                    Classes="primary-action"
-                                                    Command="{Binding AssetDetail.AddTagCommand}"
-                                                    Content="添加" />
-                                        </Grid>
-                                    </StackPanel>
-                                    <!-- 操作按钮 -->
-                                    <StackPanel Spacing="4" Margin="0,8,0,0">
+                                                        <TextBlock Text="{Binding Text}"
+                                                                   TextWrapping="Wrap"
+                                                                   FontSize="13"
+                                                                   Foreground="{DynamicResource AppTextBrush}"
+                                                                   IsVisible="{Binding Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                        <WrapPanel>
+                                                            <ItemsControl ItemsSource="{Binding Tags}">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <WrapPanel />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                                                                CornerRadius="4" Padding="8,4" Margin="2">
+                                                                            <TextBlock Text="{Binding}"
+                                                                                       FontSize="12"
+                                                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </WrapPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <!-- 剪辑素材：按时间切片分组展示描述详情 -->
+                                    <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetSegmentDescriptionGroups}"
+                                                  IsVisible="{Binding AssetDetail.IsClipAssetSelected}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:SegmentDescriptionGroupViewModel">
+                                                <Border Classes="sub-card" Margin="0,0,0,10" Padding="10">
+                                                    <StackPanel Spacing="8">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <TextBlock Text="{Binding HeaderText}"
+                                                                       FontWeight="SemiBold" FontSize="13"
+                                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                                            <Border Grid.Column="1"
+                                                                    Background="{DynamicResource AppSoftSurfaceBrush}"
+                                                                    CornerRadius="8" Padding="8,2"
+                                                                    IsVisible="{Binding IsMissing}">
+                                                                <TextBlock Text="待描述"
+                                                                           FontSize="10"
+                                                                           Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                                            </Border>
+                                                        </Grid>
+                                                        <ItemsControl ItemsSource="{Binding Angles}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="appmodels:AngleDescriptionRecord">
+                                                                    <StackPanel Spacing="4" Margin="0,0,0,6">
+                                                                        <TextBlock Text="{Binding Label}"
+                                                                                   FontWeight="SemiBold" FontSize="12"
+                                                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                                                        <TextBlock Text="{Binding Text}"
+                                                                                   TextWrapping="Wrap"
+                                                                                   FontSize="13"
+                                                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                                                        <WrapPanel>
+                                                                            <ItemsControl ItemsSource="{Binding Tags}">
+                                                                                <ItemsControl.ItemsPanel>
+                                                                                    <ItemsPanelTemplate>
+                                                                                        <WrapPanel />
+                                                                                    </ItemsPanelTemplate>
+                                                                                </ItemsControl.ItemsPanel>
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate>
+                                                                                        <Border Background="{DynamicResource AppSoftSurfaceBrush}"
+                                                                                                CornerRadius="4" Padding="8,4" Margin="2">
+                                                                                            <TextBlock Text="{Binding}"
+                                                                                                       FontSize="12"
+                                                                                                       Foreground="{DynamicResource AppTextBrush}" />
+                                                                                        </Border>
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+                                                                        </WrapPanel>
+                                                                    </StackPanel>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <TextBlock Text="该片段尚未描述，可执行「描述」补全片段内容。"
+                                                                   FontSize="12"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource AppMutedTextBrush}"
+                                                                   IsVisible="{Binding IsMissing}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <!-- 危险操作 -->
+                                    <StackPanel Spacing="4" Margin="0,12,0,0">
                                         <Button Classes="secondary-action"
                                                 Command="{Binding AssetDetail.DeleteAssetCommand}"
                                                 Content="删除素材"
@@ -731,64 +973,6 @@
                                                 Content="删除素材库"
                                                 ToolTip.Tip="删除当前素材库及其所有素材" />
                                     </StackPanel>
-                                </StackPanel>
-                                </ScrollViewer>
-                            </Border>
-                            <!-- 右侧：角度描述列表 -->
-                            <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto">
-                                <StackPanel Spacing="8">
-                                    <TextBox Text="{Binding AssetDetail.EditDescriptionText}"
-                                             PlaceholderText="编辑主描述文本后可保存；结构化角度列表在下方只读展示。"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-                                             MinHeight="88"
-                                             MaxHeight="160" />
-                                    <Button Classes="secondary-action"
-                                            Command="{Binding AssetDetail.SaveDescriptionCommand}"
-                                            Content="保存描述修改"
-                                            IsEnabled="{Binding AssetDetail.EditDescriptionText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                    <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetDescriptionAngles}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Classes="sub-card" Margin="0,0,0,8">
-                                                <StackPanel Spacing="6">
-                                                    <Grid ColumnDefinitions="*,Auto">
-                                                        <TextBlock Text="{Binding Label}"
-                                                                   FontWeight="SemiBold" FontSize="14"
-                                                                   Foreground="{DynamicResource AppTextBrush}" />
-                                                        <TextBlock Classes="eyebrow" Grid.Column="1"
-                                                                   Text="{Binding SegmentLabel}"
-                                                                   IsVisible="{Binding IsSegmentRecord}" />
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding Text}"
-                                                               TextWrapping="Wrap"
-                                                               FontSize="13"
-                                                               Foreground="{DynamicResource AppTextBrush}"
-                                                               IsVisible="{Binding Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                                    <WrapPanel>
-                                                        <ItemsControl ItemsSource="{Binding Tags}">
-                                                            <ItemsControl.ItemsPanel>
-                                                                <ItemsPanelTemplate>
-                                                                    <WrapPanel />
-                                                                </ItemsPanelTemplate>
-                                                            </ItemsControl.ItemsPanel>
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Border Background="{DynamicResource AppSoftSurfaceBrush}"
-                                                                            CornerRadius="4" Padding="8,4" Margin="2">
-                                                                        <TextBlock Text="{Binding}"
-                                                                                   FontSize="12"
-                                                                                   Foreground="{DynamicResource AppTextBrush}" />
-                                                                    </Border>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
-                                                    </WrapPanel>
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
                                 </StackPanel>
                             </ScrollViewer>
                         </Grid>

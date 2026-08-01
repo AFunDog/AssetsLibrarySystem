@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using Avalonia.Media.Imaging;
 using AssetsLibrarySystem.Application.Models;
@@ -39,6 +40,10 @@ public sealed partial class AssetLibraryTreeNode : ObservableObject
 
     public string SizeLabel { get; init; } = string.Empty;
     public string PathLabel { get; init; } = string.Empty;
+
+    /// <summary>路径与显示名重复（如库根目录文件）时不显示路径行，避免信息冗余</summary>
+    public bool ShowPathLabel => !string.IsNullOrWhiteSpace(PathLabel)
+        && !string.Equals(PathLabel, DisplayName, StringComparison.OrdinalIgnoreCase);
     public string Summary { get; init; } = string.Empty;
     public string IconKind { get; init; } = "Folder";
     public string FullPath { get; init; } = string.Empty;

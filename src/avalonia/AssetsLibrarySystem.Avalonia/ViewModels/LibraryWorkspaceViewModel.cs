@@ -96,6 +96,9 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     /// <summary>片段列表项（已分割剪辑素材；空=未分割或无描述）</summary>
     public ObservableCollection<SegmentListItemViewModel> SelectedAssetSegmentItems { get; } = [];
 
+    /// <summary>片段描述分组（剪辑素材：每段时间切片一组，组内含各角度描述；空=非剪辑或未描述）</summary>
+    public ObservableCollection<SegmentDescriptionGroupViewModel> SelectedAssetSegmentDescriptionGroups { get; } = [];
+
     /// <summary>当前素材是否展示片段列表</summary>
     [ObservableProperty] public partial bool HasSelectedAssetSegments { get; set; }
     /// <summary>面包屑导航段（库根 › 目录 › … › 当前）</summary>
@@ -278,8 +281,6 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
             AllAssets.RemoveAll(a => a.LibraryName == library.Name);
             AllAssets.AddRange(assets);
             library.AssetCount = assets.Count;
-            RebuildAssetTree();
-            RebuildMetrics();
             if (SelectedLibrary?.Id == library.Id)
             {
                 WorkspaceTitle = library.Name;
@@ -287,6 +288,11 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
                 AssetSummary = library.Summary;
             }
         }
+
+        // 全部库扫描完成后一次性重建树，避免扫描期间反复整体重建
+        // （反复重建会令选中节点引用失效，中央列表停留在旧数据）
+        RebuildAssetTree();
+        RebuildMetrics();
         OperatorNotice = "全部素材库文件数据已加载完成。";
     }
 
@@ -514,13 +520,17 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
 
     public void CompleteAssetDescription(ManagedAssetRecord asset, AssetDescriptionDocument document)
     {
-        // slicing 模式文档 = 仅完成场景分割（骨架），不算已描述
+        // slicing 模式文档 = 仅完成场景分割（骨架），不算已描述；
+        // mock 模式文档 = 未配置可用 LLM Key 的占位响应，也不算已描述。
         var isSlicingOnly = string.Equals(document.Mode, "slicing", StringComparison.OrdinalIgnoreCase);
+        var isMock = string.Equals(document.Mode, "mock", StringComparison.OrdinalIgnoreCase);
         asset.Stage = isSlicingOnly
             ? $"已分割 {StructuredDescriptionHelper.GetSegmentCount(document.Description)} 个片段，待描述"
-            : document.Mode == "live" ? "已描述" : "已描述（占位）";
+            : isMock
+                ? "未配置模型 API Key（mock 占位）"
+                : document.Mode == "live" ? "已描述" : "已描述（占位）";
         asset.AiState = asset.Stage;
-        asset.IsDescribed = !isSlicingOnly;
+        asset.IsDescribed = !isSlicingOnly && !isMock;
         if (ReferenceEquals(SelectedAsset, asset))
         {
             ApplySelectedAssetDescription(document);
@@ -691,12 +701,16 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
             ? "未返回 token 用量"
             : FormatTokenUsage(document.TokenUsage);
 
-        // slicing 模式文档 = 仅完成场景分割（骨架），尚未生成描述文本
+        // slicing 模式文档 = 仅完成场景分割（骨架），尚未生成描述文本；
+        // mock 模式文档 = 未配置可用 LLM Key 的占位响应。
         var isSlicingOnly = string.Equals(document.Mode, "slicing", StringComparison.OrdinalIgnoreCase);
+        var isMock = string.Equals(document.Mode, "mock", StringComparison.OrdinalIgnoreCase);
 
         SelectedAssetDescriptionState = isSlicingOnly
             ? $"已分割 {StructuredDescriptionHelper.GetSegmentCount(document.Description)} 个片段，待描述"
-            : document.Mode == "live" ? "已描述" : "已描述（占位）";
+            : isMock
+                ? "未配置模型 API Key（mock 占位）"
+                : document.Mode == "live" ? "已描述" : "已描述（占位）";
         SelectedAssetDescriptionStorePath = DescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
         SelectedAssetDescriptionGeneratedAt = document.GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
         SelectedAssetDescriptionMode = document.Mode;
@@ -709,7 +723,9 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
             : document.SystemPrompt;
         SelectedAssetDescriptionText = isSlicingOnly
             ? "场景分割完成，片段时间点已保存；请执行「描述」补全各片段描述。"
-            : document.PrimaryDescription;
+            : isMock
+                ? "当前未配置模型 API Key，本次为占位描述；请在 src/backend/.env 配置 DASHSCOPE_API_KEY 后重新描述。"
+                : document.PrimaryDescription;
         SelectedAssetAiState = SelectedAssetDescriptionState;
         SelectedAssetDetail = isSlicingOnly ? SelectedAssetDescriptionText : document.PrimaryDescription;
 
@@ -722,12 +738,12 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
 
         if (SelectedAsset is not null)
         {
-            // slicing 文档只是分割骨架，不算已描述
-            SelectedAsset.IsDescribed = !isSlicingOnly;
+            // slicing/mock 文档只是分割骨架或占位响应，不算已描述
+            SelectedAsset.IsDescribed = !isSlicingOnly && !isMock;
             SelectedAsset.AiState = SelectedAssetDescriptionState;
-            SelectedAsset.Stage = SelectedAssetDescriptionState.StartsWith("已描述", StringComparison.Ordinal)
-                ? SelectedAssetDescriptionState
-                : SelectedAsset.Stage;
+            // 与 CompleteAssetDescription 保持一致：状态字段始终同步为当前描述状态
+            // （slicing→"已分割 N 段，待描述"，mock→"未配置模型 API Key（mock 占位）"）
+            SelectedAsset.Stage = SelectedAssetDescriptionState;
             RefreshDescriptionAngles(SelectedAsset, document.Description);
         }
     }
@@ -735,6 +751,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     private void RefreshDescriptionAngles(ManagedAssetRecord asset, string? descriptionJson)
     {
         SelectedAssetDescriptionAngles.Clear();
+        SelectedAssetSegmentDescriptionGroups.Clear();
         RefreshSelectedAssetSegments(asset, descriptionJson);
         if (string.IsNullOrWhiteSpace(descriptionJson))
             return;
@@ -786,15 +803,29 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
                     MaxLength: angleDef?.MaxLength ?? 120));
             }
 
-            // 剪辑素材：追加片段级角度记录（按片段分组展示时间范围）
+            // 剪辑素材：描述详情按片段分组展示（每段时间切片一组，组内含各角度记录）；
+            // 未描述的骨架片段保留为「待描述」分组。
             var isClip = string.Equals(asset.AssetType, "视频剪辑", StringComparison.Ordinal);
             if (isClip)
             {
+                var groups = new Dictionary<int, SegmentDescriptionGroupViewModel>();
+                foreach (var skeleton in StructuredDescriptionHelper.EnumerateSegmentSkeletons(descriptionJson))
+                {
+                    var group = new SegmentDescriptionGroupViewModel(skeleton.SegmentIndex, skeleton.Start, skeleton.End);
+                    groups[skeleton.SegmentIndex] = group;
+                    SelectedAssetSegmentDescriptionGroups.Add(group);
+                }
+
                 foreach (var segmentRecord in StructuredDescriptionHelper.EnumerateSegmentAngleTexts(descriptionJson))
                 {
+                    if (!groups.TryGetValue(segmentRecord.SegmentIndex, out var group))
+                    {
+                        continue;
+                    }
+
                     var angleDef = profile?.Angles.FirstOrDefault(a => a.Key == segmentRecord.AngleType);
                     var tags = tagsByAngle.GetValueOrDefault(segmentRecord.AngleType, []);
-                    SelectedAssetDescriptionAngles.Add(new AngleDescriptionRecord(
+                    group.Angles.Add(new AngleDescriptionRecord(
                         AngleKey: SegmentAngleType.Build(segmentRecord.SegmentIndex, segmentRecord.AngleType),
                         Label: angleDef?.Label ?? segmentRecord.AngleType,
                         Text: segmentRecord.Text,
@@ -807,9 +838,17 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
                     });
                 }
 
-                // 分割后骨架：片段列表已在预览区统一展示（含时间点与待描述状态），
-                // 不再生成占位角度卡片
+                // 有角度文本的片段不再视为待描述；
+                // 分组集合已刷新（空态引导依赖此通知）
+                foreach (var group in SelectedAssetSegmentDescriptionGroups)
+                {
+                    group.IsMissing = group.Angles.Count == 0;
+                }
             }
+
+            // 角度集合已刷新（空态引导依赖此通知）
+            OnPropertyChanged(nameof(SelectedAssetDescriptionAngles));
+            OnPropertyChanged(nameof(SelectedAssetSegmentDescriptionGroups));
         }
         catch (Exception ex)
         {
@@ -879,6 +918,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         SelectedAssetDescriptionSystemPrompt = "尚未生成 system prompt。";
         SelectedAssetDescriptionText = "当前素材还没有可显示的 AI 描述。";
         SelectedAssetDescriptionAngles.Clear();
+        SelectedAssetSegmentDescriptionGroups.Clear();
         // 取消进行中的缩略图加载并清空片段列表
         SegmentThumbnailGeneration++;
         SelectedAssetSegmentItems.Clear();
@@ -920,10 +960,102 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
 
     private void RebuildAssetTree()
     {
+        // 重建前记录当前选中路径：旧树节点引用在重建后失效，需按路径重新解析
+        var selectedPath = SelectedAssetTreeNode?.FullPath;
         AssetTreeRoots.Clear();
         foreach (var library in Libraries.OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase))
             AssetTreeRoots.Add(BuildLibraryTree(library));
-        UpdateExplorerView(SelectedAssetTreeNode);
+
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            UpdateExplorerView(null);
+        }
+        else if (FindTreeNodeByPath(selectedPath) is { } reResolved)
+        {
+            // 原地刷新：重新赋值会经 OnChanged 刷新 SelectedAsset（新实例）与详情面板，
+            // _isHistoryNavigation 避免把重建过程记入导航历史
+            _isHistoryNavigation = true;
+            SelectedAssetTreeNode = reResolved;
+        }
+        else
+        {
+            // 原选中节点已不存在（目录/素材被删除）：回根视图
+            SelectedAssetTreeNode = null;
+        }
+
+        _ = RefreshClipSegmentCountsAsync();
+    }
+
+    /// <summary>
+    /// 为「已分割但未描述」的剪辑素材异步补充片段数状态（卡片显示"已分割 N 段 · 待描述"），
+    /// 不阻塞树构建；解析失败或未分割的素材保持原有"未描述"。
+    /// </summary>
+    private bool _clipCountsRefreshing;
+    private bool _clipCountsRefreshQueued;
+
+    private async Task RefreshClipSegmentCountsAsync()
+    {
+        // 防重入：树重建可能连续触发（扫描/状态同步），合并为一次刷新；
+        // 运行期间的新请求在完成后补跑一轮，保证拿到最新树。
+        if (_clipCountsRefreshing)
+        {
+            _clipCountsRefreshQueued = true;
+            return;
+        }
+
+        _clipCountsRefreshing = true;
+        try
+        {
+            do
+            {
+                _clipCountsRefreshQueued = false;
+                await RefreshClipSegmentCountsCoreAsync();
+            }
+            while (_clipCountsRefreshQueued);
+        }
+        finally
+        {
+            _clipCountsRefreshing = false;
+        }
+    }
+
+    private async Task RefreshClipSegmentCountsCoreAsync()
+    {
+        if (DescriptionStore is null)
+        {
+            return;
+        }
+
+        var clipNodes = AssetTreeRoots
+            .SelectMany(EnumerateAssetNodes)
+            .Where(node => node.Asset is { AssetType: "视频剪辑", IsDescribed: false })
+            .ToList();
+        if (clipNodes.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var node in clipNodes)
+        {
+            try
+            {
+                var document = await DescriptionStore.TryGetForAssetAsync(node.Asset!).ConfigureAwait(true);
+                if (document is null)
+                {
+                    continue;
+                }
+
+                var segmentCount = StructuredDescriptionHelper.EnumerateSegmentSkeletons(document.Description).Count();
+                if (segmentCount > 0)
+                {
+                    node.MetaLabel = $"已分割 {segmentCount} 段 · 待描述";
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Debug("读取剪辑素材片段数失败: {AssetName}, {Error}", node.DisplayName, ex.Message);
+            }
+        }
     }
 
     private AssetLibraryTreeNode BuildLibraryTree(LibraryWorkspace library)
@@ -1150,6 +1282,21 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
 
     partial void OnSelectedAssetTreeNodeChanged(AssetLibraryTreeNode? value)
     {
+        // 树重建后旧节点引用失效（扫描/任务完成等会整体重建树）：
+        // 统一按路径重解析到当前树，点击、导航、重建赋值任一入口都生效；
+        // 原节点已不存在（目录/素材被删除）时按未选中处理。
+        if (value is not null && !string.IsNullOrWhiteSpace(value.FullPath))
+        {
+            if (FindTreeNodeByPath(value.FullPath) is { } current)
+            {
+                value = current;
+            }
+            else
+            {
+                value = null;
+            }
+        }
+
         // 导航历史：普通导航把旧位置压入返回栈并清空前进栈；返回/前进操作不重复记录
         if (!_isHistoryNavigation && !ReferenceEquals(_historyCurrent, value))
         {

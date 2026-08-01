@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Services.Python;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -18,16 +19,19 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 public sealed partial class AssetDetailViewModel : ObservableObject
 {
     private LibraryWorkspaceViewModel Workspace { get; }
+    private VideoFrameService? VideoFrameService { get; }
 
-    public AssetDetailViewModel(LibraryWorkspaceViewModel workspace)
+    public AssetDetailViewModel(LibraryWorkspaceViewModel workspace, VideoFrameService? videoFrameService = null)
     {
         Workspace = workspace;
+        VideoFrameService = videoFrameService;
         Workspace.PropertyChanged += (_, e) =>
         {
             OnPropertyChanged(e.PropertyName);
-            if (e.PropertyName == nameof(Workspace.SelectedAssetType) ||
-                e.PropertyName == nameof(Workspace.SelectedAssetName) ||
-                e.PropertyName == nameof(Workspace.SelectedAssetPath))
+            // 预览只依赖素材对象与类型：移除 Name/Path 触发，避免素材切换时
+            // 同一次选中触发 3 次并发预览加载（含 ffmpeg 首帧提取）
+            if (e.PropertyName == nameof(Workspace.SelectedAsset) ||
+                e.PropertyName == nameof(Workspace.SelectedAssetType))
             {
                 _ = LoadPreviewAsync();
             }
@@ -36,6 +40,20 @@ public sealed partial class AssetDetailViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(CanChangeAssetType));
                 OnPropertyChanged(nameof(ChangeAssetTypeTargetLabel));
+            }
+
+            if (e.PropertyName is nameof(Workspace.SelectedAsset) or nameof(Workspace.SelectedAssetDescriptionAngles)
+                or nameof(Workspace.SelectedAssetSegmentDescriptionGroups))
+            {
+                OnPropertyChanged(nameof(ShowAngleEmptyHint));
+                OnPropertyChanged(nameof(IsClipAssetSelected));
+            }
+
+            if (e.PropertyName is nameof(Workspace.SelectedAsset) or nameof(Workspace.SelectedAssetType))
+            {
+                OnPropertyChanged(nameof(IsImageAssetSelected));
+                OnPropertyChanged(nameof(IsTextAssetSelected));
+                OnPropertyChanged(nameof(IsMediaAssetSelected));
             }
 
             if (e.PropertyName == nameof(Workspace.SelectedAssetDescriptionText) ||
@@ -59,7 +77,8 @@ public sealed partial class AssetDetailViewModel : ObservableObject
             || text.Contains("描述记录已删除", StringComparison.Ordinal)
             || text.Contains("描述存储未就绪", StringComparison.Ordinal)
             || text.Contains("描述记录读取失败", StringComparison.Ordinal)
-            || text.Contains("场景分割完成", StringComparison.Ordinal))
+            || text.Contains("场景分割完成", StringComparison.Ordinal)
+            || text.Contains("未配置模型 API Key", StringComparison.Ordinal))
         {
             EditDescriptionText = string.Empty;
             return;
@@ -93,6 +112,31 @@ public sealed partial class AssetDetailViewModel : ObservableObject
     public string SelectedAssetDescriptionSystemPrompt => Workspace.SelectedAssetDescriptionSystemPrompt;
     public ObservableCollection<AngleDescriptionRecord> SelectedAssetDescriptionAngles
         => Workspace.SelectedAssetDescriptionAngles;
+
+    /// <summary>片段描述分组（剪辑素材按时间切片分组展示）</summary>
+    public ObservableCollection<SegmentDescriptionGroupViewModel> SelectedAssetSegmentDescriptionGroups
+        => Workspace.SelectedAssetSegmentDescriptionGroups;
+
+    /// <summary>当前是否选中了素材（头部/操作区可见性：预览失败时也不隐藏操作）</summary>
+    public bool HasSelectedAsset => Workspace.SelectedAsset is not null;
+
+    /// <summary>当前选中素材是否为剪辑素材（控制分组/平铺两种描述展示）</summary>
+    public bool IsClipAssetSelected => Workspace.SelectedAsset is { AssetType: "视频剪辑" };
+
+    /// <summary>当前选中素材是否为图片（控制预览与字段布局）</summary>
+    public bool IsImageAssetSelected => Workspace.SelectedAssetType == "图片";
+
+    /// <summary>当前选中素材是否为文本</summary>
+    public bool IsTextAssetSelected => Workspace.SelectedAssetType == "文本";
+
+    /// <summary>当前选中素材是否为普通视频/音频（无片段概念）</summary>
+    public bool IsMediaAssetSelected => Workspace.SelectedAssetType is "视频" or "音频";
+
+    /// <summary>角度列表为空且选中素材未描述时，显示空态引导（替代大块空白）</summary>
+    public bool ShowAngleEmptyHint
+        => SelectedAssetDescriptionAngles.Count == 0
+           && SelectedAssetSegmentDescriptionGroups.Count == 0
+           && Workspace.SelectedAsset is { IsDescribed: false };
 
     // ===== 片段列表（已分割剪辑素材） =====
     public ObservableCollection<SegmentListItemViewModel> SelectedAssetSegmentItems
@@ -213,6 +257,13 @@ public sealed partial class AssetDetailViewModel : ObservableObject
     [ObservableProperty]
     public partial string PreviewText { get; set; } = string.Empty;
 
+    // ===== 视频首帧封面（视频/视频剪辑素材） =====
+    [ObservableProperty]
+    public partial Bitmap? PreviewCoverImage { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasPreviewCover { get; set; }
+
     private async Task LoadPreviewAsync()
     {
         var generation = ++PreviewGeneration;
@@ -220,12 +271,16 @@ public sealed partial class AssetDetailViewModel : ObservableObject
         var assetPath = Workspace.SelectedAssetPath;
 
         var previous = PreviewImage;
+        var previousCover = PreviewCoverImage;
         HasPreview = false;
         IsImagePreview = false;
         IsTextPreview = false;
         IsMediaPlaceholder = false;
+        HasPreviewCover = false;
         PreviewImage = null;
+        PreviewCoverImage = null;
         previous?.Dispose();
+        previousCover?.Dispose();
         PreviewText = string.Empty;
 
         if (string.IsNullOrWhiteSpace(assetPath) || !File.Exists(assetPath))
@@ -241,12 +296,45 @@ public sealed partial class AssetDetailViewModel : ObservableObject
                 break;
             case "视频":
             case "视频剪辑":
+                // 视频/剪辑素材：优先提取首帧封面，失败回退类型占位
+                HasPreview = true;
+                await LoadVideoCoverAsync(assetPath, generation);
+                if (generation == PreviewGeneration && !HasPreviewCover)
+                {
+                    IsMediaPlaceholder = true;
+                }
+
+                break;
             case "音频":
-                if (generation != PreviewGeneration)
-                    return;
                 HasPreview = true;
                 IsMediaPlaceholder = true;
                 break;
+        }
+    }
+
+    private async Task LoadVideoCoverAsync(string path, int generation)
+    {
+        if (VideoFrameService is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var jpegBytes = await Task.Run(() => VideoFrameService.ExtractFrame(path, 0.0)).ConfigureAwait(true);
+            if (generation != PreviewGeneration || jpegBytes is null || jpegBytes.Length == 0)
+            {
+                return;
+            }
+
+            var previous = PreviewCoverImage;
+            PreviewCoverImage = new Bitmap(new MemoryStream(jpegBytes));
+            previous?.Dispose();
+            HasPreviewCover = true;
+        }
+        catch
+        {
+            // 首帧提取失败保持占位，静默回退
         }
     }
 

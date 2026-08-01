@@ -350,7 +350,18 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
             rangeEnd = RangeEndSeconds;
             if (rangeStart is null || rangeEnd is null || rangeEnd.Value <= rangeStart.Value)
             {
-                Workspace.SetOperatorNotice("时间范围无效：请输入开始与结束时间（秒或 mm:ss），且结束需大于开始。");
+                var missing = string.IsNullOrWhiteSpace(RangeStartText) || string.IsNullOrWhiteSpace(RangeEndText);
+                var reason = missing
+                    ? "时间范围未填写完整：请先填写「开始」与「结束」时间（秒或 mm:ss）。"
+                    : "时间范围无效：开始时间需小于结束时间（秒或 mm:ss）。";
+                Workspace.SetOperatorNotice(reason);
+                Log.Warning(
+                    "描述任务未启动：时间范围无效或未填写。start={Start}, end={End}, startSec={StartSec}, endSec={EndSec}, hasRange={HasRange}",
+                    RangeStartText,
+                    RangeEndText,
+                    rangeStart,
+                    rangeEnd,
+                    HasTimeRange);
                 return;
             }
         }
