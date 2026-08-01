@@ -59,7 +59,14 @@ public sealed record LocalVectorRecord(
     DateTimeOffset? GeneratedAt,
     DateTimeOffset VectorizedAt,
     string EmbeddingModel,
-    float[] Vector);
+    float[] Vector,
+    int? SegmentIndex = null,
+    double? StartTime = null,
+    double? EndTime = null)
+{
+    /// <summary>是否为片段级向量（剪辑素材，angle_type = segN_角度）</summary>
+    public bool IsSegmentRecord => SegmentIndex is not null;
+}
 
 public sealed record VectorCandidateRecord(
     string CandidateId,
@@ -200,6 +207,11 @@ public sealed class AssetFormatResolver : IAssetFormatResolver
             return new AssetFormatResolution(mode, "音频");
         }
 
+        if (ContainsAny(query, "视频剪辑", "剪辑片段", "剪辑素材"))
+        {
+            return new AssetFormatResolution(mode, "视频剪辑");
+        }
+
         if (ContainsAny(query, "视频", "动画", "片段", "镜头", "录像"))
         {
             return new AssetFormatResolution(mode, "视频");
@@ -281,6 +293,25 @@ public sealed class VectorRecordRepository : IVectorRecordRepository
         {
             var rawDescription = reader.IsDBNull(6) ? string.Empty : reader.GetString(6);
             var angleType = reader.GetString(2);
+
+            // 片段向量（segN_角度）：解析片段序号与时间范围
+            int? segmentIndex = null;
+            double? startTime = null;
+            double? endTime = null;
+            if (SegmentAngleType.TryParse(angleType, out var parsedIndex, out _))
+            {
+                foreach (var segment in StructuredDescriptionHelper.EnumerateSegmentAngleTexts(rawDescription))
+                {
+                    if (segment.SegmentIndex == parsedIndex)
+                    {
+                        segmentIndex = parsedIndex;
+                        startTime = segment.StartTime;
+                        endTime = segment.EndTime;
+                        break;
+                    }
+                }
+            }
+
             records.Add(new LocalVectorRecord(
                 AssetUid: reader.GetString(1),
                 AngleType: angleType,
@@ -294,7 +325,10 @@ public sealed class VectorRecordRepository : IVectorRecordRepository
                 GeneratedAt: reader.IsDBNull(8) ? null : DateTimeOffset.Parse(reader.GetString(8)),
                 VectorizedAt: reader.IsDBNull(9) ? DateTimeOffset.MinValue : DateTimeOffset.Parse(reader.GetString(9)),
                 EmbeddingModel: reader.GetString(10),
-                Vector: DeserializeVector(reader.GetFieldValue<byte[]>(12), reader.GetInt32(11))));
+                Vector: DeserializeVector(reader.GetFieldValue<byte[]>(12), reader.GetInt32(11)),
+                SegmentIndex: segmentIndex,
+                StartTime: startTime,
+                EndTime: endTime));
         }
 
         return records;
@@ -402,13 +436,19 @@ public sealed class SearchResultAggregator : ISearchResultAggregator
         int candidateTopK,
         int finalTopK)
     {
+        // 剪辑素材的片段向量按 (AssetUid, SegmentIndex) 分组（命中片段即独立结果）；
+        // 普通素材按 AssetUid 分组（组内按角度保留最高分）
         var grouped = new Dictionary<string, Dictionary<string, ScoredVectorCandidateRecord>>(StringComparer.Ordinal);
         foreach (var candidate in candidates)
         {
-            if (!grouped.TryGetValue(candidate.Record.AssetUid, out var assetCandidates))
+            var groupKey = candidate.Record.IsSegmentRecord
+                ? $"{candidate.Record.AssetUid}#seg{candidate.Record.SegmentIndex}"
+                : candidate.Record.AssetUid;
+
+            if (!grouped.TryGetValue(groupKey, out var assetCandidates))
             {
                 assetCandidates = new Dictionary<string, ScoredVectorCandidateRecord>(StringComparer.Ordinal);
-                grouped[candidate.Record.AssetUid] = assetCandidates;
+                grouped[groupKey] = assetCandidates;
             }
 
             if (!assetCandidates.TryGetValue(candidate.Record.AngleType, out var existing)
@@ -427,12 +467,18 @@ public sealed class SearchResultAggregator : ISearchResultAggregator
                                        AssetDescriptionVectorDocument.IsPrimaryAngleType(item.Record.AngleType))
                                    ?? bestCandidate;
 
+            // 片段级结果：展示片段文本并携带时间范围
+            var isSegmentResult = displayCandidate.Record.IsSegmentRecord;
+            var description = isSegmentResult
+                ? displayCandidate.Record.SegmentText
+                : displayCandidate.Record.PrimaryDescription;
+
             var result = new AssetSearchDocument(
                 assetUid: displayCandidate.Record.AssetUid,
                 assetName: displayCandidate.Record.AssetName,
                 assetType: displayCandidate.Record.AssetType,
                 currentPath: displayCandidate.Record.AssetPath,
-                description: displayCandidate.Record.PrimaryDescription,
+                description: description,
                 generatedAt: displayCandidate.Record.GeneratedAt,
                 embeddingSimilarity: bestCandidate.EmbeddingSimilarity,
                 vectorDistance: bestCandidate.VectorDistance,
@@ -441,6 +487,9 @@ public sealed class SearchResultAggregator : ISearchResultAggregator
                 angleTags: displayCandidate.Record.AngleTags)
             {
                 CombinedScore = bestCandidate.CombinedScore,
+                SegmentIndex = isSegmentResult ? displayCandidate.Record.SegmentIndex : null,
+                StartTime = isSegmentResult ? displayCandidate.Record.StartTime : null,
+                EndTime = isSegmentResult ? displayCandidate.Record.EndTime : null,
             };
             results.Add(result);
         }

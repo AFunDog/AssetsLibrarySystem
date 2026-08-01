@@ -63,7 +63,8 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 vector_dim,
                 vector_blob,
                 vectorized_at,
-                content_hash
+                content_hash,
+                source_fingerprint
             FROM asset_description_vectors AS v
             INNER JOIN assets AS a ON a.id = v.asset_id
             WHERE v.asset_id = $asset_id
@@ -84,7 +85,8 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 reader.GetInt32(4),
                 vector,
                 DateTimeOffset.Parse(reader.GetString(6)),
-                reader.IsDBNull(7) ? null : reader.GetString(7)));
+                reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8)));
         }
 
         return documents;
@@ -205,7 +207,8 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 vector_dim,
                 vector_blob,
                 vectorized_at,
-                content_hash
+                content_hash,
+                source_fingerprint
             )
             VALUES (
                 $asset_id,
@@ -214,13 +217,15 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 $vector_dim,
                 $vector_blob,
                 $vectorized_at,
-                $content_hash
+                $content_hash,
+                $source_fingerprint
             )
             ON CONFLICT(asset_id, angle_type, embedding_model) DO UPDATE SET
                 vector_dim = excluded.vector_dim,
                 vector_blob = excluded.vector_blob,
                 vectorized_at = excluded.vectorized_at,
-                content_hash = excluded.content_hash;
+                content_hash = excluded.content_hash,
+                source_fingerprint = excluded.source_fingerprint;
             """;
 
         AddParameter(command, "$asset_id", document.AssetId);
@@ -233,6 +238,7 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         });
         AddParameter(command, "$vectorized_at", document.VectorizedAt.ToString("O"));
         AddParameter(command, "$content_hash", (object?)document.ContentHash ?? DBNull.Value);
+        AddParameter(command, "$source_fingerprint", (object?)document.SourceFingerprint ?? DBNull.Value);
 
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }

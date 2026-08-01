@@ -57,6 +57,9 @@ public sealed record AngleDefinitionDto(
     string Prompt,
     int MaxLength = 120);
 
+/// <summary>已确认的片段时间范围（秒），用于剪辑素材按时间点描述</summary>
+public sealed record SegmentRangeDto(double Start, double End);
+
 public sealed record BackendModelGenerateRequest(
     string AssetFormat,
     string AssetPath,
@@ -68,7 +71,11 @@ public sealed record BackendModelGenerateRequest(
     bool EnableSlicing = false,
     double SliceThreshold = 60.0,
     int MinSceneLen = 15,
-    double AdaptiveThreshold = 3.0);
+    double AdaptiveThreshold = 3.0,
+    bool SlicingOnly = false,
+    SegmentRangeDto[]? ExistingSegments = null,
+    double? RangeStart = null,
+    double? RangeEnd = null);
 
 public sealed record BackendModelGenerateResponse(
     string ProviderSlot,

@@ -41,10 +41,10 @@ public sealed class AssetLibraryService : IAssetLibraryService
         await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT l.id, l.name, l.root_path, COUNT(a.id)
+            SELECT l.id, l.name, l.root_path, l.kind, COUNT(a.id)
             FROM libraries AS l
             LEFT JOIN assets AS a ON a.library_id = l.id
-            GROUP BY l.id, l.name, l.root_path
+            GROUP BY l.id, l.name, l.root_path, l.kind
             ORDER BY l.name;
             """;
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -52,12 +52,15 @@ public sealed class AssetLibraryService : IAssetLibraryService
         while (await reader.ReadAsync(ct))
         {
             items.Add(new LibraryWorkspace(reader.GetInt64(0), reader.GetString(1), reader.GetString(2),
-                "素材库信息已存储在数据库中。", "已登记目录", reader.GetInt32(3)));
+                "素材库信息已存储在数据库中。", "已登记目录", reader.GetInt32(4), ParseLibraryKind(reader.GetString(3))));
         }
         return items;
     }
 
     public async Task<LibraryWorkspace> AddLibraryAsync(string folderPath, CancellationToken ct = default)
+        => await AddLibraryAsync(folderPath, LibraryKind.Standard, ct);
+
+    public async Task<LibraryWorkspace> AddLibraryAsync(string folderPath, LibraryKind kind, CancellationToken ct = default)
     {
         var normalizedPath = Path.GetFullPath(folderPath);
         if (!Directory.Exists(normalizedPath))
@@ -76,7 +79,8 @@ public sealed class AssetLibraryService : IAssetLibraryService
                 existing.RootPath,
                 "目录已存在，可直接扫描。",
                 "已登记目录",
-                0);
+                0,
+                existing.Kind);
         }
 
         var name = BuildLibraryName(normalizedPath, items);
@@ -86,17 +90,18 @@ public sealed class AssetLibraryService : IAssetLibraryService
             await using var connection = await AssetDatabase.OpenConnectionAsync(token);
             await using var command = connection.CreateCommand();
             command.CommandText = """
-                INSERT INTO libraries (name, root_path, created_at, updated_at)
-                VALUES ($name, $root_path, $created_at, $updated_at);
+                INSERT INTO libraries (name, root_path, kind, created_at, updated_at)
+                VALUES ($name, $root_path, $kind, $created_at, $updated_at);
                 SELECT last_insert_rowid();
                 """;
             AddParameter(command, "$name", name);
             AddParameter(command, "$root_path", normalizedPath);
+            AddParameter(command, "$kind", FormatLibraryKind(kind));
             AddParameter(command, "$created_at", now);
             AddParameter(command, "$updated_at", now);
             return Convert.ToInt64(await command.ExecuteScalarAsync(token), CultureInfo.InvariantCulture);
         }, ct);
-        return new LibraryWorkspace(id, name, normalizedPath, "目录已登记，等待首次扫描。", "已登记目录", 0);
+        return new LibraryWorkspace(id, name, normalizedPath, "目录已登记，等待首次扫描。", "已登记目录", 0, kind);
     }
 
     public Task<IReadOnlyList<ManagedAssetRecord>> ScanLibraryAsync(LibraryWorkspace library, CancellationToken ct = default)
@@ -113,7 +118,8 @@ public sealed class AssetLibraryService : IAssetLibraryService
         var scanAt = DateTimeOffset.UtcNow;
         var descriptionTableExists = DescriptionTableExists();
         var records = new ConcurrentBag<ManagedAssetRecord>();
-        var paths = FileScanner.EnumerateSupportedFiles(library.RootPath)
+        var isClipLibrary = library.Kind == LibraryKind.Clip;
+        var paths = FileScanner.EnumerateSupportedFiles(library.RootPath, videosOnly: isClipLibrary)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -154,7 +160,9 @@ public sealed class AssetLibraryService : IAssetLibraryService
         var normalizedPath = Path.GetFullPath(fullPath);
         var relativePath = Path.GetRelativePath(library.RootPath, normalizedPath);
         var fileInfo = new FileInfo(normalizedPath);
-        var assetType = FileScanner.Classify(normalizedPath);
+        var assetType = library.Kind == LibraryKind.Clip
+            ? FileScanner.ClassifyForClipLibrary(normalizedPath)
+            : FileScanner.Classify(normalizedPath);
         var extension = fileInfo.Extension.TrimStart('.').ToLowerInvariant();
         var sidecarPath = AssetUidSidecarStore.GetSidecarPath(normalizedPath);
         var sidecarInfo = new FileInfo(sidecarPath);
@@ -986,4 +994,9 @@ public sealed class AssetLibraryService : IAssetLibraryService
         DateTimeOffset UpdatedAt,
         string CreatedBy,
         int UidVersion);
+
+    private static LibraryKind ParseLibraryKind(string kind) =>
+        string.Equals(kind, "clip", StringComparison.OrdinalIgnoreCase) ? LibraryKind.Clip : LibraryKind.Standard;
+
+    private static string FormatLibraryKind(LibraryKind kind) => kind == LibraryKind.Clip ? "clip" : "standard";
 }

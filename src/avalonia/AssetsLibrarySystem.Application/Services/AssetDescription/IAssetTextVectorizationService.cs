@@ -14,5 +14,6 @@ public interface IAssetTextVectorizationService
         string model,
         int embeddingDimensions,
         string embeddingModelKey,
+        IReadOnlyDictionary<string, AssetDescriptionVectorDocument>? existingByAngle = null,
         CancellationToken ct = default);
 }

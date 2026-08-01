@@ -26,7 +26,7 @@ internal sealed class AssetFileScanner
         ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".wma"
     };
 
-    public IEnumerable<string> EnumerateSupportedFiles(string rootPath)
+    public IEnumerable<string> EnumerateSupportedFiles(string rootPath, bool videosOnly = false)
     {
         if (!Directory.Exists(rootPath))
         {
@@ -45,7 +45,7 @@ internal sealed class AssetFileScanner
 
             foreach (var file in TryEnumerate(() => Directory.GetFiles(current)))
             {
-                if (TryClassify(file, out _))
+                if (TryClassify(file, out var type) && (!videosOnly || type == "视频"))
                 {
                     yield return file;
                 }
@@ -54,6 +54,10 @@ internal sealed class AssetFileScanner
     }
 
     public string Classify(string path) => TryClassify(path, out var type) ? type : "其他";
+
+    /// <summary>剪辑库分类：视频文件归为「视频剪辑」，其他类型返回空（不入库）</summary>
+    public string ClassifyForClipLibrary(string path) =>
+        TryClassify(path, out var type) && type == "视频" ? "视频剪辑" : string.Empty;
 
     private static bool TryClassify(string path, out string type)
     {

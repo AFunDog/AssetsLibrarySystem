@@ -277,6 +277,17 @@
                                                            Text="{Binding AssetType}" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <Border Padding="5,1"
+                                                        CornerRadius="4"
+                                                        Background="#33FFFFFF"
+                                                        BorderBrush="{DynamicResource AppBorderBrush}"
+                                                        BorderThickness="1"
+                                                        IsVisible="{Binding IsSegmentResult}">
+                                                    <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                               FontSize="10"
+                                                               FontWeight="SemiBold"
+                                                               Text="{Binding SegmentTimeLabel}" />
+                                                </Border>
                                                 <ProgressBar Value="{Binding CombinedScore, Converter={StaticResource DoubleToPercentConverter}}"
                                                              Minimum="0"
                                                              Maximum="100"

@@ -5,13 +5,20 @@ namespace AssetsLibrarySystem.Application.Models;
 
 public sealed record DashboardMetric(string Label, string Value, string Hint);
 
+/// <summary>素材库类型：standard=普通素材库，clip=视频剪辑库（只收视频，描述/检索基于片段）</summary>
+public enum LibraryKind
+{
+    Standard,
+    Clip,
+}
+
 public sealed class LibraryWorkspace : ObservableModel
 {
     public LibraryWorkspace()
     {
     }
 
-    public LibraryWorkspace(long id, string name, string rootPath, string summary, string syncMode, int assetCount)
+    public LibraryWorkspace(long id, string name, string rootPath, string summary, string syncMode, int assetCount, LibraryKind kind = LibraryKind.Standard)
     {
         Id = id;
         Name = name;
@@ -19,11 +26,15 @@ public sealed class LibraryWorkspace : ObservableModel
         Summary = summary;
         SyncMode = syncMode;
         AssetCount = assetCount;
+        Kind = kind;
     }
 
     public long Id { get; init; }
     public string Name { get; init; } = string.Empty;
     public string RootPath { get; init; } = string.Empty;
+
+    /// <summary>素材库类型（standard/clip），clip 库只收视频并按片段描述</summary>
+    public LibraryKind Kind { get; init; } = LibraryKind.Standard;
 
     public string Summary
     {

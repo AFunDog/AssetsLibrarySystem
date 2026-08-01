@@ -28,6 +28,8 @@ public sealed class DescribeAssetsUseCase
         string backendBaseUrl,
         string? prompt = null,
         string? systemPrompt = null,
+        double? rangeStart = null,
+        double? rangeEnd = null,
         Func<DescribeAssetProgress, Task>? progress = null,
         CancellationToken ct = default)
     {
@@ -41,7 +43,9 @@ public sealed class DescribeAssetsUseCase
             var asset = assets[index];
 
             await ReportAsync(progress, DescribeAssetProgress.Queued(asset), ct).ConfigureAwait(false);
-            var taskId = BackgroundTaskService.BeginTask(TaskTitle, $"正在生成素材描述：{asset.Name}", asset.LocalPath);
+            var isClip = string.Equals(asset.AssetType, "视频剪辑", StringComparison.Ordinal);
+            var taskTitle = isClip ? "剪辑素材描述" : TaskTitle;
+            var taskId = BackgroundTaskService.BeginTask(taskTitle, $"正在生成素材描述：{asset.Name}", asset.LocalPath);
 
             // 报告进度
             var progressValue = (double)index / totalCount * 100;
@@ -49,9 +53,19 @@ public sealed class DescribeAssetsUseCase
 
             try
             {
-                var document = await DescriptionService
-                    .DescribeAsync(asset, backendBaseUrl, prompt, systemPrompt, ct)
-                    .ConfigureAwait(false);
+                AssetDescriptionDocument document;
+                if (isClip)
+                {
+                    document = await DescriptionService
+                        .DescribeClipAsync(asset, backendBaseUrl, rangeStart, rangeEnd, ct)
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    document = await DescriptionService
+                        .DescribeAsync(asset, backendBaseUrl, prompt, systemPrompt, ct)
+                        .ConfigureAwait(false);
+                }
 
                 successCount++;
                 BackgroundTaskService.UpdateProgress(taskId, (double)(index + 1) / totalCount * 100);

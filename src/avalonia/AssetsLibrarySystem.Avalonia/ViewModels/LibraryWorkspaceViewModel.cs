@@ -153,7 +153,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     [RelayCommand]
     private void SwitchToDetailView() => ViewMode = ExplorerViewMode.Detail;
 
-    public static string[] FilterAssetTypeOptions => ["全部", "文本", "图片", "视频", "音频"];
+    public static string[] FilterAssetTypeOptions => ["全部", "文本", "图片", "视频", "音频", "视频剪辑"];
     public static string[] FilterStatusOptions => ["全部", "已描述", "未描述", "已向量化", "待处理"];
     public static string[] FilterSortByOptions => ["名称", "类型", "大小"];
 
@@ -279,9 +279,9 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         OperatorNotice = "全部素材库文件数据已加载完成。";
     }
 
-    public async Task AddLibraryDirectoryAsync(string folderPath)
+    public async Task AddLibraryDirectoryAsync(string folderPath, LibraryKind kind = LibraryKind.Standard)
     {
-        var library = await CatalogService.AddLibraryAsync(folderPath);
+        var library = await CatalogService.AddLibraryAsync(folderPath, kind);
         var existing = Libraries.FirstOrDefault(l => l.RootPath == library.RootPath);
         if (existing is null)
         {
@@ -702,6 +702,28 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
                     Tags: tags,
                     MaxLength: angleDef?.MaxLength ?? 120));
             }
+
+            // 剪辑素材：追加片段级角度记录（按片段分组展示时间范围）
+            var isClip = string.Equals(asset.AssetType, "视频剪辑", StringComparison.Ordinal);
+            if (isClip)
+            {
+                foreach (var segmentRecord in StructuredDescriptionHelper.EnumerateSegmentAngleTexts(descriptionJson))
+                {
+                    var angleDef = profile?.Angles.FirstOrDefault(a => a.Key == segmentRecord.AngleType);
+                    var tags = tagsByAngle.GetValueOrDefault(segmentRecord.AngleType, []);
+                    SelectedAssetDescriptionAngles.Add(new AngleDescriptionRecord(
+                        AngleKey: SegmentAngleType.Build(segmentRecord.SegmentIndex, segmentRecord.AngleType),
+                        Label: angleDef?.Label ?? segmentRecord.AngleType,
+                        Text: segmentRecord.Text,
+                        Tags: tags,
+                        MaxLength: angleDef?.MaxLength ?? 120)
+                    {
+                        SegmentIndex = segmentRecord.SegmentIndex,
+                        StartTime = segmentRecord.StartTime,
+                        EndTime = segmentRecord.EndTime,
+                    });
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -1033,6 +1055,8 @@ file sealed class NullAssetLibraryService : IAssetLibraryService
     public Task<IReadOnlyList<LibraryWorkspace>> GetLibrariesAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<LibraryWorkspace>>([]);
     public Task<LibraryWorkspace> AddLibraryAsync(string folderPath, CancellationToken ct = default)
+        => throw new NotSupportedException();
+    public Task<LibraryWorkspace> AddLibraryAsync(string folderPath, LibraryKind kind, CancellationToken ct = default)
         => throw new NotSupportedException();
     public Task<IReadOnlyList<ManagedAssetRecord>> ScanLibraryAsync(LibraryWorkspace library, CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<ManagedAssetRecord>>([]);

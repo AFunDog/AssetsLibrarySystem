@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.UseCases.AssetOperations;
@@ -41,6 +42,23 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
         QueueDescriptionsForSelectionCommand = new AsyncRelayCommand(QueueDescriptionsForSelectionAsync);
         QueueSelectedDescriptionCommand = new AsyncRelayCommand(QueueSelectedDescriptionAsync);
         DeleteSelectedDescriptionCommand = new AsyncRelayCommand(DeleteSelectedDescriptionAsync);
+
+        // 剪辑素材识别：跟随工作台选中素材变化
+        Workspace.PropertyChanged += OnWorkspacePropertyChanged;
+        UpdateClipAssetSelected();
+    }
+
+    private void OnWorkspacePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(LibraryWorkspaceViewModel.SelectedAsset))
+        {
+            UpdateClipAssetSelected();
+        }
+    }
+
+    private void UpdateClipAssetSelected()
+    {
+        IsClipAssetSelected = Workspace.SelectedAsset is { AssetType: "视频剪辑" };
     }
 
     public IAsyncRelayCommand QueueDescriptionsForSelectionCommand { get; }
@@ -129,6 +147,74 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
         await DescribeAssetsAsync([asset]);
     }
 
+    [ObservableProperty] public partial string RangeStartText { get; set; } = "";
+
+    [ObservableProperty] public partial string RangeEndText { get; set; } = "";
+
+    /// <summary>当前描述按钮是否带时间范围（剪辑素材专用）</summary>
+    public bool HasTimeRange
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(IsClipRangeVisible));
+            }
+        }
+    }
+
+    /// <summary>当前选中素材是否为剪辑素材（控制「时间范围」开关可见性）</summary>
+    public bool IsClipAssetSelected
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(IsClipRangeVisible));
+            }
+        }
+    }
+
+    /// <summary>是否显示时间范围输入框（剪辑素材且开启范围描述）</summary>
+    public bool IsClipRangeVisible => IsClipAssetSelected && HasTimeRange;
+
+    /// <summary>解析后的开始时间（秒），null=未指定</summary>
+    public double? RangeStartSeconds => TryParseTime(RangeStartText, out var value) ? value : null;
+
+    /// <summary>解析后的结束时间（秒），null=未指定</summary>
+    public double? RangeEndSeconds => TryParseTime(RangeEndText, out var value) ? value : null;
+
+    private static bool TryParseTime(string? text, out double seconds)
+    {
+        seconds = 0.0;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var trimmed = text.Trim();
+        // 时间码格式 mm:ss 或 hh:mm:ss
+        var parts = trimmed.Split(':', StringSplitOptions.TrimEntries);
+        if (parts.Length == 2 && double.TryParse(parts[0], out var minutes) && double.TryParse(parts[1], out var secs))
+        {
+            seconds = (minutes * 60) + secs;
+            return true;
+        }
+
+        if (parts.Length == 3
+            && double.TryParse(parts[0], out var hours)
+            && double.TryParse(parts[1], out var mins)
+            && double.TryParse(parts[2], out var secondsPart))
+        {
+            seconds = (hours * 3600) + (mins * 60) + secondsPart;
+            return true;
+        }
+
+        return double.TryParse(trimmed, out seconds);
+    }
+
     private async Task DescribeAssetsAsync(IReadOnlyList<ManagedAssetRecord> assets)
     {
         if (!BackendStatus.IsBackendReady)
@@ -143,11 +229,29 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
             return;
         }
 
+        // 剪辑素材：解析时间范围（只补范围内缺失片段）
+        var clipAssets = assets.Where(asset =>
+            string.Equals(asset.AssetType, "视频剪辑", StringComparison.Ordinal)).ToArray();
+        double? rangeStart = null;
+        double? rangeEnd = null;
+        if (clipAssets.Length > 0 && HasTimeRange)
+        {
+            rangeStart = RangeStartSeconds;
+            rangeEnd = RangeEndSeconds;
+            if (rangeStart is null || rangeEnd is null || rangeEnd.Value <= rangeStart.Value)
+            {
+                Workspace.SetOperatorNotice("时间范围无效：请输入开始与结束时间（秒或 mm:ss），且结束需大于开始。");
+                return;
+            }
+        }
+
         try
         {
             var result = await DescribeAssetsUseCase.ExecuteAsync(
                 assets,
                 BackendStatus.BaseUrl,
+                rangeStart: rangeStart,
+                rangeEnd: rangeEnd,
                 progress: progress =>
                 {
                     if (progress.Kind == DescribeAssetProgressKind.Queued)
@@ -166,10 +270,13 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
                     return Task.CompletedTask;
                 });
 
+            var rangeSuffix = rangeStart is not null
+                ? $"（范围 {rangeStart.Value:0.##}s-{rangeEnd!.Value:0.##}s）"
+                : string.Empty;
             Workspace.SetOperatorNotice(
-                $"描述任务完成：成功 {result.SuccessCount}，失败 {result.FailureCount}。");
+                $"描述任务完成：成功 {result.SuccessCount}，失败 {result.FailureCount}。{rangeSuffix}");
             _activityFeedService.Add(
-                $"描述任务完成：成功 {result.SuccessCount}，失败 {result.FailureCount}");
+                $"描述任务完成：成功 {result.SuccessCount}，失败 {result.FailureCount}。{rangeSuffix}");
         }
         catch (Exception ex)
         {

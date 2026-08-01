@@ -290,6 +290,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             string model,
             int embeddingDimensions,
             string embeddingModelKey,
+            IReadOnlyDictionary<string, AssetDescriptionVectorDocument>? existingByAngle = null,
             CancellationToken ct = default)
         {
             if (ResultsByAssetId.TryGetValue(document.AssetUid, out var documents))

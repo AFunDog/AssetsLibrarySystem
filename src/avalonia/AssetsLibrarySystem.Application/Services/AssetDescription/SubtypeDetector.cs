@@ -24,7 +24,7 @@ public sealed class SubtypeDetector : ISubtypeDetector
     {
         if (asset.AssetType == "音频")
             return DetectAudioSubtype(asset);
-        if (asset.AssetType == "视频")
+        if (asset.AssetType == "视频" || asset.AssetType == "视频剪辑")
             return DetectVideoSubtype(asset);
         return null;
     }

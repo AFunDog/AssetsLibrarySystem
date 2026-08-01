@@ -106,6 +106,7 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 root_path TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'standard',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -190,7 +191,9 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
         EnsureColumn(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'");
         EnsureColumn(connection, "asset_description_vectors", "angle_type", "TEXT NOT NULL DEFAULT '整体'");
         EnsureColumn(connection, "asset_description_vectors", "content_hash", "TEXT NULL");
+        EnsureColumn(connection, "asset_description_vectors", "source_fingerprint", "TEXT NULL");
         EnsureColumn(connection, "asset_metadata", "subtype", "TEXT NULL");
+        EnsureColumn(connection, "libraries", "kind", "TEXT NOT NULL DEFAULT 'standard'");
     }
 
     private static void EnsureColumn(SqliteConnection connection, string tableName, string columnName, string definition)
@@ -406,7 +409,9 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
         await EnsureColumnAsync(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_description_vectors", "angle_type", "TEXT NOT NULL DEFAULT '整体'", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_description_vectors", "content_hash", "TEXT NULL", ct).ConfigureAwait(false);
+        await EnsureColumnAsync(connection, "asset_description_vectors", "source_fingerprint", "TEXT NULL", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_metadata", "subtype", "TEXT NULL", ct).ConfigureAwait(false);
+        await EnsureColumnAsync(connection, "libraries", "kind", "TEXT NOT NULL DEFAULT 'standard'", ct).ConfigureAwait(false);
     }
 
     private static async Task EnsureColumnAsync(

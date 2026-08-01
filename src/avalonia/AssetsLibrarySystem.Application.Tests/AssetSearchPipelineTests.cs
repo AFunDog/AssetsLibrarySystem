@@ -74,6 +74,75 @@ public sealed class AssetSearchPipelineTests
         Assert.Equal(["乐器：钢琴与弦乐", "风格：电影配乐", "情感：紧张"], tags);
     }
 
+    [Fact]
+    public async Task Aggregate_ReturnsEachHitClipSegmentAsIndependentResult()
+    {
+        // 剪辑素材：两个片段各自命中（每个片段有整体+场景两个角度），普通素材命中一条
+        var records = new[]
+        {
+            CreateSegmentRecord("clip-1", 0, "整体", 0.0, 10.0, [1f, 0f]),
+            CreateSegmentRecord("clip-1", 0, "场景", 0.0, 10.0, [0.95f, 0.05f]),
+            CreateSegmentRecord("clip-1", 1, "整体", 10.0, 25.0, [0.9f, 0.1f]),
+            CreateSegmentRecord("clip-1", 1, "场景", 10.0, 25.0, [0.85f, 0.15f]),
+            CreateRecord("image-1", "整体", "图片", [0.8f, 0.2f]),
+        };
+        var pipeline = new AssetSearchPipeline(
+            new FakeSearchModelOptionsProvider(),
+            new SearchParameterNormalizer(),
+            new AssetFormatResolver(),
+            new FakeVectorRecordRepository(records),
+            new FakeQueryEmbeddingClient([1f, 0f]),
+            new VectorRetrieverSelector(new ExactVectorRetriever(), new HnswVectorRetriever()),
+            new RerankCandidateSelector(),
+            new FakeRerankClient(),
+            new ScoreFusionService(),
+            new SearchResultAggregator());
+
+        var response = await pipeline.ExecuteAsync(
+            new AssetSearchPipelineRequest("http://backend", "片段", 20, 5, null, 160, 50));
+
+        // 片段 0、片段 1、图片素材各一条 → 共 3 条独立结果
+        Assert.Equal(3, response.ReturnedCount);
+        var clipResults = response.Results.Where(r => r.AssetUid == "clip-1").ToArray();
+        Assert.Equal(2, clipResults.Length);
+        var segmentIndices = clipResults.Select(r => r.SegmentIndex).OrderBy(i => i).ToArray();
+        Assert.Equal([0, 1], segmentIndices);
+        // 每个片段结果携带时间范围
+        var seg0 = clipResults.First(r => r.SegmentIndex == 0);
+        Assert.Equal(0.0, seg0.StartTime);
+        Assert.Equal(10.0, seg0.EndTime);
+        Assert.True(seg0.IsSegmentResult);
+        // 普通素材结果无片段标记
+        var image = Assert.Single(response.Results, r => r.AssetUid == "image-1");
+        Assert.False(image.IsSegmentResult);
+        Assert.Null(image.SegmentIndex);
+    }
+
+    private static LocalVectorRecord CreateSegmentRecord(
+        string assetUid,
+        int segmentIndex,
+        string angleType,
+        double startTime,
+        double endTime,
+        float[] vector) =>
+        new(
+            AssetUid: assetUid,
+            AngleType: SegmentAngleType.Build(segmentIndex, angleType),
+            AssetName: $"{assetUid}.mp4",
+            AssetType: "视频剪辑",
+            AssetPath: $@"D:\Assets\{assetUid}.mp4",
+            PrimaryDescription: $"{assetUid} 整体摘要",
+            SegmentText: $"{assetUid} seg{segmentIndex} {angleType}",
+            Tags: [],
+            AngleTags: [],
+            GeneratedAt: DateTimeOffset.UtcNow,
+            VectorizedAt: DateTimeOffset.UtcNow,
+            EmbeddingModel: "embedding-test",
+            Vector: vector,
+            SegmentIndex: segmentIndex,
+            StartTime: startTime,
+            EndTime: endTime);
+
     private static LocalVectorRecord CreateRecord(
         string assetUid,
         string angleType,

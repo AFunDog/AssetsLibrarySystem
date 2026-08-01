@@ -80,6 +80,26 @@ public sealed class PythonModelService : IBackendModelClient
         kw["slice_threshold"] = new PyFloat(request.SliceThreshold);
         kw["min_scene_len"] = new PyInt(request.MinSceneLen);
         kw["adaptive_threshold"] = new PyFloat(request.AdaptiveThreshold);
+        kw["slicing_only"] = new PyInt(request.SlicingOnly ? 1 : 0);
+        kw["range_start"] = request.RangeStart is not null ? new PyFloat(request.RangeStart.Value) : Runtime.None;
+        kw["range_end"] = request.RangeEnd is not null ? new PyFloat(request.RangeEnd.Value) : Runtime.None;
+
+        if (request.ExistingSegments is { Length: > 0 })
+        {
+            var pySegments = new PyList();
+            foreach (var segment in request.ExistingSegments)
+            {
+                var segKw = new PyDict();
+                segKw["start"] = new PyFloat(segment.Start);
+                segKw["end"] = new PyFloat(segment.End);
+                pySegments.Append(schemas.SegmentRange.Invoke(Array.Empty<PyObject>(), segKw));
+            }
+            kw["existing_segments"] = pySegments;
+        }
+        else
+        {
+            kw["existing_segments"] = Runtime.None;
+        }
 
         return schemas.ModelGenerateRequest.Invoke(Array.Empty<PyObject>(), kw);
     }

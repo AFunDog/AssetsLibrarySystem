@@ -35,9 +35,11 @@ public partial class LibraryPage : UserControl
             return;
         }
 
+        var isClipLibrary = sender is Button { CommandParameter: "clip" };
+
         var folders = await storageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "选择素材库目录",
+            Title = isClipLibrary ? "选择视频剪辑库目录（仅收录视频）" : "选择素材库目录",
             AllowMultiple = false
         });
 
@@ -47,7 +49,7 @@ public partial class LibraryPage : UserControl
             return;
         }
 
-        await viewModel.Workspace.AddLibraryDirectoryAsync(folderPath);
+        await viewModel.Workspace.AddLibraryDirectoryAsync(folderPath, isClipLibrary ? LibraryKind.Clip : LibraryKind.Standard);
     }
 
     // ===== 右键菜单事件处理器（委托到 ViewModel Command） =====

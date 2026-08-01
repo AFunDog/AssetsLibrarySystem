@@ -136,6 +136,25 @@
                         <Button Classes="secondary-action"
                                 Command="{Binding VectorizeDescriptionsCommand}"
                                 Content="批量向量化" />
+                        <!-- 剪辑素材：特定时间范围内描述（只补范围内缺失片段） -->
+                        <TextBlock Text="范围" VerticalAlignment="Center" Foreground="{DynamicResource AppSecondaryTextBrush}" FontSize="11"
+                                   IsVisible="{Binding DescriptionPanel.IsClipRangeVisible}" />
+                        <TextBox Width="64"
+                                 FontSize="11"
+                                 Padding="4,2"
+                                 Watermark="开始"
+                                 Text="{Binding DescriptionPanel.RangeStartText}"
+                                 IsVisible="{Binding DescriptionPanel.IsClipRangeVisible}" />
+                        <TextBox Width="64"
+                                 FontSize="11"
+                                 Padding="4,2"
+                                 Watermark="结束"
+                                 Text="{Binding DescriptionPanel.RangeEndText}"
+                                 IsVisible="{Binding DescriptionPanel.IsClipRangeVisible}" />
+                        <ToggleButton Classes="secondary-action"
+                                      Content="时间范围"
+                                      IsChecked="{Binding DescriptionPanel.HasTimeRange}"
+                                      IsVisible="{Binding DescriptionPanel.IsClipAssetSelected}" />
                     </WrapPanel>
                 </Grid>
             </Border>
@@ -204,7 +223,12 @@
                                 <WrapPanel Orientation="Horizontal" ItemSpacing="4" HorizontalAlignment="Right">
                                     <Button Classes="primary-action"
                                             Click="AddLibraryFolder_Click"
+                                            CommandParameter="standard"
                                             Content="添加目录" />
+                                    <Button Classes="secondary-action"
+                                            Click="AddLibraryFolder_Click"
+                                            CommandParameter="clip"
+                                            Content="添加剪辑库" />
                                     <Button Classes="secondary-action"
                                             Command="{Binding Workspace.ScanSelectedLibraryCommand}"
                                             Content="扫描当前" />

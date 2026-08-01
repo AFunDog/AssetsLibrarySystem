@@ -11,6 +11,9 @@ public interface IAssetLibraryService
 
     Task<LibraryWorkspace> AddLibraryAsync(string folderPath, CancellationToken ct = default);
 
+    /// <summary>按指定类型登记素材库（clip=视频剪辑库，只收视频并按片段描述）</summary>
+    Task<LibraryWorkspace> AddLibraryAsync(string folderPath, LibraryKind kind, CancellationToken ct = default);
+
     Task<IReadOnlyList<ManagedAssetRecord>> ScanLibraryAsync(LibraryWorkspace library, CancellationToken ct = default);
 
     // === 新增：CRUD 操作 ===

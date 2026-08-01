@@ -314,7 +314,7 @@ public sealed class ConsoleCommandRunner
                 BackendLauncher.BaseUrl,
                 prompt,
                 systemPrompt,
-                progress =>
+                progress: progress =>
                 {
                     if (progress.Kind == DescribeAssetProgressKind.Queued)
                     {
@@ -604,7 +604,7 @@ public sealed class ConsoleCommandRunner
             BackendLauncher.BaseUrl,
             prompt,
             systemPrompt,
-            progress =>
+            progress: progress =>
             {
                 if (progress.Kind == DescribeAssetProgressKind.Completed)
                 {

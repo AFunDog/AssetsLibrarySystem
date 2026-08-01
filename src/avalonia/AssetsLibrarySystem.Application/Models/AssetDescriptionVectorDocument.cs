@@ -10,7 +10,8 @@ public sealed record AssetDescriptionVectorDocument(
     int VectorDim,
     float[] Vector,
     DateTimeOffset VectorizedAt,
-    string? ContentHash)
+    string? ContentHash,
+    string? SourceFingerprint = null)
 {
     /// <summary>当前主角度键（与 angle_profiles.yaml 一致）。</summary>
     public const string DefaultAngleType = "整体";

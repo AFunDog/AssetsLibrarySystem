@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
@@ -83,7 +84,34 @@ public sealed class VectorizeDescriptionsUseCase
 
                 var needsVectorization = await VectorStore.NeedsVectorizationAsync(
                     asset.DatabaseId, embeddingModelKey, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
-                if (!needsVectorization)
+
+                // 剪辑素材：片段级增量判定（按角度文本指纹对比，避免重复向量化未变化片段）
+                var isClip = string.Equals(description.AssetType, "视频剪辑", StringComparison.Ordinal);
+                Dictionary<string, AssetDescriptionVectorDocument>? existingByAngle = null;
+                if (!needsVectorization || isClip)
+                {
+                    var existingVectors = await VectorStore.ListByAssetIdAsync(asset.DatabaseId, ct).ConfigureAwait(false);
+                    existingByAngle = existingVectors
+                        .Where(vector => vector.SourceFingerprint is not null)
+                        .ToDictionary(vector => vector.AngleType);
+                }
+
+                if (isClip)
+                {
+                    var expected = AssetTextVectorizationService.ComputeExpectedFingerprints(description);
+                    if (expected.Count > 0
+                        && expected.All(pair =>
+                            existingByAngle is not null
+                            && existingByAngle.TryGetValue(pair.Key, out var vector)
+                            && string.Equals(vector.SourceFingerprint, pair.Value, StringComparison.Ordinal)))
+                    {
+                        await VectorStore.MarkAsIndexedAsync(asset.DatabaseId, ct).ConfigureAwait(false);
+                        skipCount++;
+                        await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "片段向量已是最新"), ct).ConfigureAwait(false);
+                        continue;
+                    }
+                }
+                else if (!needsVectorization)
                 {
                     // 向量已是最新，同步 vector_state 为 'indexed' 以保持 UI 一致
                     await VectorStore.MarkAsIndexedAsync(asset.DatabaseId, ct).ConfigureAwait(false);
@@ -102,6 +130,7 @@ public sealed class VectorizeDescriptionsUseCase
                             searchModels.EmbeddingModel,
                             searchModels.EmbeddingDimensions,
                             embeddingModelKey,
+                            existingByAngle,
                             ct)
                         .ConfigureAwait(false);
                     await VectorStore.ReplaceForAssetAsync(asset.DatabaseId, embeddingModelKey, vectorDocuments, ct).ConfigureAwait(false);

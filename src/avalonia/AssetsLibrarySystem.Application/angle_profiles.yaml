@@ -171,6 +171,64 @@ angle_definitions:
       - 时间线
       - 整体
 
+# ========== 视频剪辑子类型（片段级描述与检索） ==========
+# 剪辑库中的视频按片段模式处理：先分割确认时间点，再逐片段结构化描述
+视频剪辑:
+  实拍:
+    label: 实拍剪辑
+    angles:
+      - 时间线
+      - 场景
+      - 动作
+      - 镜头
+      - 整体
+    slicing:
+      enabled: true
+      slice_threshold: 0
+      min_scene_len: 15
+      adaptive_threshold: 3.0
+  动画:
+    label: 动画剪辑
+    angles:
+      - 时间线
+      - 人物
+      - 场景
+      - 动作
+      - 情感
+      - 镜头
+      - 关键画面
+      - 整体
+    slicing:
+      enabled: true
+      slice_threshold: 0
+      min_scene_len: 15
+      adaptive_threshold: 3.0
+  游戏录制:
+    label: 游戏录制剪辑
+    angles:
+      - 时间线
+      - 游戏类型
+      - 场景
+      - 动作
+      - 整体
+    slicing:
+      enabled: true
+      slice_threshold: 0
+      min_scene_len: 15
+      adaptive_threshold: 3.0
+  默认:
+    label: 通用剪辑
+    angles:
+      - 整体
+      - 场景
+      - 动作
+      - 镜头
+    slicing:
+      enabled: true
+      slice_threshold: 0
+      min_scene_len: 15
+      adaptive_threshold: 3.0
+
 # ========== 图片子类型 ==========
 图片:
   插画:
