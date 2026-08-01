@@ -45,12 +45,14 @@ public sealed class SplitClipSegmentsUseCase
             ct.ThrowIfCancellationRequested();
             var asset = assets[index];
 
-            await ReportAsync(progress, SplitClipProgress.Queued(asset), ct).ConfigureAwait(false);
-            var taskId = BackgroundTaskService.BeginTask(TaskTitle, $"正在场景分割：{asset.Name}", asset.LocalPath);
-            BackgroundTaskService.UpdateProgress(taskId, (double)index / totalCount * 100);
-
+            string? taskId = null;
             try
             {
+                await ReportAsync(progress, SplitClipProgress.Queued(asset), ct).ConfigureAwait(false);
+                taskId = BackgroundTaskService.BeginTask(TaskTitle, $"正在场景分割：{asset.Name}", asset.LocalPath);
+                // 等待后端期间没有可量化的中间进度：切到不确定进度（进度条动画），避免一直钉在 0%
+                BackgroundTaskService.UpdateProgress(taskId, -1);
+
                 var result = await DescriptionService
                     .SplitOnlyAsync(asset, backendBaseUrl, rangeStart, rangeEnd, ct)
                     .ConfigureAwait(false);
@@ -72,7 +74,11 @@ public sealed class SplitClipSegmentsUseCase
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 failureCount++;
-                BackgroundTaskService.FailTask(taskId, ex.Message, $"分割失败：{asset.Name}");
+                if (taskId is not null)
+                {
+                    BackgroundTaskService.FailTask(taskId, ex.Message, $"分割失败：{asset.Name}");
+                }
+
                 await ReportAsync(progress, SplitClipProgress.Failed(asset, ex), ct).ConfigureAwait(false);
             }
         }

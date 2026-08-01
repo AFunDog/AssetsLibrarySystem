@@ -23,6 +23,9 @@ public sealed record AngleDescriptionRecord(
     /// <summary>是否为片段级记录</summary>
     public bool IsSegmentRecord => SegmentIndex is not null;
 
+    /// <summary>是否为未描述的骨架片段占位卡片（分割后仅保存时间点）</summary>
+    public bool IsMissingSegment { get; init; }
+
     /// <summary>片段时间标记，如「片段 2 · 00:10-00:25」</summary>
     public string SegmentLabel => StartTime is null || EndTime is null
         ? $"片段 {SegmentIndex + 1}"

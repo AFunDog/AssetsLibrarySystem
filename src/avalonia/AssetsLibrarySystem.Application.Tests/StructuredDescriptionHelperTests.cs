@@ -342,6 +342,37 @@ public sealed class StructuredDescriptionHelperTests
     }
 
     [Fact]
+    public void EnumerateSegmentSkeletons_ReturnsAllSegments_IncludingMissing()
+    {
+        var skeletons = StructuredDescriptionHelper.EnumerateSegmentSkeletons(ClipDescription);
+
+        Assert.Equal(3, skeletons.Count); // 含未描述骨架片段
+        Assert.Equal(0, skeletons[0].SegmentIndex);
+        Assert.Equal(0.0, skeletons[0].Start);
+        Assert.Equal(10.0, skeletons[0].End);
+        Assert.False(skeletons[0].IsMissing); // 片段 0 已描述
+
+        Assert.Equal(1, skeletons[1].SegmentIndex);
+        Assert.Equal(10.0, skeletons[1].Start);
+        Assert.Equal(25.0, skeletons[1].End);
+        Assert.False(skeletons[1].IsMissing); // 片段 1 至少有一个角度文本
+
+        Assert.Equal(2, skeletons[2].SegmentIndex);
+        Assert.Equal(25.0, skeletons[2].Start);
+        Assert.Equal(40.0, skeletons[2].End);
+        Assert.True(skeletons[2].IsMissing); // 片段 2 全空
+    }
+
+    [Fact]
+    public void EnumerateSegmentSkeletons_ReturnsEmpty_ForNullOrPlainText()
+    {
+        Assert.Empty(StructuredDescriptionHelper.EnumerateSegmentSkeletons(null));
+        Assert.Empty(StructuredDescriptionHelper.EnumerateSegmentSkeletons("   "));
+        Assert.Empty(StructuredDescriptionHelper.EnumerateSegmentSkeletons("一段纯文本描述"));
+        Assert.Empty(StructuredDescriptionHelper.EnumerateSegmentSkeletons("""{"整体":{"text":"无片段"}}"""));
+    }
+
+    [Fact]
     public void IsRangeCovered_DetectsCoverage()
     {
         Assert.True(StructuredDescriptionHelper.IsRangeCovered(ClipDescription, 5.0, 12.0));

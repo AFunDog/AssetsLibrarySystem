@@ -537,23 +537,33 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     public async Task RefreshAssetDescriptionAfterSplit(ManagedAssetRecord asset, int segmentCount)
     {
         if (DescriptionStore is null) return;
-        var document = await DescriptionStore.TryGetForAssetAsync(asset).ConfigureAwait(false);
-        if (document is null) return;
+        try
+        {
+            // ConfigureAwait(true)：调用方（progress 回调）已派发到 UI 线程，
+            // await 后回到 UI 上下文再刷新集合与状态。
+            var document = await DescriptionStore.TryGetForAssetAsync(asset).ConfigureAwait(true);
+            if (document is null) return;
 
-        asset.Stage = $"已分割 {segmentCount} 个片段";
-        asset.AiState = "待描述";
-        if (ReferenceEquals(SelectedAsset, asset))
-        {
-            SelectedAssetDescriptionState = $"已分割 {segmentCount} 个片段，待描述";
-            SelectedAssetDescriptionStorePath = DescriptionStore.DatabasePath;
-            SelectedAssetDescriptionGeneratedAt = document.GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
-            SelectedAssetDescriptionMode = document.Mode;
-            SelectedAssetDescriptionText = "场景分割完成，片段时间点已保存；请执行「描述」补全各片段描述。";
-            RefreshDescriptionAngles(asset, document.Description);
-            SyncSelectedAssetFields();
+            asset.Stage = $"已分割 {segmentCount} 个片段";
+            asset.AiState = "待描述";
+            if (ReferenceEquals(SelectedAsset, asset))
+            {
+                SelectedAssetDescriptionState = $"已分割 {segmentCount} 个片段，待描述";
+                SelectedAssetDescriptionStorePath = DescriptionStore.DatabasePath;
+                SelectedAssetDescriptionGeneratedAt = document.GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+                SelectedAssetDescriptionMode = document.Mode;
+                SelectedAssetDescriptionText = "场景分割完成，片段时间点已保存；请执行「描述」补全各片段描述。";
+                RefreshDescriptionAngles(asset, document.Description);
+                SyncSelectedAssetFields();
+            }
+            else
+            {
+                RebuildAssetTree();
+            }
         }
-        else
+        catch (Exception ex)
         {
+            Log.Error(ex, "分割后刷新素材描述失败: assetId={AssetId}, assetName={AssetName}", asset.DatabaseId, asset.Name);
             RebuildAssetTree();
         }
     }
@@ -770,6 +780,28 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
                         SegmentIndex = segmentRecord.SegmentIndex,
                         StartTime = segmentRecord.StartTime,
                         EndTime = segmentRecord.EndTime,
+                    });
+                }
+
+                // 分割后骨架：未描述片段生成占位卡片（显示时间点，标记待描述）
+                foreach (var skeleton in StructuredDescriptionHelper.EnumerateSegmentSkeletons(descriptionJson))
+                {
+                    if (!skeleton.IsMissing)
+                    {
+                        continue;
+                    }
+
+                    SelectedAssetDescriptionAngles.Add(new AngleDescriptionRecord(
+                        AngleKey: SegmentAngleType.Build(skeleton.SegmentIndex, "待描述"),
+                        Label: "待描述",
+                        Text: string.Empty,
+                        Tags: [],
+                        MaxLength: 0)
+                    {
+                        SegmentIndex = skeleton.SegmentIndex,
+                        StartTime = skeleton.Start,
+                        EndTime = skeleton.End,
+                        IsMissingSegment = true,
                     });
                 }
             }

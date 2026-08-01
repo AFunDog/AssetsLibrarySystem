@@ -713,12 +713,21 @@
                                                         <TextBlock Text="{Binding Label}"
                                                                    FontWeight="SemiBold" FontSize="14"
                                                                    Foreground="{DynamicResource AppTextBrush}" />
-                                                        <TextBlock Classes="eyebrow" Grid.Column="1" />
+                                                        <TextBlock Classes="eyebrow" Grid.Column="1"
+                                                                   Text="{Binding SegmentLabel}"
+                                                                   IsVisible="{Binding IsSegmentRecord}" />
                                                     </Grid>
                                                     <TextBlock Text="{Binding Text}"
                                                                TextWrapping="Wrap"
                                                                FontSize="13"
-                                                               Foreground="{DynamicResource AppTextBrush}" />
+                                                               Foreground="{DynamicResource AppTextBrush}"
+                                                               IsVisible="{Binding Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                    <!-- 分割后骨架占位：未描述片段提示 -->
+                                                    <TextBlock Text="尚未描述，可执行「描述」补全片段内容"
+                                                               TextWrapping="Wrap"
+                                                               FontSize="12"
+                                                               Foreground="{DynamicResource AppMutedTextBrush}"
+                                                               IsVisible="{Binding IsMissingSegment}" />
                                                     <WrapPanel>
                                                         <ItemsControl ItemsSource="{Binding Tags}">
                                                             <ItemsControl.ItemsPanel>

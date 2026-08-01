@@ -58,7 +58,8 @@ public sealed partial class AssetDetailViewModel : ObservableObject
             || text.Contains("点击“描述", StringComparison.Ordinal)
             || text.Contains("描述记录已删除", StringComparison.Ordinal)
             || text.Contains("描述存储未就绪", StringComparison.Ordinal)
-            || text.Contains("描述记录读取失败", StringComparison.Ordinal))
+            || text.Contains("描述记录读取失败", StringComparison.Ordinal)
+            || text.Contains("场景分割完成", StringComparison.Ordinal))
         {
             EditDescriptionText = string.Empty;
             return;

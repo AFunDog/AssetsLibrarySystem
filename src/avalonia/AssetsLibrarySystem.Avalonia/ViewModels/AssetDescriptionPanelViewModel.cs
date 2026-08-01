@@ -7,6 +7,7 @@ using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.UseCases.AssetOperations;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Serilog;
@@ -135,14 +136,20 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
                 rangeEnd,
                 progress: progress =>
                 {
-                    if (progress.Kind == SplitClipProgressKind.Completed)
+                    // UseCase 内部 ConfigureAwait(false) 后回调在后台线程执行，
+                    // 统一派发到 UI 线程再刷新工作台状态，避免跨线程改集合。
+                    Dispatcher.UIThread.Post(() =>
                     {
-                        Workspace.RefreshAssetDescriptionAfterSplit(progress.Asset, progress.SegmentCount ?? 0);
-                    }
-                    else if (progress.Kind == SplitClipProgressKind.Failed && progress.Error is not null)
-                    {
-                        Workspace.FailAssetDescription(progress.Asset, progress.Error.Message);
-                    }
+                        if (progress.Kind == SplitClipProgressKind.Completed)
+                        {
+                            // fire-and-forget：内部自行 await 读取并刷新，无需等待
+                            _ = Workspace.RefreshAssetDescriptionAfterSplit(progress.Asset, progress.SegmentCount ?? 0);
+                        }
+                        else if (progress.Kind == SplitClipProgressKind.Failed && progress.Error is not null)
+                        {
+                            Workspace.FailAssetDescription(progress.Asset, progress.Error.Message);
+                        }
+                    });
 
                     return Task.CompletedTask;
                 });
@@ -352,18 +359,23 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
                 rangeEnd: rangeEnd,
                 progress: progress =>
                 {
-                    if (progress.Kind == DescribeAssetProgressKind.Queued)
+                    // UseCase 内部 ConfigureAwait(false) 后回调在后台线程执行，
+                    // 统一派发到 UI 线程再刷新工作台状态，避免跨线程改集合。
+                    Dispatcher.UIThread.Post(() =>
                     {
-                        Workspace.MarkAssetDescriptionQueued(progress.Asset);
-                    }
-                    else if (progress.Kind == DescribeAssetProgressKind.Completed && progress.Document is not null)
-                    {
-                        Workspace.CompleteAssetDescription(progress.Asset, progress.Document);
-                    }
-                    else if (progress.Kind == DescribeAssetProgressKind.Failed && progress.Error is not null)
-                    {
-                        Workspace.FailAssetDescription(progress.Asset, progress.Error.Message);
-                    }
+                        if (progress.Kind == DescribeAssetProgressKind.Queued)
+                        {
+                            Workspace.MarkAssetDescriptionQueued(progress.Asset);
+                        }
+                        else if (progress.Kind == DescribeAssetProgressKind.Completed && progress.Document is not null)
+                        {
+                            Workspace.CompleteAssetDescription(progress.Asset, progress.Document);
+                        }
+                        else if (progress.Kind == DescribeAssetProgressKind.Failed && progress.Error is not null)
+                        {
+                            Workspace.FailAssetDescription(progress.Asset, progress.Error.Message);
+                        }
+                    });
 
                     return Task.CompletedTask;
                 });

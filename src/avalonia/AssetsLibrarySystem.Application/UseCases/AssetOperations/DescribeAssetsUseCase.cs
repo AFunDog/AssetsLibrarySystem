@@ -42,17 +42,17 @@ public sealed class DescribeAssetsUseCase
             ct.ThrowIfCancellationRequested();
             var asset = assets[index];
 
-            await ReportAsync(progress, DescribeAssetProgress.Queued(asset), ct).ConfigureAwait(false);
-            var isClip = string.Equals(asset.AssetType, "视频剪辑", StringComparison.Ordinal);
-            var taskTitle = isClip ? "剪辑素材描述" : TaskTitle;
-            var taskId = BackgroundTaskService.BeginTask(taskTitle, $"正在生成素材描述：{asset.Name}", asset.LocalPath);
-
-            // 报告进度
-            var progressValue = (double)index / totalCount * 100;
-            BackgroundTaskService.UpdateProgress(taskId, progressValue);
-
+            string? taskId = null;
             try
             {
+                await ReportAsync(progress, DescribeAssetProgress.Queued(asset), ct).ConfigureAwait(false);
+                var isClip = string.Equals(asset.AssetType, "视频剪辑", StringComparison.Ordinal);
+                var taskTitle = isClip ? "剪辑素材描述" : TaskTitle;
+                taskId = BackgroundTaskService.BeginTask(taskTitle, $"正在生成素材描述：{asset.Name}", asset.LocalPath);
+
+                // 等待后端期间没有可量化的中间进度：切到不确定进度（进度条动画），避免一直钉在 0%
+                BackgroundTaskService.UpdateProgress(taskId, -1);
+
                 AssetDescriptionDocument document;
                 if (isClip)
                 {
@@ -75,7 +75,11 @@ public sealed class DescribeAssetsUseCase
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 failureCount++;
-                BackgroundTaskService.FailTask(taskId, ex.Message, $"描述失败：{asset.Name}");
+                if (taskId is not null)
+                {
+                    BackgroundTaskService.FailTask(taskId, ex.Message, $"描述失败：{asset.Name}");
+                }
+
                 await ReportAsync(progress, DescribeAssetProgress.Failed(asset, ex), ct).ConfigureAwait(false);
             }
         }

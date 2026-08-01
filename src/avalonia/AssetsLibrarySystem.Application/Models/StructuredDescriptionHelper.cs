@@ -15,6 +15,9 @@ public sealed record VideoSegmentRecord(int SegmentIndex, double StartTime, doub
 /// <summary>片段时间范围（秒），用于「只补缺失片段」</summary>
 public sealed record SegmentTimeRange(double Start, double End);
 
+/// <summary>描述 JSON 中一个片段的时间点骨架（含未描述片段），用于分割后展示</summary>
+public sealed record SegmentSkeletonRecord(int SegmentIndex, double Start, double End, bool IsMissing);
+
 /// <summary>片段角度向量类型：segN_角度（如 seg0_整体、seg1_场景）</summary>
 public static class SegmentAngleType
 {
@@ -334,6 +337,86 @@ public static string ExtractPrimaryText(string? rawDescription)
         {
             return [];
         }
+    }
+
+    /// <summary>
+    /// 枚举 segments 数组中所有片段的时间点骨架（含未描述片段），
+    /// 用于分割完成后在界面上展示片段时间点。
+    /// </summary>
+    public static IReadOnlyList<SegmentSkeletonRecord> EnumerateSegmentSkeletons(string? rawDescription)
+    {
+        if (string.IsNullOrWhiteSpace(rawDescription))
+        {
+            return [];
+        }
+
+        var trimmed = rawDescription.Trim();
+        if (!trimmed.StartsWith("{", StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(trimmed);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("segments", out var segmentsElement)
+                || segmentsElement.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var records = new List<SegmentSkeletonRecord>();
+            var segmentIndex = 0;
+            foreach (var segmentElement in segmentsElement.EnumerateArray())
+            {
+                if (segmentElement.ValueKind == JsonValueKind.Object)
+                {
+                    double start = 0.0;
+                    double end = 0.0;
+                    if (segmentElement.TryGetProperty("start_time", out var startElement) && startElement.ValueKind == JsonValueKind.Number)
+                    {
+                        start = startElement.GetDouble();
+                    }
+
+                    if (segmentElement.TryGetProperty("end_time", out var endElement) && endElement.ValueKind == JsonValueKind.Number)
+                    {
+                        end = endElement.GetDouble();
+                    }
+
+                    records.Add(new SegmentSkeletonRecord(segmentIndex, start, end, IsSegmentMissing(segmentElement)));
+                }
+
+                segmentIndex++;
+            }
+
+            return records;
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>片段是否缺失描述：除 start_time/end_time 外所有角度文本均为空</summary>
+    private static bool IsSegmentMissing(JsonElement segment)
+    {
+        foreach (var property in segment.EnumerateObject())
+        {
+            if (string.Equals(property.Name, "start_time", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(property.Name, "end_time", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var text = ExtractSegmentText(property.Value);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>获取 segments 数组的片段总数（含未描述片段）</summary>
