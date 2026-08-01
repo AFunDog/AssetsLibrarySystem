@@ -177,6 +177,15 @@ public sealed class AssetLibraryService : IAssetLibraryService
         if (!string.IsNullOrWhiteSpace(sidecarUid))
         {
             assetRecord = TryGetAssetByUid(connection, sidecarUid!);
+            // 素材级手动类型覆盖（视频 ↔ 视频剪辑）优先于扫描派生类型，扫描不还原
+            if (assetRecord is not null
+                && IsVideoLikeType(assetRecord.AssetType)
+                && IsVideoLikeType(assetType)
+                && !string.Equals(assetRecord.AssetType, assetType, StringComparison.Ordinal))
+            {
+                assetType = assetRecord.AssetType;
+            }
+
             if (assetRecord is null)
             {
                 currentHash = ContentHasher.GetHash(normalizedPath, fileInfo, stats);
@@ -306,6 +315,15 @@ public sealed class AssetLibraryService : IAssetLibraryService
         {
             currentHash = ContentHasher.GetHash(normalizedPath, fileInfo, stats);
             assetRecord = TryGetAssetByContentHash(connection, currentHash);
+            // 素材级手动类型覆盖（视频 ↔ 视频剪辑）优先于扫描派生类型，扫描不还原
+            if (assetRecord is not null
+                && IsVideoLikeType(assetRecord.AssetType)
+                && IsVideoLikeType(assetType)
+                && !string.Equals(assetRecord.AssetType, assetType, StringComparison.Ordinal))
+            {
+                assetType = assetRecord.AssetType;
+            }
+
             if (assetRecord is not null)
             {
                 UidSidecarStore.Write(sidecarPath, assetRecord.AssetUid);

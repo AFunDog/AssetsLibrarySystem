@@ -176,12 +176,13 @@ public sealed class LibraryCrudTests : IAsyncDisposable
                     id INTEGER PRIMARY KEY,
                     name TEXT NOT NULL,
                     root_path TEXT NOT NULL,
+                    kind TEXT NOT NULL DEFAULT 'standard',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS assets (
                     id INTEGER PRIMARY KEY,
-                    asset_uid TEXT NOT NULL,
+                    asset_uid TEXT NOT NULL UNIQUE,
                     library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
                     asset_name TEXT NOT NULL,
                     asset_type TEXT NOT NULL,
@@ -269,6 +270,72 @@ public sealed class LibraryCrudTests : IAsyncDisposable
     }
 
     // ===== UpdateAssetTypeAsync（视频 ↔ 视频剪辑） =====
+
+    [Fact]
+    public async Task ScanLibraryAsync_KeepsManuallyChangedVideoType_InStandardLibrary()
+    {
+        var database = new CrudTestDatabase(DatabasePath);
+        await database.EnsureSchemaAsync();
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"lib-scan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var videoPath = Path.Combine(tempDir, "clip.mp4");
+            await File.WriteAllBytesAsync(videoPath, [1, 2, 3, 4]);
+
+            var service = new AssetLibraryService(WriteQueue, database);
+            var library = await service.AddLibraryAsync(tempDir, LibraryKind.Standard);
+            var scanned = await service.ScanLibraryAsync(library);
+            var asset = Assert.Single(scanned);
+            Assert.Equal("视频", asset.AssetType);
+
+            // 手动改为视频剪辑
+            await service.UpdateAssetTypeAsync(asset.DatabaseId, "视频剪辑");
+
+            // 再次扫描不应还原为库派生类型
+            var rescanned = await service.ScanLibraryAsync(library);
+            var rescanAsset = Assert.Single(rescanned);
+            Assert.Equal("视频剪辑", rescanAsset.AssetType);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ScanLibraryAsync_KeepsManuallyChangedVideoType_InClipLibrary()
+    {
+        var database = new CrudTestDatabase(DatabasePath);
+        await database.EnsureSchemaAsync();
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"lib-scan-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var videoPath = Path.Combine(tempDir, "clip.mp4");
+            await File.WriteAllBytesAsync(videoPath, [1, 2, 3, 4]);
+
+            var service = new AssetLibraryService(WriteQueue, database);
+            var library = await service.AddLibraryAsync(tempDir, LibraryKind.Clip);
+            var scanned = await service.ScanLibraryAsync(library);
+            var asset = Assert.Single(scanned);
+            Assert.Equal("视频剪辑", asset.AssetType);
+
+            // 手动改回视频
+            await service.UpdateAssetTypeAsync(asset.DatabaseId, "视频");
+
+            // 再次扫描不应还原为库派生类型
+            var rescanned = await service.ScanLibraryAsync(library);
+            var rescanAsset = Assert.Single(rescanned);
+            Assert.Equal("视频", rescanAsset.AssetType);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
 
     [Fact]
     public async Task UpdateAssetTypeAsync_VideoToClip_UpdatesTypeAndInvalidatesDescriptionAndVectors()
