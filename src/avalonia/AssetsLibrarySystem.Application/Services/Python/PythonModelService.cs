@@ -32,10 +32,22 @@ public sealed class PythonModelService : IBackendModelClient
                     "PythonModelService 调用 generate_text: format={Format}, path={Path}, mock={Mock}",
                     request.AssetFormat, request.AssetPath, request.MockResponse);
 
-                dynamic modelService = GetModelService();
-                var pyRequest = BuildGenerateRequest(request);
-                dynamic pyResponse = modelService.generate_text(pyRequest);
-                return ConvertResponse(pyResponse);
+                try
+                {
+                    dynamic modelService = GetModelService();
+                    var pyRequest = BuildGenerateRequest(request);
+                    // generate_text 是 Python async 函数：必须用 asyncio.run 执行，
+                    // 否则拿到的是未执行的 coroutine，访问属性会抛 AttributeError。
+                    dynamic asyncio = Py.Import("asyncio");
+                    dynamic pyResponse = asyncio.run(modelService.generate_text(pyRequest));
+                    return ConvertResponse(pyResponse);
+                }
+                catch (PythonException ex)
+                {
+                    Log.Error("Python generate_text 调用失败: {Traceback}", ex.StackTrace);
+                    throw new InvalidOperationException(
+                        $"Python 描述服务调用失败：{ex.Message}", ex);
+                }
             });
         }, ct);
     }

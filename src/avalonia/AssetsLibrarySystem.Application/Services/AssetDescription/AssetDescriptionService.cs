@@ -232,6 +232,14 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             RangeEnd: rangeEnd);
 
         var skeletonResponse = await BackendModelClient.GenerateAsync(backendBaseUrl, slicingRequest, ct).ConfigureAwait(false);
+
+        // mock 模式（未配置 API Key）下后端不执行真实场景检测，分割结果无意义
+        if (string.Equals(skeletonResponse.Mode, "mock", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "后端处于 mock 模式（未配置 API Key），无法执行真实场景分割。请在 src/backend/.env 或环境变量中配置 DASHSCOPE_API_KEY 后重试。");
+        }
+
         var merged = StructuredDescriptionHelper.MergeClipSegments(existingJson, skeletonResponse.OutputText);
 
         // 分割结果先落库

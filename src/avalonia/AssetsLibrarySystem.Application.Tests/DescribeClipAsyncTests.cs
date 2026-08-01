@@ -55,6 +55,7 @@ public sealed class DescribeClipAsyncTests
     {
         public List<BackendModelGenerateRequest> Requests { get; } = [];
         public List<string> Responses { get; } = [];
+        public bool ForceMock { get; set; }
         private int _callIndex;
 
         public Task<BackendModelGenerateResponse> GenerateAsync(
@@ -65,11 +66,14 @@ public sealed class DescribeClipAsyncTests
             Requests.Add(request);
             var index = _callIndex++;
             var output = index < Responses.Count ? Responses[index] : "{}";
+            var mode = ForceMock
+                ? "mock"
+                : request.SlicingOnly ? "slicing" : "live";
             return Task.FromResult(new BackendModelGenerateResponse(
                 ProviderSlot: "视频",
                 Provider: "dashscope",
                 Model: "qwen-vl-max",
-                Mode: request.SlicingOnly ? "slicing" : "live",
+                Mode: mode,
                 OutputText: output,
                 SystemPrompt: "",
                 TokenUsage: null));
@@ -322,8 +326,7 @@ public sealed class DescribeClipAsyncTests
     }
 
     [Fact]
-    public async Task SplitOnlyAsync_WithUncoveredRange_SplitsSubrangeAndKeepsDescribedSegments()
-    {
+    public async Task SplitOnlyAsync_WithUncoveredRange_SplitsSubrangeAndKeepsDescribedSegments()    {
         var store = new FakeDescriptionStore();
         var existingJson = """{"整体":{"text":"总览","tags":[]},"segments":[{"start_time":0.0,"end_time":10.0,"整体":{"text":"已描述","tags":[]}}]}""";
         await store.SaveAsync(new AssetDescriptionDocument(
@@ -364,5 +367,28 @@ public sealed class DescribeClipAsyncTests
         var missing = StructuredDescriptionHelper.GetMissingSegmentRanges(result.Document.Description);
         Assert.Single(missing);
         Assert.Equal(30.0, missing[0].Start);
+    }
+
+    [Fact]
+    public async Task SplitOnlyAsync_MockMode_ThrowsWithApiKeyHint()
+    {
+        // 未配置 API Key 时后端返回 mock，分割无意义 → 明确抛错提示配置
+        var client = new FakeBackendModelClient
+        {
+            ForceMock = true,
+            Responses =
+            {
+                "当前处于桌面端联调阶段，返回占位响应。",
+            },
+        };
+        var store = new FakeDescriptionStore();
+        var service = CreateService(client, store);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SplitOnlyAsync(CreateClipAsset(), "in-process", null, null));
+
+        Assert.Contains("API Key", ex.Message);
+        Assert.Contains("mock", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(store.SavedDescriptions); // mock 骨架不落库
     }
 }

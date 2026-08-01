@@ -33,10 +33,19 @@ public sealed class PythonSearchService : IBackendSearchClient
                     "PythonSearchService 调用 vectorize: model={Model}, asset={Asset}",
                     request.Model, request.AssetName);
 
-                dynamic searchService = GetSearchService();
-                var pyRequest = BuildIndexRequest(request);
-                dynamic pyResponse = searchService.vectorize(pyRequest);
-                return ConvertIndexResponse(pyResponse);
+                try
+                {
+                    dynamic searchService = GetSearchService();
+                    var pyRequest = BuildIndexRequest(request);
+                    dynamic pyResponse = searchService.vectorize(pyRequest);
+                    return ConvertIndexResponse(pyResponse);
+                }
+                catch (PythonException ex)
+                {
+                    Log.Error("Python vectorize 调用失败: {Traceback}", ex.StackTrace);
+                    throw new InvalidOperationException(
+                        $"Python 向量化服务调用失败：{ex.Message}", ex);
+                }
             });
         }, ct);
     }
@@ -55,10 +64,19 @@ public sealed class PythonSearchService : IBackendSearchClient
                     "PythonSearchService 调用 rerank: model={Model}, query_len={QueryLen}, candidates={Count}",
                     request.Model, request.Query.Length, request.Candidates.Length);
 
-                dynamic searchService = GetSearchService();
-                var pyRequest = BuildQueryRequest(request);
-                dynamic pyResponse = searchService.rerank(pyRequest);
-                return ConvertQueryResponse(pyResponse);
+                try
+                {
+                    dynamic searchService = GetSearchService();
+                    var pyRequest = BuildQueryRequest(request);
+                    dynamic pyResponse = searchService.rerank(pyRequest);
+                    return ConvertQueryResponse(pyResponse);
+                }
+                catch (PythonException ex)
+                {
+                    Log.Error("Python rerank 调用失败: {Traceback}", ex.StackTrace);
+                    throw new InvalidOperationException(
+                        $"Python 重排序服务调用失败：{ex.Message}", ex);
+                }
             });
         }, ct);
     }
