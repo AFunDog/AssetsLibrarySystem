@@ -17,3 +17,7 @@ logs/
 tmp/
 
 .zcode/
+.reasonix/
+
+# JetBrains 个人设置（共享的 .DotSettings 仍保留跟踪）
+*.DotSettings.user
