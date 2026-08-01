@@ -30,7 +30,7 @@ dotnet test AssetsLibrarySystem.Application.Tests
 | 核心素材服务 | `AssetsLibrarySystem.Application/Services/AssetLibrary/AssetLibraryService.cs` |
 | 搜索服务 | `AssetsLibrarySystem.Application/Services/AssetSearch/AssetSearchService.cs` |
 | 描述生成服务 | `AssetsLibrarySystem.Application/Services/AssetDescription/AssetDescriptionService.cs` |
-| 后端启动器 | `AssetsLibrarySystem.Application/Services/BackendLauncher/BackendLauncherService.cs` |
+| 后端引擎 | `AssetsLibrarySystem.Application/Services/Python/PythonEngineService.cs` |
 | SQLite 数据库 | `AssetsLibrarySystem.Application/Services/Infrastructure/SqliteAssetDatabase.cs` |
 | 搜索索引管理 | `AssetsLibrarySystem.Application/Services/AssetSearch/LocalHnswSearchIndexManager.cs` |
 | 用例编排 | `AssetsLibrarySystem.Application/UseCases/AssetOperations/` |
@@ -57,9 +57,9 @@ dotnet test AssetsLibrarySystem.Application.Tests
 4. 在 `App.BuildContainer()` 中注册新类型
 5. 在 `MainWindowViewModel` 中暴露属性并绑定 TabItem
 
-### 添加 HTTP 端点调用
-1. 在相应 Service 中添加 HTTP 请求方法（使用 `HttpClient`）
-2. 端点定义参考 `AssetSearchService` 或 `AssetDescriptionService` 中的模式
+### 添加模型/检索调用
+1. 在相应 Service 中调用 `IBackendModelClient` / `IBackendSearchClient` 接口（进程内 Python 实现）
+2. 调用模式参考 `AssetSearchService` 或 `AssetDescriptionService` 中的用法
 3. JSON 序列化走全局 `JsonNamingPolicy.SnakeCaseLower`，无需特性标注
 
 ### 测试

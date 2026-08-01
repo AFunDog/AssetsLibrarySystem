@@ -41,7 +41,7 @@ src/avalonia/
 | **描述生成** | 调用 Python 后端 AI 模型，生成多角度结构化描述 |
 | **语义搜索** | 本地 HNSW 近似召回 + 远程精排 + 混合评分 |
 | **搜索索引** | 向量持久化 + HNSW 图文件持久化 + 指纹校验 |
-| **模型引擎** | 默认嵌入 Python.NET 初始化；就绪前不放行描述/检索 |
+| **模型引擎** | 默认嵌入 Python.NET 初始化（`in-process`）；就绪前不放行描述/检索 |
 | **快捷搜索** | 全局热键 `Ctrl+Shift+Space`，快速搜索任意素材 |
 | **系统托盘** | 最小化到托盘，后台常驻 |
 
@@ -80,9 +80,6 @@ dotnet run --project AssetsLibrarySystem.Console -- --help
 
 | 配置 | 默认值 | 说明 |
 |---|---|---|
-| `BackendLauncher.Host` | `127.0.0.1` | 备用 HTTP 后端地址（默认走进程内引擎） |
-| `BackendLauncher.Port` | `8000` | 备用 HTTP 后端端口 |
-| `BackendLauncher.StartupTimeoutSeconds` | `30` | 备用 HTTP 后端启动超时 |
 | `Runtime.DataRoot` | `""` | 数据根目录（空=自动检测） |
 
 ## 相关文档

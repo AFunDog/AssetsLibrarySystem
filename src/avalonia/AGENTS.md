@@ -13,14 +13,14 @@ AssetsLibrarySystem.Avalonia/    # 桌面 UI 入口
   ├── ViewModels/                # MVVM ViewModel 层
   ├── Views/                     # AXAML 视图
   │   └── Pages/                 # 四个标签页
-  └── Services/                  # UI 专属服务（Catalog/Session/Shell/Hotkey/Settings/Activity）
+  └── Services/                  # UI 专属服务（Session/Shell/Hotkey/Settings/Activity/Thumbnail）
 
 AssetsLibrarySystem.Application/ # 领域层（与 Avalonia 解耦，可被 Console/Test 复用）
   ├── Services/                  # 核心业务服务
   │   ├── AssetLibrary/          # 资产库扫描/注册/去重
   │   ├── AssetDescription/      # 描述生成 + 向量化存储
   │   ├── AssetSearch/           # HNSW 近似搜索 + 精排
-  │   ├── BackendLauncher/       # Python 子进程管理
+  │   ├── Python/                # Python.NET 进程内模型引擎
   │   ├── BackgroundTasks/       # 异步任务追踪
   │   └── Infrastructure/        # SQLite + 写入队列
   ├── UseCases/AssetOperations/  # 编排用例（描述/向量化/删除/重建索引）
@@ -37,8 +37,8 @@ AssetsLibrarySystem.Application.Tests/  # xUnit 单元测试
 - **DI**: Autofac（所有注册在 `App.BuildContainer()` 中手动完成）
 - **日志**: Serilog（appsettings.json 配置）
 - **持久化**: SQLite + Channel 串行写入队列
-- **搜索**: HNSW.Net 本地近似搜索 + HTTP 远程精排
-- **IPC**: HTTP JSON 调用 Python 后端（localhost:8000）
+- **搜索**: HNSW.Net 本地近似搜索 + 云端精排
+- **IPC**: Python.NET 进程内嵌入（`in-process`），不使用 HTTP
 
 ## 架构规则
 
@@ -63,7 +63,7 @@ AssetsLibrarySystem.Application.Tests/  # xUnit 单元测试
 ## 搜索架构
 
 ```
-用户查询 → 本地 HNSW/exact 召回候选集 → HTTP POST 远程精排 → 混合评分(0.35*cosine + 0.65*rerank)
+用户查询 → 本地 HNSW/exact 召回候选集 → 进程内 Python 引擎精排 → 混合评分(0.35*cosine + 0.65*rerank)
 ```
 
 - 记录数 ≤5000 时用 exact cosine 暴力搜索，否则用 HNSW

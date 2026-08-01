@@ -13,7 +13,7 @@
 
 也就是说，素材库、目录、元数据、向量召回、索引持久化和工作流由本地 .NET 侧承担；Python 侧不包含素材管理功能，只提供模型生成、向量化和重排序能力。
 
-当前桌面端默认以 **进程内嵌入 Python.NET** 调用模型网关逻辑（`BaseUrl = in-process`），不再强制拉起独立 uvicorn 子进程；独立 HTTP 后端仍可作为备用/调试路径。
+当前桌面端默认以 **进程内嵌入 Python.NET** 调用模型网关逻辑（`BaseUrl = in-process`），不再拉起独立 uvicorn 子进程；独立 HTTP 后端仅保留 `uvicorn app.main:app` 手动调试方式。
 桌面端会把素材描述和向量集中保存到本地 SQLite，通过本地 exact/HNSW 完成召回，再调用 embedding/rerank。
 数据库内部使用数值 `libraries.id` 和 `assets.id` 建立外键关系。`asset_uid` 仅保留在 `assets` 表中，用于兼容素材文件旁的同名 `.uid` 文件；路径只作为 `current_path` 保存。
 结构化描述的主角度键为 **「整体」**（兼容历史数据中的「全面」）。

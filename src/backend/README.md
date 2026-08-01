@@ -97,13 +97,13 @@
 
 当前推荐架构下，`asset_descriptions.db`、HNSW 索引文件和向量召回都由 Avalonia/C# 本地维护；Python 保持为纯模型网关，只负责 embedding 与 rerank。
 
-`api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取 `DASHSCOPE_API_KEY`。
+`api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取 `DASHSCOPE_API_KEY`。注意 `providers.yaml` 已被 gitignore，真实 Key 推荐通过环境变量 `DASHSCOPE_API_KEY` 或本目录 `.env`（gitignore）注入，避免明文入库。
 
 当前 DashScope 传参方式如下：
 
 - `文本`：后端读取 `asset_path` 指向的文本文件内容，通过 `Generation.call()` 发送给大模型
 - `图片`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `image` 项发送
-- `视频`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `video` 项发送，并默认附带 `fps=2`
+- `视频`：后端优先使用预处理后的临时文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `video` 项发送，并默认附带 `fps=5`
 - `音频`：后端直接使用原始音频文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `audio` 项发送；如果当前配置模型不是音频兼容模型，会自动回退到 `qwen3-omni-30b-a3b-captioner`
 - 四类素材的描述请求都会显式携带 `response_format={"type":"json_object"}`，按阿里云百炼的结构化输出方式要求模型返回 JSON 字符串；结构化描述的解析、存储和多角度向量化由 .NET Application 层负责
 
