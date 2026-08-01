@@ -8,10 +8,15 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from scenedetect import AdaptiveDetector, SceneManager, open_video
 
 logger = logging.getLogger(__name__)
+
+
+class SceneDetectionCancelled(Exception):
+    """场景检测被取消（进度回调返回 False 时抛出）"""
 
 
 @dataclass(slots=True)
@@ -48,6 +53,7 @@ class VideoSceneDetector:
         video_path: str | Path,
         range_start: float | None = None,
         range_end: float | None = None,
+        progress_callback: Callable[[int], bool] | None = None,
     ) -> list[SceneRange]:
         """检测视频中的场景，返回场景时间范围列表。
 
@@ -55,6 +61,8 @@ class VideoSceneDetector:
             video_path: 视频文件路径。
             range_start: 可选，只保留该时间点之后的场景（秒）。
             range_end: 可选，只保留该时间点之前的场景（秒）。
+            progress_callback: 可选，每完成一块检测后回调进度百分比（0-100）。
+                回调返回 False 表示请求取消，检测会抛出 SceneDetectionCancelled。
 
         Returns:
             SceneRange 列表，按时间顺序排列。
@@ -69,7 +77,20 @@ class VideoSceneDetector:
                     min_scene_len=self._min_scene_len,
                 )
             )
-            manager.detect_scenes(video)
+
+            # 分块检测以报告进度：每块约 15 秒，块数上限 50（保证至少 2% 的进度粒度）
+            total_seconds = float(video.duration.seconds)
+            blocks = max(1, min(int(total_seconds / 15), 50))
+            for index in range(blocks):
+                end_time = total_seconds * (index + 1) / blocks
+                manager.detect_scenes(video, end_time=end_time)
+                if progress_callback is not None:
+                    percent = int((index + 1) / blocks * 100)
+                    if progress_callback(percent) is False:
+                        raise SceneDetectionCancelled(
+                            f"SceneDetectionCancelled: 场景检测已取消: path={video_path}"
+                        )
+
             scene_list = manager.get_scene_list()
 
             if not scene_list:

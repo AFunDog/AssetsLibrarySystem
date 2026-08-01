@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from app.application.services.video_scene_detector import (
+    SceneDetectionCancelled,
     SceneRange,
     VideoSceneDetector,
 )
@@ -90,6 +91,31 @@ class VideoSceneDetectorTestCase(unittest.TestCase):
     def test_detect_raises_on_missing_file(self):
         with self.assertRaises(Exception):
             self.detector.detect("/nonexistent/video.mp4")
+
+    def test_detect_reports_progress_and_matches_full_detect(self):
+        progress: list[int] = []
+        scenes = self.detector.detect(self.test_video, progress_callback=lambda p: progress.append(p) or True)
+
+        # 进度递增且最终为 100
+        self.assertGreater(len(progress), 0)
+        self.assertEqual(progress, sorted(progress))
+        self.assertEqual(progress[-1], 100)
+
+        # 分块检测结果与一次性检测一致
+        full = self.detector.detect(self.test_video)
+        self.assertEqual([(s.start_sec, s.end_sec) for s in scenes],
+                         [(s.start_sec, s.end_sec) for s in full])
+
+    def test_detect_cancelled_when_callback_returns_false(self):
+        calls = {"count": 0}
+
+        def cancel_first(percent: int) -> bool:
+            calls["count"] += 1
+            # 第一次回调即返回 False 请求取消（5 秒测试视频只有 1 块）
+            return calls["count"] != 1
+
+        with self.assertRaises(SceneDetectionCancelled):
+            self.detector.detect(self.test_video, progress_callback=cancel_first)
 
     def test_scene_range_dataclass(self):
         scene = SceneRange(start_frame=0, end_frame=300, start_sec=0.0, end_sec=10.0)

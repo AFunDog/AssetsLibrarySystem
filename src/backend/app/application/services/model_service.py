@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 import asyncio
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from app.application.services.dashscope_model_client import DashScopeModelClient
 from app.application.services.model_client import ModelClient
@@ -91,7 +91,18 @@ class ModelService:
             description="桌面端通过该 HTTP 服务调用大模型；素材管理逻辑保留在 Avalonia/.NET。",
         )
 
-    async def generate_text(self, payload: ModelGenerateRequest) -> ModelGenerateResponse:
+    async def generate_text(
+        self,
+        payload: ModelGenerateRequest,
+        progress_callback: Callable[[int], bool] | None = None,
+    ) -> ModelGenerateResponse:
+        """生成素材描述。
+
+        Args:
+            payload: 模型生成请求。
+            progress_callback: 可选，视频场景检测期间回调进度百分比（0-100）；
+                返回 False 表示请求取消（会抛出 SceneDetectionCancelled）。
+        """
         logger.info(
             "描述生成请求: format=%s, path=%s, mock=%s, subtype=%s",
             payload.asset_format,
@@ -176,6 +187,7 @@ class ModelService:
                     payload.asset_path,
                     range_start=payload.range_start,
                     range_end=payload.range_end,
+                    progress_callback=progress_callback,
                 )
                 skeleton = slice_describer.build_skeleton(scenes, [a.model_dump() for a in (payload.angles or [])])
                 output_text = json.dumps(skeleton, ensure_ascii=False)
