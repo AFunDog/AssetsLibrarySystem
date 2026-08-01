@@ -78,6 +78,20 @@ public sealed partial class LibraryPageViewModel : ObservableObject
     public Task DeleteDescriptionForNodeAsync(AssetLibraryTreeNode? node)
         => DescriptionPanel.DeleteDescriptionForNodeAsync(node);
 
+    /// <summary>右键更改素材类型（视频 ↔ 视频剪辑），转换后旧描述失效</summary>
+    public Task ChangeAssetTypeForNodeAsync(AssetLibraryTreeNode? node)
+    {
+        if (node?.Asset is { } asset
+            && (asset.AssetType == "视频" || asset.AssetType == "视频剪辑"))
+        {
+            Workspace.SelectedAsset = asset;
+            var targetType = asset.AssetType == "视频剪辑" ? "视频" : "视频剪辑";
+            return Workspace.UpdateSelectedAssetTypeAsync(targetType);
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task VectorizeDescriptionsForNodeAsync(AssetLibraryTreeNode? node)
         => VectorizationPanel.VectorizeDescriptionsForNodeAsync(node);
 

@@ -32,4 +32,10 @@ public interface IAssetLibraryService
 
     /// <summary>更新素材名称（同步更新 assets 和 asset_descriptions）</summary>
     Task UpdateAssetNameAsync(long assetId, string newName, CancellationToken ct = default);
+
+    /// <summary>
+    /// 修改素材类型（仅支持 视频 ↔ 视频剪辑 互转）。
+    /// 转换后旧描述标为 stale、删除旧向量，要求重新生成描述。
+    /// </summary>
+    Task UpdateAssetTypeAsync(long assetId, string newType, CancellationToken ct = default);
 }

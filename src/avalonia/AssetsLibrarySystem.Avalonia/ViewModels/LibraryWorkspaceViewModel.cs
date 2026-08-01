@@ -416,6 +416,30 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         SyncSelectedAssetFields();
     }
 
+    /// <summary>
+    /// 修改选中素材类型（视频 ↔ 视频剪辑）。
+    /// 转换后旧描述/向量已失效，本地状态同步为「未描述」。
+    /// </summary>
+    public async Task UpdateSelectedAssetTypeAsync(string newType)
+    {
+        if (SelectedAsset is null) return;
+        await CatalogService.UpdateAssetTypeAsync(SelectedAsset.DatabaseId, newType);
+
+        SelectedAsset.AssetType = newType;
+        SelectedAsset.IsDescribed = false;
+        SelectedAsset.IsVectorized = false;
+        SelectedAsset.Stage = "已识别";
+        SelectedAsset.AiState = "未描述";
+        SelectedAssetType = newType;
+        ResetSelectedAssetDescription();
+        SelectedAssetDescriptionStorePath = DescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
+        SelectedAssetDescriptionText = "类型已变更，旧描述已过期，请重新生成描述。";
+        RebuildAssetTree();
+        RebuildMetrics();
+        SyncSelectedAssetFields();
+        Log.Information("素材类型已修改: assetUid={AssetUid}, newType={NewType}", SelectedAsset.AssetUid, newType);
+    }
+
     public async Task UpdateSelectedLibraryNameAsync(string newName)
     {
         if (SelectedLibrary is null) return;
@@ -1070,6 +1094,8 @@ file sealed class NullAssetLibraryService : IAssetLibraryService
     public Task UpdateAssetTagsAsync(long assetId, string[] tags, CancellationToken ct = default)
         => Task.CompletedTask;
     public Task UpdateAssetNameAsync(long assetId, string newName, CancellationToken ct = default)
+        => Task.CompletedTask;
+    public Task UpdateAssetTypeAsync(long assetId, string newType, CancellationToken ct = default)
         => Task.CompletedTask;
 }
 

@@ -978,6 +978,130 @@ public sealed class AssetLibraryService : IAssetLibraryService
         }, ct).AsTask();
     }
 
+    public Task UpdateAssetTypeAsync(long assetId, string newType, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(newType))
+        {
+            throw new ArgumentException("素材类型不能为空。", nameof(newType));
+        }
+
+        var trimmedType = newType.Trim();
+        return WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(token).ConfigureAwait(false);
+            var updatedAt = DateTimeOffset.UtcNow.ToString("O");
+
+            // 读取当前类型并校验互转
+            await using var readCmd = connection.CreateCommand();
+            readCmd.Transaction = transaction;
+            readCmd.CommandText = "SELECT asset_type FROM assets WHERE id = $id;";
+            AddParameter(readCmd, "$id", assetId);
+            var currentType = await readCmd.ExecuteScalarAsync(token).ConfigureAwait(false) as string;
+            if (currentType is null)
+            {
+                await transaction.RollbackAsync(token).ConfigureAwait(false);
+                throw new InvalidOperationException($"素材 (id={assetId}) 不存在。");
+            }
+
+            if (!IsVideoLikeType(currentType) || !IsVideoLikeType(trimmedType))
+            {
+                await transaction.RollbackAsync(token).ConfigureAwait(false);
+                throw new ArgumentException(
+                    $"素材类型仅支持「视频」与「视频剪辑」互转：当前 {currentType}，目标 {trimmedType}。");
+            }
+
+            if (string.Equals(currentType, trimmedType, StringComparison.Ordinal))
+            {
+                await transaction.RollbackAsync(token).ConfigureAwait(false);
+                throw new ArgumentException($"素材已是「{trimmedType}」类型，无需修改。");
+            }
+
+            // 1. 更新 assets 表
+            await using var cmd1 = connection.CreateCommand();
+            cmd1.Transaction = transaction;
+            cmd1.CommandText = """
+                UPDATE assets
+                SET asset_type = $type, updated_at = $updated_at
+                WHERE id = $id;
+                """;
+            AddParameter(cmd1, "$id", assetId);
+            AddParameter(cmd1, "$type", trimmedType);
+            AddParameter(cmd1, "$updated_at", updatedAt);
+            await cmd1.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+            // 2. 同步 asset_descriptions 的类型冗余字段
+            await using var cmd2 = connection.CreateCommand();
+            cmd2.Transaction = transaction;
+            cmd2.CommandText = "UPDATE asset_descriptions SET asset_type = $type WHERE asset_id = $asset_id;";
+            AddParameter(cmd2, "$asset_id", assetId);
+            AddParameter(cmd2, "$type", trimmedType);
+            await cmd2.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+            // 3. 类型变化后旧描述/向量失效（与 InvalidateStaleDescriptionAndVectorsAsync 同语义，单事务内完成）
+            await using (var descCmd = connection.CreateCommand())
+            {
+                descCmd.Transaction = transaction;
+                descCmd.CommandText = """
+                    UPDATE asset_descriptions
+                    SET metadata_status = 'stale'
+                    WHERE asset_id = $asset_id;
+                    """;
+                AddParameter(descCmd, "$asset_id", assetId);
+                await descCmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }
+
+            await using (var metaCmd = connection.CreateCommand())
+            {
+                metaCmd.Transaction = transaction;
+                metaCmd.CommandText = """
+                    INSERT INTO asset_metadata (
+                        asset_id,
+                        tags_json,
+                        metadata_status,
+                        vector_state,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (
+                        $asset_id,
+                        '[]',
+                        'stale',
+                        'pending',
+                        $updated_at,
+                        $updated_at
+                    )
+                    ON CONFLICT(asset_id) DO UPDATE SET
+                        metadata_status = 'stale',
+                        vector_state = 'pending',
+                        updated_at = excluded.updated_at;
+                    """;
+                AddParameter(metaCmd, "$asset_id", assetId);
+                AddParameter(metaCmd, "$updated_at", updatedAt);
+                await metaCmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }
+
+            await using (var vectorCmd = connection.CreateCommand())
+            {
+                vectorCmd.Transaction = transaction;
+                vectorCmd.CommandText = """
+                    DELETE FROM asset_description_vectors
+                    WHERE asset_id = $asset_id;
+                    """;
+                AddParameter(vectorCmd, "$asset_id", assetId);
+                await vectorCmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }
+
+            await transaction.CommitAsync(token).ConfigureAwait(false);
+            Log.Information("素材类型已修改并失效旧描述: assetId={AssetId}, oldType={OldType}, newType={NewType}",
+                assetId, currentType, trimmedType);
+        }, ct).AsTask();
+    }
+
+    private static bool IsVideoLikeType(string assetType) =>
+        string.Equals(assetType, "视频", StringComparison.Ordinal)
+        || string.Equals(assetType, "视频剪辑", StringComparison.Ordinal);
+
     private sealed record AssetDbRecord(
         long Id,
         string AssetUid,

@@ -224,6 +224,18 @@ public sealed class LibraryCrudTests : IAsyncDisposable
                     metadata_status TEXT NOT NULL DEFAULT 'ready',
                     UNIQUE(asset_id)
                 );
+                CREATE TABLE IF NOT EXISTS asset_description_vectors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+                    angle_type TEXT NOT NULL DEFAULT '整体',
+                    embedding_model TEXT NOT NULL,
+                    vector_dim INTEGER NOT NULL,
+                    vector_blob BLOB NOT NULL,
+                    vectorized_at TEXT NOT NULL,
+                    content_hash TEXT NULL,
+                    source_fingerprint TEXT NULL,
+                    UNIQUE(asset_id, angle_type, embedding_model)
+                );
                 """;
             await command.ExecuteNonQueryAsync(ct);
         }
@@ -254,5 +266,149 @@ public sealed class LibraryCrudTests : IAsyncDisposable
             await command.ExecuteNonQueryAsync(ct);
             return connection;
         }
+    }
+
+    // ===== UpdateAssetTypeAsync（视频 ↔ 视频剪辑） =====
+
+    [Fact]
+    public async Task UpdateAssetTypeAsync_VideoToClip_UpdatesTypeAndInvalidatesDescriptionAndVectors()
+    {
+        var database = new CrudTestDatabase(DatabasePath);
+        await database.EnsureSchemaAsync();
+        await SeedVideoAssetWithDescriptionAndVectorAsync(database, "视频");
+
+        var service = new AssetLibraryService(WriteQueue, database);
+        await service.UpdateAssetTypeAsync(1, "视频剪辑");
+
+        await using var connection = await database.OpenConnectionAsync();
+        await using var cmd1 = connection.CreateCommand();
+        cmd1.CommandText = "SELECT asset_type FROM assets WHERE id = 1;";
+        Assert.Equal("视频剪辑", await cmd1.ExecuteScalarAsync());
+
+        await using var cmd2 = connection.CreateCommand();
+        cmd2.CommandText = "SELECT asset_type FROM asset_descriptions WHERE asset_id = 1;";
+        Assert.Equal("视频剪辑", await cmd2.ExecuteScalarAsync());
+
+        // 旧描述标 stale
+        await using var cmd3 = connection.CreateCommand();
+        cmd3.CommandText = "SELECT metadata_status FROM asset_descriptions WHERE asset_id = 1;";
+        Assert.Equal("stale", await cmd3.ExecuteScalarAsync());
+
+        // 元数据状态 stale + vector pending
+        await using var cmd4 = connection.CreateCommand();
+        cmd4.CommandText = "SELECT metadata_status, vector_state FROM asset_metadata WHERE asset_id = 1;";
+        await using var reader4 = await cmd4.ExecuteReaderAsync();
+        Assert.True(await reader4.ReadAsync());
+        Assert.Equal("stale", reader4.GetString(0));
+        Assert.Equal("pending", reader4.GetString(1));
+
+        // 旧向量已删除
+        await using var cmd5 = connection.CreateCommand();
+        cmd5.CommandText = "SELECT COUNT(*) FROM asset_description_vectors WHERE asset_id = 1;";
+        Assert.Equal(0L, await cmd5.ExecuteScalarAsync());
+    }
+
+    [Fact]
+    public async Task UpdateAssetTypeAsync_ClipToVideo_Works()
+    {
+        var database = new CrudTestDatabase(DatabasePath);
+        await database.EnsureSchemaAsync();
+        await SeedVideoAssetWithDescriptionAndVectorAsync(database, "视频剪辑");
+
+        var service = new AssetLibraryService(WriteQueue, database);
+        await service.UpdateAssetTypeAsync(1, "视频");
+
+        await using var connection = await database.OpenConnectionAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT asset_type FROM assets WHERE id = 1;";
+        Assert.Equal("视频", await cmd.ExecuteScalarAsync());
+    }
+
+    [Fact]
+    public async Task UpdateAssetTypeAsync_NonVideoType_Throws()
+    {
+        var database = new CrudTestDatabase(DatabasePath);
+        await database.EnsureSchemaAsync();
+        await SeedLibraryWithAssetAsync(database); // 音频素材
+
+        var service = new AssetLibraryService(WriteQueue, database);
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.UpdateAssetTypeAsync(1, "视频"));
+        Assert.Contains("仅支持", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateAssetTypeAsync_SameType_Throws()
+    {
+        var database = new CrudTestDatabase(DatabasePath);
+        await database.EnsureSchemaAsync();
+        await SeedVideoAssetWithDescriptionAndVectorAsync(database, "视频");
+
+        var service = new AssetLibraryService(WriteQueue, database);
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.UpdateAssetTypeAsync(1, "视频"));
+        Assert.Contains("无需修改", ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateAssetTypeAsync_AssetNotExists_Throws()
+    {
+        var database = new CrudTestDatabase(DatabasePath);
+        await database.EnsureSchemaAsync();
+
+        var service = new AssetLibraryService(WriteQueue, database);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateAssetTypeAsync(999, "视频剪辑"));
+        Assert.Contains("不存在", ex.Message);
+    }
+
+    private static async Task SeedVideoAssetWithDescriptionAndVectorAsync(IAssetDatabase database, string assetType)
+    {
+        await using var connection = await database.OpenConnectionAsync();
+        await using var cmd1 = connection.CreateCommand();
+        cmd1.CommandText = """
+            INSERT INTO libraries (id, name, root_path, created_at, updated_at)
+            VALUES (1, '视频库', '/tmp/video', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z');
+            """;
+        await cmd1.ExecuteNonQueryAsync();
+
+        await using var cmd2 = connection.CreateCommand();
+        cmd2.CommandText = """
+            INSERT INTO assets (id, asset_uid, library_id, asset_name, asset_type,
+                                current_path, content_hash, observed_hash,
+                                file_size, modified_time_utc, status,
+                                created_at, updated_at, created_by)
+            VALUES (1, 'uid_video', 1, 'clip.mp4', $type,
+                    '/tmp/video/clip.mp4', 'hash456', 'hash456',
+                    2048, '2024-01-01T00:00:00Z', 'ok',
+                    '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z', 'test');
+            """;
+        cmd2.Parameters.AddWithValue("$type", assetType);
+        await cmd2.ExecuteNonQueryAsync();
+
+        await using var cmd3 = connection.CreateCommand();
+        cmd3.CommandText = """
+            INSERT INTO asset_metadata (asset_id, tags_json, metadata_status, vector_state, created_at, updated_at)
+            VALUES (1, '[]', 'described', 'indexed', '2024-01-01T00:00:00Z', '2024-01-01T00:00:00Z');
+            """;
+        await cmd3.ExecuteNonQueryAsync();
+
+        await using var cmd4 = connection.CreateCommand();
+        cmd4.CommandText = """
+            INSERT INTO asset_descriptions (asset_id, asset_name, asset_type, asset_path,
+                                            description, backend_endpoint, mode, generated_at)
+            VALUES (1, 'clip.mp4', $type, '/tmp/video/clip.mp4',
+                    '视频描述', 'in-process', 'live', '2024-01-01T00:00:00Z');
+            """;
+        cmd4.Parameters.AddWithValue("$type", assetType);
+        await cmd4.ExecuteNonQueryAsync();
+
+        await using var cmd5 = connection.CreateCommand();
+        cmd5.CommandText = """
+            INSERT INTO asset_description_vectors (asset_id, angle_type, embedding_model,
+                                                   vector_dim, vector_blob, vectorized_at)
+            VALUES (1, '整体', 'embedding-test', 2, X'0000803F00000000', '2024-01-01T00:00:00Z');
+            """;
+        await cmd5.ExecuteNonQueryAsync();
     }
 }

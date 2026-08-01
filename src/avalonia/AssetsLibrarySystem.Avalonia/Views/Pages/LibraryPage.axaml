@@ -360,6 +360,9 @@
                                                     <MenuItem Header="向量化当前素材/文件夹"
                                                               Click="VectorizeDescriptionsForNode_Click"
                                                               CommandParameter="{Binding}" />
+                                                    <MenuItem Header="更改类型（视频↔视频剪辑）"
+                                                              Click="ChangeAssetTypeForNode_Click"
+                                                              CommandParameter="{Binding}" />
                                                     <MenuItem Header="删除描述记录"
                                                               Click="DeleteDescriptionForNode_Click"
                                                               CommandParameter="{Binding}" />
@@ -600,9 +603,19 @@
                                 <StackPanel Spacing="8">
                                     <StackPanel>
                                         <TextBlock Classes="eyebrow" Text="类型" />
-                                        <TextBlock Foreground="{DynamicResource AppTextBrush}"
-                                                   FontSize="24" FontWeight="SemiLight"
-                                                   Text="{Binding AssetDetail.SelectedAssetType}" />
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                       FontSize="24" FontWeight="SemiLight"
+                                                       Text="{Binding AssetDetail.SelectedAssetType}" />
+                                            <Button Grid.Column="1"
+                                                    Classes="secondary-action"
+                                                    Content="{Binding AssetDetail.ChangeAssetTypeTargetLabel}"
+                                                    Command="{Binding AssetDetail.ChangeAssetTypeCommand}"
+                                                    IsVisible="{Binding AssetDetail.CanChangeAssetType}"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    Padding="8,3" />
+                                        </Grid>
                                     </StackPanel>
                                     <StackPanel>
                                         <TextBlock Classes="eyebrow" Text="子类型" />

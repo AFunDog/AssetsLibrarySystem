@@ -32,6 +32,12 @@ public sealed partial class AssetDetailViewModel : ObservableObject
                 _ = LoadPreviewAsync();
             }
 
+            if (e.PropertyName is nameof(Workspace.SelectedAsset) or nameof(Workspace.SelectedAssetType))
+            {
+                OnPropertyChanged(nameof(CanChangeAssetType));
+                OnPropertyChanged(nameof(ChangeAssetTypeTargetLabel));
+            }
+
             if (e.PropertyName == nameof(Workspace.SelectedAssetDescriptionText) ||
                 e.PropertyName == nameof(Workspace.SelectedAsset))
             {
@@ -146,6 +152,26 @@ public sealed partial class AssetDetailViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(RenameText)) return;
         await Workspace.UpdateSelectedLibraryNameAsync(RenameText.Trim());
         RenameText = string.Empty;
+    }
+
+    // ===== 类型修改（视频 ↔ 视频剪辑） =====
+    /// <summary>当前选中素材是否为视频类（显示「更改类型」入口）</summary>
+    public bool CanChangeAssetType =>
+        Workspace.SelectedAsset is { AssetType: "视频" or "视频剪辑" };
+
+    /// <summary>转换目标类型文案，如「切换为视频剪辑」</summary>
+    public string ChangeAssetTypeTargetLabel =>
+        Workspace.SelectedAssetType == "视频剪辑" ? "切换为视频" : "切换为视频剪辑";
+
+    [RelayCommand]
+    private async Task ChangeAssetTypeAsync()
+    {
+        var asset = Workspace.SelectedAsset;
+        if (asset is null || !CanChangeAssetType) return;
+        var targetType = asset.AssetType == "视频剪辑" ? "视频" : "视频剪辑";
+        await Workspace.UpdateSelectedAssetTypeAsync(targetType);
+        OnPropertyChanged(nameof(CanChangeAssetType));
+        OnPropertyChanged(nameof(ChangeAssetTypeTargetLabel));
     }
 
     // ===== 描述编辑 =====

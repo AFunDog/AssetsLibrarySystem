@@ -62,7 +62,13 @@ public sealed class ManagedAssetRecord : ObservableModel
     public string Id => AssetUid;
     public string Name { get; init; } = string.Empty;
     public string LibraryName { get; init; } = string.Empty;
-    public string AssetType { get; init; } = string.Empty;
+
+    /// <summary>素材类型（文本/图片/视频/音频/视频剪辑），可写以便类型转换后刷新</summary>
+    public string AssetType
+    {
+        get => field;
+        set => SetProperty(ref field, value);
+    } = string.Empty;
     public string RelativePath { get; init; } = string.Empty;
     public string LocalPath { get; init; } = string.Empty;
     public string CurrentPath => LocalPath;
