@@ -181,7 +181,7 @@ class ModelServiceTestCase(unittest.TestCase):
             manager_cls.return_value = manager
 
             output_text, usage = asyncio.run(
-                service._call_dashscope(
+                service._call_model(
                     ModelRuntimeContext(
                         config_slot="图片",
                         provider="dashscope",
@@ -222,7 +222,7 @@ class ModelServiceTestCase(unittest.TestCase):
             ):
                 manager_cls.return_value.get.return_value = provider
                 asyncio.run(
-                    service._call_dashscope(
+                        service._call_model(
                         ModelRuntimeContext("图片", "dashscope", "qwen-vl-max", "", "", True),
                         "system",
                         "请描述",
@@ -251,7 +251,7 @@ class ModelServiceTestCase(unittest.TestCase):
                 manager_cls.return_value.get.return_value = provider
                 with self.assertRaisesRegex(RuntimeError, "模型调用失败"):
                     asyncio.run(
-                        service._call_dashscope(
+                    service._call_model(
                             ModelRuntimeContext("图片", "dashscope", "qwen-vl-max", "", "", True),
                             "system",
                             "请描述",

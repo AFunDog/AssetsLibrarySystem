@@ -19,6 +19,10 @@ import tempfile
 import time
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.skip(reason="手动调试脚本，需真实视频与模型 Key")
+
 
 def create_test_video(duration: int = 70) -> str:
     """创建测试视频。"""
@@ -105,7 +109,7 @@ async def run_test_verbose(video_path: str, full_json: bool = False):
         t0 = time.time()
         provider_context = svc._resolve_provider_context_for_asset_format(asset_format)
         call_model = svc._resolve_model_name(provider_context.model, asset_format)
-        raw_text, usage = await svc._call_dashscope(
+        raw_text, usage = await svc._call_model(
             provider_context, system_prompt, prompt, asset_format, asset_path, call_model,
         )
         elapsed = time.time() - t0

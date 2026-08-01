@@ -128,8 +128,8 @@ class VideoSliceDescriberTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertIn("segments", result)
         self.assertEqual(len(result["segments"]), 1)
 
-    async def test_describe_sliced_llm_failure_uses_empty(self):
-        """LLM 调用失败时，使用空描述"""
+    async def test_describe_sliced_llm_failure_raises(self):
+        """LLM 调用失败时，向上抛出 RuntimeError 而非返回空描述"""
         failing_llm = AsyncMock(side_effect=RuntimeError("LLM failed"))
         describer = VideoSliceDescriber(
             failing_llm,
@@ -141,16 +141,14 @@ class VideoSliceDescriberTestCase(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        result = await describer.describe_sliced(
-            "test.mp4",
-            "视频",
-            [{"key": "整体", "label": "整体", "prompt": "概括", "max_length": 120}],
-            "你是描述助手",
-            "请描述",
-        )
-
-        self.assertIn("整体", result)
-        self.assertEqual(result["整体"]["text"], "")
+        with self.assertRaises(RuntimeError):
+            await describer.describe_sliced(
+                "test.mp4",
+                "视频",
+                [{"key": "整体", "label": "整体", "prompt": "概括", "max_length": 120}],
+                "你是描述助手",
+                "请描述",
+            )
 
     def test_synthesize_overall_merges_tags(self):
         """合成整体摘要时，标签去重合并"""
