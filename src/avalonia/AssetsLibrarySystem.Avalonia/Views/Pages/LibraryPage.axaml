@@ -566,7 +566,7 @@
                                   Classes="side-splitter"
                                   ResizeDirection="Auto" />
 
-                <Grid Grid.Column="2" RowDefinitions="*,6,*">
+                <Grid Grid.Column="2">
                     <!-- 详情面板（预览区域并入顶部，保证与左栏面板顶部对齐） -->
                     <Border Classes="page-card">
                         <Grid RowDefinitions="Auto,*" ColumnDefinitions="200,*" ColumnSpacing="12">
@@ -574,7 +574,7 @@
                             <Border Grid.Row="0" Grid.ColumnSpan="2" Classes="sub-card"
                                     Padding="8"
                                     IsVisible="{Binding AssetDetail.HasPreview}">
-                                <Grid>
+                                <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
                                     <!-- 图片预览 -->
                                     <Image Source="{Binding AssetDetail.PreviewImage}"
                                            MaxHeight="160"
@@ -602,6 +602,49 @@
                                                        FontSize="12" />
                                         </StackPanel>
                                     </Border>
+                                    <!-- 片段列表（已分割剪辑素材）：缩略图 + 时间范围 + 标签摘要 -->
+                                    <ScrollViewer Grid.Row="1" MaxHeight="190"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  IsVisible="{Binding AssetDetail.HasSelectedAssetSegments}">
+                                        <ItemsControl ItemsSource="{Binding AssetDetail.SelectedAssetSegmentItems}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <VirtualizingStackPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:SegmentListItemViewModel">
+                                                    <Border Classes="sub-card" Margin="0,0,0,6" Padding="6">
+                                                        <Grid ColumnDefinitions="64,*" ColumnSpacing="8">
+                                                            <Border Width="64" Height="36"
+                                                                    CornerRadius="3"
+                                                                    ClipToBounds="True"
+                                                                    Background="{DynamicResource AppSoftSurfaceBrush}">
+                                                                <Grid>
+                                                                    <Image Source="{Binding Thumbnail}"
+                                                                           Stretch="UniformToFill"
+                                                                           IsVisible="{Binding HasThumbnail}" />
+                                                                    <lucide:LucideIcon Kind="Video" Size="16"
+                                                                                       IsVisible="{Binding HasThumbnail, Converter={x:Static BoolConverters.Not}}"
+                                                                                       HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding TimeRangeText}"
+                                                                           FontWeight="SemiBold" FontSize="13"
+                                                                           Foreground="{DynamicResource AppTextBrush}" />
+                                                                <TextBlock Text="{Binding TagsSummary}"
+                                                                           FontSize="12"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
                                 </Grid>
                             </Border>
                             <!-- 左侧：基本信息 -->
@@ -722,12 +765,6 @@
                                                                FontSize="13"
                                                                Foreground="{DynamicResource AppTextBrush}"
                                                                IsVisible="{Binding Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                                    <!-- 分割后骨架占位：未描述片段提示 -->
-                                                    <TextBlock Text="尚未描述，可执行「描述」补全片段内容"
-                                                               TextWrapping="Wrap"
-                                                               FontSize="12"
-                                                               Foreground="{DynamicResource AppMutedTextBrush}"
-                                                               IsVisible="{Binding IsMissingSegment}" />
                                                     <WrapPanel>
                                                         <ItemsControl ItemsSource="{Binding Tags}">
                                                             <ItemsControl.ItemsPanel>
@@ -753,44 +790,6 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                                 </StackPanel>
-                            </ScrollViewer>
-                        </Grid>
-                    </Border>
-
-                    <GridSplitter Grid.Row="1"
-                                  Height="6"
-                                  Classes="side-splitter-h"
-                                  ResizeDirection="Rows" />
-
-                    <Border Grid.Row="2" Classes="page-card">
-                        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
-                            <TextBlock Classes="eyebrow" Text="动态" />
-                            <TextBlock Classes="section-title" Text="活动纪要" />
-                            <ScrollViewer Grid.Row="2"
-                                          VerticalScrollBarVisibility="Auto">
-                                <ItemsControl ItemsSource="{Binding ActivityFeed}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <VirtualizingStackPanel />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="models:ActivityFeedEntry">
-                                            <Border Classes="sub-card" Margin="0,0,0,4">
-                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
-                                                    <TextBlock Text="{Binding TimeText}"
-                                                               FontSize="11"
-                                                               Foreground="{DynamicResource AppMutedTextBrush}"
-                                                               VerticalAlignment="Top" />
-                                                    <TextBlock Grid.Column="1"
-                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                                               TextWrapping="Wrap"
-                                                               Text="{Binding Message}" />
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
                             </ScrollViewer>
                         </Grid>
                     </Border>

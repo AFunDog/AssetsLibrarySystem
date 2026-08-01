@@ -61,6 +61,10 @@ public sealed class PythonModule : Module
         builder.RegisterType<PythonSearchService>()
             .As<IBackendSearchClient>()
             .SingleInstance();
+
+        builder.RegisterType<VideoFrameService>()
+            .AsSelf()
+            .SingleInstance();
     }
 
     private static string ResolveBackendSourcePath()

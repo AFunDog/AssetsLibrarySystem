@@ -94,6 +94,12 @@ public sealed partial class AssetDetailViewModel : ObservableObject
     public ObservableCollection<AngleDescriptionRecord> SelectedAssetDescriptionAngles
         => Workspace.SelectedAssetDescriptionAngles;
 
+    // ===== 片段列表（已分割剪辑素材） =====
+    public ObservableCollection<SegmentListItemViewModel> SelectedAssetSegmentItems
+        => Workspace.SelectedAssetSegmentItems;
+
+    public bool HasSelectedAssetSegments => Workspace.HasSelectedAssetSegments;
+
     // ===== 标签编辑 =====
     public ObservableCollection<string> SelectedAssetTags => Workspace.SelectedAsset?.Tags ?? [];
 

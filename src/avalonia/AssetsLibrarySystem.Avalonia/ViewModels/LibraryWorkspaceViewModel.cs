@@ -10,6 +10,7 @@ using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetLibrary;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
+using AssetsLibrarySystem.Application.Services.Python;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Settings;
@@ -33,9 +34,11 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     private AngleProfileManager? AngleProfileManager { get; }
     private ActivityFeedService ActivityFeedService { get; }
     private ThumbnailCacheService? ThumbnailCache { get; }
+    private VideoFrameService? VideoFrameService { get; }
     private IUserSettingsService? UserSettings { get; }
     private List<ManagedAssetRecord> AllAssets { get; } = [];
     private int DescriptionLoadGeneration { get; set; }
+    private int SegmentThumbnailGeneration { get; set; }
 
     // ===== 导航历史（返回/前进） =====
     private readonly Stack<AssetLibraryTreeNode?> _backStack = [];
@@ -50,6 +53,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         AngleProfileManager? angleProfileManager,
         ActivityFeedService activityFeedService,
         ThumbnailCacheService? thumbnailCache = null,
+        VideoFrameService? videoFrameService = null,
         IUserSettingsService? userSettings = null)
     {
         CatalogService = catalogService;
@@ -58,6 +62,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         AngleProfileManager = angleProfileManager;
         ActivityFeedService = activityFeedService;
         ThumbnailCache = thumbnailCache;
+        VideoFrameService = videoFrameService;
         UserSettings = userSettings;
 
         Metrics = [];
@@ -87,6 +92,12 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     public ObservableCollection<LibraryWorkspace> Libraries { get; }
     public ObservableCollection<AssetLibraryTreeNode> CurrentExplorerItems { get; }
     public ObservableCollection<AngleDescriptionRecord> SelectedAssetDescriptionAngles { get; }
+
+    /// <summary>片段列表项（已分割剪辑素材；空=未分割或无描述）</summary>
+    public ObservableCollection<SegmentListItemViewModel> SelectedAssetSegmentItems { get; } = [];
+
+    /// <summary>当前素材是否展示片段列表</summary>
+    [ObservableProperty] public partial bool HasSelectedAssetSegments { get; set; }
     /// <summary>面包屑导航段（库根 › 目录 › … › 当前）</summary>
     public ObservableCollection<BreadcrumbSegment> Breadcrumbs { get; } = [];
 
@@ -503,9 +514,13 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
 
     public void CompleteAssetDescription(ManagedAssetRecord asset, AssetDescriptionDocument document)
     {
-        asset.Stage = document.Mode == "live" ? "已描述" : "已描述（占位）";
+        // slicing 模式文档 = 仅完成场景分割（骨架），不算已描述
+        var isSlicingOnly = string.Equals(document.Mode, "slicing", StringComparison.OrdinalIgnoreCase);
+        asset.Stage = isSlicingOnly
+            ? $"已分割 {StructuredDescriptionHelper.GetSegmentCount(document.Description)} 个片段，待描述"
+            : document.Mode == "live" ? "已描述" : "已描述（占位）";
         asset.AiState = asset.Stage;
-        asset.IsDescribed = true;
+        asset.IsDescribed = !isSlicingOnly;
         if (ReferenceEquals(SelectedAsset, asset))
         {
             ApplySelectedAssetDescription(document);
@@ -676,7 +691,12 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
             ? "未返回 token 用量"
             : FormatTokenUsage(document.TokenUsage);
 
-        SelectedAssetDescriptionState = document.Mode == "live" ? "已描述" : "已描述（占位）";
+        // slicing 模式文档 = 仅完成场景分割（骨架），尚未生成描述文本
+        var isSlicingOnly = string.Equals(document.Mode, "slicing", StringComparison.OrdinalIgnoreCase);
+
+        SelectedAssetDescriptionState = isSlicingOnly
+            ? $"已分割 {StructuredDescriptionHelper.GetSegmentCount(document.Description)} 个片段，待描述"
+            : document.Mode == "live" ? "已描述" : "已描述（占位）";
         SelectedAssetDescriptionStorePath = DescriptionStore?.DatabasePath ?? "SQLite 存储未就绪";
         SelectedAssetDescriptionGeneratedAt = document.GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
         SelectedAssetDescriptionMode = document.Mode;
@@ -687,9 +707,11 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         SelectedAssetDescriptionSystemPrompt = string.IsNullOrWhiteSpace(document.SystemPrompt)
             ? "使用配置中的默认 system prompt。"
             : document.SystemPrompt;
-        SelectedAssetDescriptionText = document.PrimaryDescription;
+        SelectedAssetDescriptionText = isSlicingOnly
+            ? "场景分割完成，片段时间点已保存；请执行「描述」补全各片段描述。"
+            : document.PrimaryDescription;
         SelectedAssetAiState = SelectedAssetDescriptionState;
-        SelectedAssetDetail = document.PrimaryDescription;
+        SelectedAssetDetail = isSlicingOnly ? SelectedAssetDescriptionText : document.PrimaryDescription;
 
         var subtype = document.Subtype;
         if (string.IsNullOrWhiteSpace(subtype) && SelectedAsset is not null)
@@ -700,7 +722,8 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
 
         if (SelectedAsset is not null)
         {
-            SelectedAsset.IsDescribed = true;
+            // slicing 文档只是分割骨架，不算已描述
+            SelectedAsset.IsDescribed = !isSlicingOnly;
             SelectedAsset.AiState = SelectedAssetDescriptionState;
             SelectedAsset.Stage = SelectedAssetDescriptionState.StartsWith("已描述", StringComparison.Ordinal)
                 ? SelectedAssetDescriptionState
@@ -712,6 +735,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     private void RefreshDescriptionAngles(ManagedAssetRecord asset, string? descriptionJson)
     {
         SelectedAssetDescriptionAngles.Clear();
+        RefreshSelectedAssetSegments(asset, descriptionJson);
         if (string.IsNullOrWhiteSpace(descriptionJson))
             return;
 
@@ -783,27 +807,8 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
                     });
                 }
 
-                // 分割后骨架：未描述片段生成占位卡片（显示时间点，标记待描述）
-                foreach (var skeleton in StructuredDescriptionHelper.EnumerateSegmentSkeletons(descriptionJson))
-                {
-                    if (!skeleton.IsMissing)
-                    {
-                        continue;
-                    }
-
-                    SelectedAssetDescriptionAngles.Add(new AngleDescriptionRecord(
-                        AngleKey: SegmentAngleType.Build(skeleton.SegmentIndex, "待描述"),
-                        Label: "待描述",
-                        Text: string.Empty,
-                        Tags: [],
-                        MaxLength: 0)
-                    {
-                        SegmentIndex = skeleton.SegmentIndex,
-                        StartTime = skeleton.Start,
-                        EndTime = skeleton.End,
-                        IsMissingSegment = true,
-                    });
-                }
+                // 分割后骨架：片段列表已在预览区统一展示（含时间点与待描述状态），
+                // 不再生成占位角度卡片
             }
         }
         catch (Exception ex)
@@ -820,6 +825,49 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
             : $"{baseText}; image={usage.ImageTokens ?? 0}, video={usage.VideoTokens ?? 0}, audio={usage.AudioTokens ?? 0}";
     }
 
+    /// <summary>构建片段列表数据（已分割剪辑素材展示列表项并异步加载缩略图）</summary>
+    private void RefreshSelectedAssetSegments(ManagedAssetRecord asset, string? descriptionJson)
+    {
+        SelectedAssetSegmentItems.Clear();
+        var data = SegmentTimelineHelper.Build(descriptionJson);
+        if (data is null)
+        {
+            HasSelectedAssetSegments = false;
+            return;
+        }
+
+        foreach (var block in data.Blocks)
+        {
+            SelectedAssetSegmentItems.Add(new SegmentListItemViewModel(block));
+        }
+
+        HasSelectedAssetSegments = true;
+        LoadSegmentThumbnailsAsync(asset);
+    }
+
+    /// <summary>异步加载各片段起始帧缩略图（generation 防选中切换竞态）</summary>
+    private async void LoadSegmentThumbnailsAsync(ManagedAssetRecord asset)
+    {
+        var generation = ++SegmentThumbnailGeneration;
+        if (VideoFrameService is null || !File.Exists(asset.LocalPath))
+        {
+            return;
+        }
+
+        var videoPath = asset.LocalPath;
+        foreach (var item in SelectedAssetSegmentItems)
+        {
+            var timestamp = item.Start;
+            var jpegBytes = await Task.Run(() => VideoFrameService.ExtractFrame(videoPath, timestamp)).ConfigureAwait(true);
+            if (generation != SegmentThumbnailGeneration)
+            {
+                return;
+            }
+
+            item.SetThumbnail(jpegBytes);
+        }
+    }
+
     private void ResetSelectedAssetDescription()
     {
         SelectedAssetDescriptionState = "未描述";
@@ -831,6 +879,10 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         SelectedAssetDescriptionSystemPrompt = "尚未生成 system prompt。";
         SelectedAssetDescriptionText = "当前素材还没有可显示的 AI 描述。";
         SelectedAssetDescriptionAngles.Clear();
+        // 取消进行中的缩略图加载并清空片段列表
+        SegmentThumbnailGeneration++;
+        SelectedAssetSegmentItems.Clear();
+        HasSelectedAssetSegments = false;
     }
 
     private void SetEmptyWorkspaceState()
