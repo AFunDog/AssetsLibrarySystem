@@ -122,7 +122,13 @@ class ModelService:
         provider_context = self._resolve_provider_context_for_asset_format(payload.asset_format)
         call_model = self._resolve_model_name(provider_context.model, payload.asset_format)
 
-        if payload.mock_response or not provider_context.supports_live_call:
+        # 场景分割（slicing_only）是本地 PySceneDetect 能力，不依赖 API Key：
+        # 视频格式的 slicing_only 请求即使未配置 Key 也继续走下方真实场景检测；
+        # 描述生成（调用 LLM）才需要 Key，其余请求仍按原逻辑返回 mock
+        is_video_format = payload.asset_format in ("视频", "视频剪辑")
+        if (payload.mock_response or not provider_context.supports_live_call) and not (
+            payload.slicing_only and is_video_format
+        ):
             logger.info("描述生成使用 mock 模式: format=%s, model=%s", payload.asset_format, call_model)
             return ModelGenerateResponse(
                 provider_slot=DEFAULT_PROVIDER_SLOT,
@@ -140,7 +146,6 @@ class ModelService:
             or payload.existing_segments is not None
             or payload.asset_format == "视频剪辑"
         )
-        is_video_format = payload.asset_format in ("视频", "视频剪辑")
         if (
             (is_video_format and payload.enable_slicing and payload.angles)
             or (payload.slicing_only and is_video_format)

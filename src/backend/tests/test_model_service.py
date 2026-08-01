@@ -75,6 +75,62 @@ class ModelServiceTestCase(unittest.TestCase):
         self.assertEqual(parsed["segments"][0]["整体"], {"text": "", "tags": []})
         call_model_mock.assert_not_called()
 
+    def test_slicing_only_runs_real_scene_detection_without_api_key(self) -> None:
+        """未配置 API Key（supports_live_call=False）时 slicing_only 仍走本地真实场景检测，不返回 mock"""
+        service = ModelService()
+
+        fake_scenes = [
+            types.SimpleNamespace(start_frame=0, end_frame=300, start_sec=0.0, end_sec=10.0),
+            types.SimpleNamespace(start_frame=300, end_frame=600, start_sec=10.0, end_sec=20.0),
+        ]
+        with (
+            patch.object(
+                ModelService,
+                "_resolve_provider_context_for_asset_format",
+                return_value=ModelRuntimeContext(
+                    config_slot="视频",
+                    provider="dashscope",
+                    model="qwen-vl-max",
+                    system_prompt="",
+                    prompt="",
+                    supports_live_call=False,
+                ),
+            ),
+            patch(
+                "app.application.services.video_scene_detector.VideoSceneDetector",
+            ) as detector_cls,
+            patch.object(
+                ModelService,
+                "_build_mock_output",
+                side_effect=AssertionError("slicing_only 不应走 mock 分支"),
+            ) as mock_output_mock,
+        ):
+            detector = MagicMock()
+            detector.detect.return_value = fake_scenes
+            detector_cls.return_value = detector
+
+            response = asyncio.run(
+                service.generate_text(
+                    ModelGenerateRequest(
+                        asset_format="视频剪辑",
+                        asset_path=r"D:\Data\clip.mp4",
+                        angles=[
+                            AngleDef(key="整体", label="整体", prompt="概括", max_length=120),
+                        ],
+                        enable_slicing=True,
+                        slicing_only=True,
+                    )
+                )
+            )
+
+        self.assertEqual(response.mode, "slicing")
+        import json
+        parsed = json.loads(response.output_text)
+        self.assertEqual(len(parsed["segments"]), 2)
+        self.assertEqual(parsed["segments"][0]["start_time"], 0.0)
+        self.assertEqual(parsed["segments"][0]["end_time"], 10.0)
+        mock_output_mock.assert_not_called()
+
     def test_generate_text_passes_existing_segments_to_describer(self) -> None:
         """existing_segments：剪辑模式按已确认时间点描述，跳过场景检测"""
         service = ModelService()
