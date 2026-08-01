@@ -23,4 +23,21 @@ public interface IAssetDescriptionService
         double? rangeStart,
         double? rangeEnd,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// 仅执行场景分割：把片段时间点骨架写入描述 JSON（不调用 LLM）。
+    /// 已有分割结果且（无范围或范围已覆盖）时幂等跳过。
+    /// </summary>
+    Task<ClipSplitResult> SplitOnlyAsync(
+        ManagedAssetRecord asset,
+        string backendBaseUrl,
+        double? rangeStart,
+        double? rangeEnd,
+        CancellationToken ct = default);
 }
+
+/// <summary>「仅分割」执行结果</summary>
+public sealed record ClipSplitResult(
+    AssetDescriptionDocument Document,
+    int SegmentCount,
+    bool AlreadySplit);

@@ -134,6 +134,10 @@
                                 Command="{Binding QueueSelectedDescriptionCommand}"
                                 Content="描述当前素材" />
                         <Button Classes="secondary-action"
+                                Command="{Binding DescriptionPanel.SplitSelectedCommand}"
+                                Content="仅分割"
+                                IsVisible="{Binding DescriptionPanel.IsClipAssetSelected}" />
+                        <Button Classes="secondary-action"
                                 Command="{Binding VectorizeDescriptionsCommand}"
                                 Content="批量向量化" />
                         <!-- 剪辑素材：特定时间范围内描述（只补范围内缺失片段） -->
@@ -362,6 +366,9 @@
                                                               CommandParameter="{Binding}" />
                                                     <MenuItem Header="更改类型（视频↔视频剪辑）"
                                                               Click="ChangeAssetTypeForNode_Click"
+                                                              CommandParameter="{Binding}" />
+                                                    <MenuItem Header="仅场景分割"
+                                                              Click="SplitClipForNode_Click"
                                                               CommandParameter="{Binding}" />
                                                     <MenuItem Header="删除描述记录"
                                                               Click="DeleteDescriptionForNode_Click"

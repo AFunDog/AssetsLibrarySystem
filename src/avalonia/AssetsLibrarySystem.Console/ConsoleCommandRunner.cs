@@ -22,6 +22,7 @@ public sealed class ConsoleCommandRunner
     private DescribeAssetsUseCase DescribeAssetsUseCase { get; }
     private VectorizeDescriptionsUseCase VectorizeDescriptionsUseCase { get; }
     private RebuildSearchIndexUseCase RebuildSearchIndexUseCase { get; }
+    private SplitClipSegmentsUseCase SplitClipSegmentsUseCase { get; }
 
     public ConsoleCommandRunner(
         IAssetLibraryService libraryService,
@@ -31,7 +32,8 @@ public sealed class ConsoleCommandRunner
         IBackendLauncher backendLauncher,
         DescribeAssetsUseCase describeAssetsUseCase,
         VectorizeDescriptionsUseCase vectorizeDescriptionsUseCase,
-        RebuildSearchIndexUseCase rebuildSearchIndexUseCase)
+        RebuildSearchIndexUseCase rebuildSearchIndexUseCase,
+        SplitClipSegmentsUseCase splitClipSegmentsUseCase)
     {
         LibraryService = libraryService;
         DescriptionStore = descriptionStore;
@@ -41,6 +43,7 @@ public sealed class ConsoleCommandRunner
         DescribeAssetsUseCase = describeAssetsUseCase;
         VectorizeDescriptionsUseCase = vectorizeDescriptionsUseCase;
         RebuildSearchIndexUseCase = rebuildSearchIndexUseCase;
+        SplitClipSegmentsUseCase = splitClipSegmentsUseCase;
     }
 
     public async Task<int> RunAsync(string[] args)
@@ -114,6 +117,7 @@ public sealed class ConsoleCommandRunner
         {
             "describe" => await DescribeAssetAsync(args.Skip(1).ToArray()),
             "describe-dir" => await DescribeDirectoryAsync(args.Skip(1).ToArray()),
+            "split" => await SplitClipAssetAsync(args.Skip(1).ToArray()),
             "vectorize-missing" => await VectorizeMissingDescriptionsAsync(args.Skip(1).ToArray()),
             "search" => await SearchAssetsAsync(args.Skip(1).ToArray()),
             "query" => await SearchAssetsAsync(args.Skip(1).ToArray()),
@@ -240,6 +244,90 @@ public sealed class ConsoleCommandRunner
         }
 
         return 0;
+    }
+
+    private async Task<int> SplitClipAssetAsync(string[] args)
+    {
+        var libraryKey = GetOptionValue(args, "--library")
+            ?? GetOptionValue(args, "-l");
+        var assetKey = GetOptionValue(args, "--asset")
+            ?? GetOptionValue(args, "-a");
+        var rangeStart = TryParseSeconds(GetOptionValue(args, "--start"));
+        var rangeEnd = TryParseSeconds(GetOptionValue(args, "--end"));
+
+        if (string.IsNullOrWhiteSpace(libraryKey) || string.IsNullOrWhiteSpace(assetKey))
+        {
+            Console.Error.WriteLine("需要同时提供 --library 和 --asset。");
+            PrintAssetHelp();
+            return 1;
+        }
+
+        if (rangeStart is not null && rangeEnd is not null && rangeEnd <= rangeStart)
+        {
+            Console.Error.WriteLine("时间范围无效：--end 必须大于 --start。");
+            return 1;
+        }
+
+        var library = await ResolveLibraryAsync(libraryKey);
+        if (library is null)
+        {
+            Console.Error.WriteLine($"未找到素材库：{libraryKey}");
+            return 1;
+        }
+
+        var assets = await LibraryService.ScanLibraryAsync(library);
+        var asset = ResolveAsset(assets, assetKey);
+        if (asset is null)
+        {
+            Console.Error.WriteLine($"未找到素材：{assetKey}");
+            return 1;
+        }
+
+        if (asset.AssetType != "视频剪辑")
+        {
+            Console.Error.WriteLine($"仅视频剪辑素材支持场景分割，当前类型：{asset.AssetType}");
+            return 1;
+        }
+
+        await BackendLauncher.StartAsync();
+        try
+        {
+            var result = await SplitClipSegmentsUseCase.ExecuteAsync(
+                [asset],
+                BackendLauncher.BaseUrl,
+                rangeStart,
+                rangeEnd);
+
+            if (result.SuccessCount > 0)
+            {
+                Console.WriteLine($"分割完成：{asset.RelativePath}");
+            }
+            else if (result.SkipCount > 0)
+            {
+                Console.WriteLine($"已存在分割结果，跳过：{asset.RelativePath}");
+            }
+            else
+            {
+                Console.Error.WriteLine($"分割失败：{asset.RelativePath}");
+                return 1;
+            }
+        }
+        finally
+        {
+            await BackendLauncher.StopAsync();
+        }
+
+        return 0;
+    }
+
+    private static double? TryParseSeconds(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        return double.TryParse(text.Trim(), out var seconds) ? seconds : null;
     }
 
     private async Task<int> DescribeDirectoryAsync(string[] args)
@@ -669,6 +757,7 @@ public sealed class ConsoleCommandRunner
               libraries scan <libraryId|libraryName|rootPath>
               assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>]
               assets describe-dir --library <libraryId|libraryName|rootPath> --folder <relativeFolderPath> [--prompt <prompt>] [--system-prompt <prompt>]
+              assets split --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--start <秒>] [--end <秒>]
               assets vectorize-missing --library <libraryId|libraryName|rootPath>
 
             示例:
@@ -697,6 +786,7 @@ public sealed class ConsoleCommandRunner
             assets 命令:
               assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>]
               assets describe-dir --library <libraryId|libraryName|rootPath> --folder <relativeFolderPath> [--prompt <prompt>] [--system-prompt <prompt>]
+              assets split --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--start <秒>] [--end <秒>]
               assets search <query> [--candidate-top-k <n>] [--top-k <n>] [--format <assetFormat>]
               assets reindex
               assets vectorize-missing [--library <libraryId|libraryName|rootPath>]

@@ -533,6 +533,31 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         else RebuildAssetTree();
     }
 
+    /// <summary>场景分割完成：刷新骨架展示（片段卡片显示时间点，但未描述）</summary>
+    public async Task RefreshAssetDescriptionAfterSplit(ManagedAssetRecord asset, int segmentCount)
+    {
+        if (DescriptionStore is null) return;
+        var document = await DescriptionStore.TryGetForAssetAsync(asset).ConfigureAwait(false);
+        if (document is null) return;
+
+        asset.Stage = $"已分割 {segmentCount} 个片段";
+        asset.AiState = "待描述";
+        if (ReferenceEquals(SelectedAsset, asset))
+        {
+            SelectedAssetDescriptionState = $"已分割 {segmentCount} 个片段，待描述";
+            SelectedAssetDescriptionStorePath = DescriptionStore.DatabasePath;
+            SelectedAssetDescriptionGeneratedAt = document.GeneratedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+            SelectedAssetDescriptionMode = document.Mode;
+            SelectedAssetDescriptionText = "场景分割完成，片段时间点已保存；请执行「描述」补全各片段描述。";
+            RefreshDescriptionAngles(asset, document.Description);
+            SyncSelectedAssetFields();
+        }
+        else
+        {
+            RebuildAssetTree();
+        }
+    }
+
     public void RemoveAssetDescription(ManagedAssetRecord asset, bool vectorDeleted)
     {
         asset.IsDescribed = false;

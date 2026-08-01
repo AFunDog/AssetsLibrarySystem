@@ -154,6 +154,48 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         return document;
     }
 
+    public async Task<ClipSplitResult> SplitOnlyAsync(
+        ManagedAssetRecord asset,
+        string backendBaseUrl,
+        double? rangeStart,
+        double? rangeEnd,
+        CancellationToken ct = default)
+    {
+        var subtype = asset.Subtype;
+        if (string.IsNullOrWhiteSpace(subtype))
+        {
+            subtype = SubtypeDetector.DetectSubtype(asset) ?? "默认";
+        }
+
+        var profile = AngleProfileManager.GetProfile(asset.AssetType, subtype);
+        var angleDtos = profile.Angles
+            .Select(a => new AngleDefinitionDto(a.Key, a.Label, a.Prompt, a.MaxLength))
+            .ToArray();
+        var slicing = profile.Slicing;
+
+        var existing = await Store.TryGetAsync(asset.DatabaseId, ct).ConfigureAwait(false);
+        var existingJson = existing?.Description;
+
+        // 已有分割结果且（无范围或范围已覆盖）→ 幂等跳过
+        var alreadySplit = StructuredDescriptionHelper.GetSegmentCount(existingJson) > 0
+            && (rangeStart is null || StructuredDescriptionHelper.IsRangeCovered(existingJson, rangeStart, rangeEnd));
+        if (alreadySplit)
+        {
+            Log.Information("剪辑素材已有分割结果，跳过: assetId={AssetId}, name={Name}",
+                asset.DatabaseId, asset.Name);
+            var document = existing ?? BuildDocument(asset, backendBaseUrl, existingJson ?? string.Empty, "slicing", null, subtype);
+            return new ClipSplitResult(document, StructuredDescriptionHelper.GetSegmentCount(existingJson), AlreadySplit: true);
+        }
+
+        var mergedJson = await EnsureSkeletonAsync(
+            asset, backendBaseUrl, angleDtos, slicing, existingJson, rangeStart, rangeEnd, subtype, ct).ConfigureAwait(false);
+        var skeletonDocument = BuildDocument(asset, backendBaseUrl, mergedJson, "slicing", null, subtype);
+        return new ClipSplitResult(
+            skeletonDocument,
+            StructuredDescriptionHelper.GetSegmentCount(mergedJson),
+            AlreadySplit: false);
+    }
+
     private async Task<string> EnsureSkeletonAsync(
         ManagedAssetRecord asset,
         string backendBaseUrl,

@@ -92,6 +92,10 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         return Task.CompletedTask;
     }
 
+    /// <summary>右键对剪辑素材执行仅场景分割（保存片段时间点，不调 LLM）</summary>
+    public Task SplitClipForNodeAsync(AssetLibraryTreeNode? node)
+        => DescriptionPanel.SplitClipForNodeAsync(node);
+
     public Task VectorizeDescriptionsForNodeAsync(AssetLibraryTreeNode? node)
         => VectorizationPanel.VectorizeDescriptionsForNodeAsync(node);
 

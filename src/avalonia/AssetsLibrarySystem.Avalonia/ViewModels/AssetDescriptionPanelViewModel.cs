@@ -19,6 +19,7 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
     private LibraryWorkspaceViewModel Workspace { get; }
     private DescribeAssetsUseCase? DescribeAssetsUseCase { get; }
     private DeleteAssetDescriptionUseCase? DeleteAssetDescriptionUseCase { get; }
+    private SplitClipSegmentsUseCase? SplitClipSegmentsUseCase { get; }
     private ActivityFeedService _activityFeedService;
 
     public AssetDescriptionPanelViewModel()
@@ -31,17 +32,20 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
         LibraryWorkspaceViewModel workspace,
         DescribeAssetsUseCase? describeAssetsUseCase,
         DeleteAssetDescriptionUseCase? deleteAssetDescriptionUseCase,
-        ActivityFeedService activityFeedService)
+        ActivityFeedService activityFeedService,
+        SplitClipSegmentsUseCase? splitClipSegmentsUseCase = null)
     {
         BackendStatus = backendStatus;
         Workspace = workspace;
         DescribeAssetsUseCase = describeAssetsUseCase;
         DeleteAssetDescriptionUseCase = deleteAssetDescriptionUseCase;
+        SplitClipSegmentsUseCase = splitClipSegmentsUseCase;
         _activityFeedService = activityFeedService;
 
         QueueDescriptionsForSelectionCommand = new AsyncRelayCommand(QueueDescriptionsForSelectionAsync);
         QueueSelectedDescriptionCommand = new AsyncRelayCommand(QueueSelectedDescriptionAsync);
         DeleteSelectedDescriptionCommand = new AsyncRelayCommand(DeleteSelectedDescriptionAsync);
+        SplitSelectedCommand = new AsyncRelayCommand(SplitSelectedAsync);
 
         // 剪辑素材识别：跟随工作台选中素材变化
         Workspace.PropertyChanged += OnWorkspacePropertyChanged;
@@ -64,6 +68,100 @@ public sealed partial class AssetDescriptionPanelViewModel : ObservableObject
     public IAsyncRelayCommand QueueDescriptionsForSelectionCommand { get; }
     public IAsyncRelayCommand QueueSelectedDescriptionCommand { get; }
     public IAsyncRelayCommand DeleteSelectedDescriptionCommand { get; }
+
+    /// <summary>仅场景分割（剪辑素材）：保存片段时间点，不调用 LLM</summary>
+    public IAsyncRelayCommand SplitSelectedCommand { get; }
+
+    /// <summary>对节点素材执行仅分割（右键菜单），无时间范围</summary>
+    public async Task SplitClipForNodeAsync(AssetLibraryTreeNode? node)
+    {
+        if (node?.Asset is not { AssetType: "视频剪辑" } asset)
+        {
+            Workspace.SetOperatorNotice("请右键具体的视频剪辑素材，再执行场景分割。");
+            return;
+        }
+
+        Workspace.SelectedAsset = asset;
+        await SplitAssetsAsync([asset], null, null);
+    }
+
+    private async Task SplitSelectedAsync()
+    {
+        if (Workspace.SelectedAsset is not { AssetType: "视频剪辑" } asset)
+        {
+            Workspace.SetOperatorNotice("请先选择一个视频剪辑素材。");
+            return;
+        }
+
+        double? rangeStart = null;
+        double? rangeEnd = null;
+        if (HasTimeRange)
+        {
+            rangeStart = RangeStartSeconds;
+            rangeEnd = RangeEndSeconds;
+            if (rangeStart is null || rangeEnd is null || rangeEnd.Value <= rangeStart.Value)
+            {
+                Workspace.SetOperatorNotice("时间范围无效：请输入开始与结束时间（秒或 mm:ss），且结束需大于开始。");
+                return;
+            }
+        }
+
+        await SplitAssetsAsync([asset], rangeStart, rangeEnd);
+    }
+
+    private async Task SplitAssetsAsync(
+        IReadOnlyList<ManagedAssetRecord> assets,
+        double? rangeStart,
+        double? rangeEnd)
+    {
+        if (!BackendStatus.IsBackendReady)
+        {
+            Workspace.SetOperatorNotice("Python 模型服务尚未就绪，请先等待后端启动完成。");
+            return;
+        }
+
+        if (SplitClipSegmentsUseCase is null)
+        {
+            Workspace.SetOperatorNotice("分割服务未注册，当前无法执行场景分割。");
+            return;
+        }
+
+        try
+        {
+            var result = await SplitClipSegmentsUseCase.ExecuteAsync(
+                assets,
+                BackendStatus.BaseUrl,
+                rangeStart,
+                rangeEnd,
+                progress: progress =>
+                {
+                    if (progress.Kind == SplitClipProgressKind.Completed)
+                    {
+                        Workspace.RefreshAssetDescriptionAfterSplit(progress.Asset, progress.SegmentCount ?? 0);
+                    }
+                    else if (progress.Kind == SplitClipProgressKind.Failed && progress.Error is not null)
+                    {
+                        Workspace.FailAssetDescription(progress.Asset, progress.Error.Message);
+                    }
+
+                    return Task.CompletedTask;
+                });
+
+            var rangeSuffix = rangeStart is not null
+                ? $"（范围 {rangeStart.Value:0.##}s-{rangeEnd!.Value:0.##}s）"
+                : string.Empty;
+            Workspace.SetOperatorNotice(
+                $"分割任务完成：新增 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}。{rangeSuffix}");
+            _activityFeedService.Add(
+                $"分割任务完成：新增 {result.SuccessCount}，跳过 {result.SkipCount}，失败 {result.FailureCount}。{rangeSuffix}");
+        }
+        catch (Exception ex)
+        {
+            Workspace.SetOperatorNotice($"分割任务失败：{ex.Message}");
+            _activityFeedService.Add($"分割任务失败：{ex.Message}");
+            Log.Error(ex, "分割任务失败，assetCount={AssetCount}", assets.Count);
+        }
+    }
 
     public async Task QueueDescriptionForNodeAsync(AssetLibraryTreeNode? node)
     {

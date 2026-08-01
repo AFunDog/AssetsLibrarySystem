@@ -259,4 +259,110 @@ public sealed class DescribeClipAsyncTests
         Assert.Equal(2, StructuredDescriptionHelper.GetSegmentCount(document.Description));
         Assert.True(StructuredDescriptionHelper.IsRangeCovered(document.Description, 30.0, 50.0));
     }
+
+    // ===== SplitOnlyAsync（仅场景分割） =====
+
+    [Fact]
+    public async Task SplitOnlyAsync_NoExisting_CallsSlicingOnlyAndPersistsSkeleton()
+    {
+        var client = new FakeBackendModelClient
+        {
+            Responses =
+            {
+                """{"整体":{"text":"","tags":[]},"segments":[{"start_time":0.0,"end_time":10.0,"整体":{"text":"","tags":[]}},{"start_time":10.0,"end_time":20.0,"整体":{"text":"","tags":[]}}]}""",
+            },
+        };
+        var store = new FakeDescriptionStore();
+        var service = CreateService(client, store);
+
+        var result = await service.SplitOnlyAsync(CreateClipAsset(), "in-process", null, null);
+
+        Assert.False(result.AlreadySplit);
+        Assert.Equal(2, result.SegmentCount);
+        Assert.Single(client.Requests);
+        Assert.True(client.Requests[0].SlicingOnly);
+        Assert.Null(client.Requests[0].RangeStart);
+        // 骨架已落库（保存了一次）
+        Assert.Single(store.SavedDescriptions);
+        var missing = StructuredDescriptionHelper.GetMissingSegmentRanges(result.Document.Description);
+        Assert.Equal(2, missing.Count); // 全部未描述
+    }
+
+    [Fact]
+    public async Task SplitOnlyAsync_AlreadySplit_SkipsWithoutCallingBackend()
+    {
+        var store = new FakeDescriptionStore();
+        var existingJson = """{"整体":{"text":"","tags":[]},"segments":[{"start_time":0.0,"end_time":10.0,"整体":{"text":"开场已描述","tags":[]}},{"start_time":10.0,"end_time":20.0,"整体":{"text":"","tags":[]}}]}""";
+        await store.SaveAsync(new AssetDescriptionDocument(
+            AssetId: 1,
+            AssetUid: "clip-uid-1",
+            AssetName: "demo.mp4",
+            AssetType: "视频剪辑",
+            CurrentPath: @"D:\Data\demo.mp4",
+            Description: existingJson,
+            BackendEndpoint: "in-process",
+            Mode: "slicing",
+            GeneratedAt: DateTimeOffset.UtcNow,
+            TokenUsage: null,
+            Prompt: null,
+            SystemPrompt: null,
+            ContentHash: "hash-1",
+            MetadataStatus: "pending",
+            Subtype: "默认"), CancellationToken.None);
+
+        var client = new FakeBackendModelClient();
+        var service = CreateService(client, store);
+
+        var result = await service.SplitOnlyAsync(CreateClipAsset(), "in-process", null, null);
+
+        Assert.True(result.AlreadySplit);
+        Assert.Equal(2, result.SegmentCount);
+        Assert.Empty(client.Requests);
+        Assert.Single(store.SavedDescriptions); // 仅 seed 时保存过一次，幂等跳过不新增
+    }
+
+    [Fact]
+    public async Task SplitOnlyAsync_WithUncoveredRange_SplitsSubrangeAndKeepsDescribedSegments()
+    {
+        var store = new FakeDescriptionStore();
+        var existingJson = """{"整体":{"text":"总览","tags":[]},"segments":[{"start_time":0.0,"end_time":10.0,"整体":{"text":"已描述","tags":[]}}]}""";
+        await store.SaveAsync(new AssetDescriptionDocument(
+            AssetId: 1,
+            AssetUid: "clip-uid-1",
+            AssetName: "demo.mp4",
+            AssetType: "视频剪辑",
+            CurrentPath: @"D:\Data\demo.mp4",
+            Description: existingJson,
+            BackendEndpoint: "in-process",
+            Mode: "live",
+            GeneratedAt: DateTimeOffset.UtcNow,
+            TokenUsage: null,
+            Prompt: null,
+            SystemPrompt: null,
+            ContentHash: "hash-1",
+            MetadataStatus: "ready",
+            Subtype: "默认"), CancellationToken.None);
+
+        var client = new FakeBackendModelClient
+        {
+            Responses =
+            {
+                """{"整体":{"text":"","tags":[]},"segments":[{"start_time":30.0,"end_time":40.0,"整体":{"text":"","tags":[]}}]}""",
+            },
+        };
+        var service = CreateService(client, store);
+
+        var result = await service.SplitOnlyAsync(CreateClipAsset(), "in-process", 30.0, 50.0);
+
+        Assert.False(result.AlreadySplit);
+        Assert.Equal(2, result.SegmentCount); // 原有 1 + 新增 1
+        var splitRequest = Assert.Single(client.Requests);
+        Assert.True(splitRequest.SlicingOnly);
+        Assert.Equal(30.0, splitRequest.RangeStart);
+        Assert.Equal(50.0, splitRequest.RangeEnd);
+        // 已描述片段保留（文本仍在），新增片段为骨架
+        var missing = StructuredDescriptionHelper.GetMissingSegmentRanges(result.Document.Description);
+        Assert.Single(missing);
+        Assert.Equal(30.0, missing[0].Start);
+    }
 }
