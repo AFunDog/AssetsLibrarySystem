@@ -4,7 +4,6 @@ using AssetsLibrarySystem.Application.Services.AssetLibrary;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Avalonia.Services.Backend;
-using AssetsLibrarySystem.Avalonia.Services.Library;
 using AssetsLibrarySystem.Avalonia.Services.Search;
 using AssetsLibrarySystem.Avalonia.Services.Settings;
 using AssetsLibrarySystem.Avalonia.Services.Thumbnail;
@@ -46,10 +45,6 @@ public sealed class AvaloniaServiceModule : Module
 
         builder.RegisterType<BackendSessionService>()
             .As<IBackendSessionService>()
-            .SingleInstance();
-
-        builder.RegisterType<LibraryCatalogService>()
-            .As<ILibraryCatalogService>()
             .SingleInstance();
 
         builder.RegisterType<UserSettingsService>()

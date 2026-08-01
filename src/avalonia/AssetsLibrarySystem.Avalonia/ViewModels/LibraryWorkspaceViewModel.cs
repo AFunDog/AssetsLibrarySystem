@@ -12,7 +12,6 @@ using AssetsLibrarySystem.Application.Services.AssetLibrary;
 using AssetsLibrarySystem.Application.Services.Infrastructure;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
-using AssetsLibrarySystem.Avalonia.Services.Library;
 using AssetsLibrarySystem.Avalonia.Services.Settings;
 using AssetsLibrarySystem.Avalonia.Services.Thumbnail;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -28,7 +27,7 @@ namespace AssetsLibrarySystem.Avalonia.ViewModels;
 public sealed partial class LibraryWorkspaceViewModel : ObservableObject
 {
     // ===== 依赖 =====
-    private ILibraryCatalogService CatalogService { get; }
+    private IAssetLibraryService CatalogService { get; }
     private IAssetDescriptionStore? DescriptionStore { get; }
     private IAssetDatabase? AssetDatabase { get; }
     private AngleProfileManager? AngleProfileManager { get; }
@@ -45,7 +44,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     private bool _isHistoryNavigation;
 
     public LibraryWorkspaceViewModel(
-        ILibraryCatalogService catalogService,
+        IAssetLibraryService catalogService,
         IAssetDescriptionStore? descriptionStore,
         IAssetDatabase? assetDatabase,
         AngleProfileManager? angleProfileManager,
@@ -72,7 +71,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     // ===== 设计时构造函数 =====
     [Obsolete("仅供设计器使用")]
     public LibraryWorkspaceViewModel()
-        : this(new NullLibraryCatalogService(), null, null, null, new ActivityFeedService())
+        : this(new NullAssetLibraryService(), null, null, null, new ActivityFeedService())
     {
         Libraries.Add(new LibraryWorkspace(1, "示例素材库", @"D:\素材", "示例", "已登记", 42));
         SelectedLibrary = Libraries[0];
@@ -1029,7 +1028,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
 }
 
 /// <summary>空实现，用于设计时模式，不访问数据库</summary>
-file sealed class NullLibraryCatalogService : ILibraryCatalogService
+file sealed class NullAssetLibraryService : IAssetLibraryService
 {
     public Task<IReadOnlyList<LibraryWorkspace>> GetLibrariesAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<LibraryWorkspace>>([]);
