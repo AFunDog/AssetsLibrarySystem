@@ -91,10 +91,30 @@
             <Setter Property="Padding" Value="10,8" />
             <Setter Property="MinHeight" Value="32" />
         </Style>
-    </UserControl.Styles>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <Grid RowDefinitions="Auto,*" RowSpacing="12" Margin="28,18,28,28">
+        <!-- 面包屑导航项：扁平链接式，悬停高亮，当前项粗体不可点 -->
+        <Style Selector="Button.breadcrumb-item">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="4,2" />
+        </Style>
+        <Style Selector="Button.breadcrumb-item:pointerover">
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+        </Style>
+        <Style Selector="Button.breadcrumb-item:pointerover TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+        </Style>
+        <Style Selector="Button.breadcrumb-item:disabled TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        </UserControl.Styles>
+
+    <!-- 视口固定布局：页面不整体滚动，各面板内部滚动 -->
+    <Grid RowDefinitions="Auto,*" Margin="28,18,28,28">
             <Border Classes="page-card">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <StackPanel Spacing="4">
@@ -106,7 +126,7 @@
                                    Text="中央用大图标浏览素材库、目录和文件，右键可定位位置或加入描述任务队列。" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <WrapPanel Grid.Column="1" Orientation="Horizontal" ItemSpacing="4" VerticalAlignment="Center">
                         <Button Classes="primary-action"
                                 Command="{Binding QueueDescriptionsForSelectionCommand}"
                                 Content="描述当前范围" />
@@ -116,50 +136,89 @@
                         <Button Classes="secondary-action"
                                 Command="{Binding VectorizeDescriptionsCommand}"
                                 Content="批量向量化" />
-                    </StackPanel>
+                    </WrapPanel>
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" ColumnDefinitions="*,332" ColumnSpacing="12">
-                <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
+            <Grid Grid.Row="1" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="480" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="332" />
+                </Grid.ColumnDefinitions>
+                <Grid RowDefinitions="Auto,8,Auto,6,*">
                     <Border Classes="page-card">
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <Button Classes="primary-action"
-                                        Click="AddLibraryFolder_Click"
-                                        Content="添加目录" />
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                            <!-- 左侧：返回/前进导航 -->
+                            <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                                 <Button Classes="secondary-action"
-                                        Command="{Binding Workspace.ScanSelectedLibraryCommand}"
-                                        Content="扫描当前" />
+                                        Padding="8"
+                                        Command="{Binding Workspace.NavigateBackCommand}"
+                                        IsEnabled="{Binding Workspace.CanGoBack}"
+                                        ToolTip.Tip="返回">
+                                    <lucide:LucideIcon Kind="ArrowLeft" Size="14" />
+                                </Button>
                                 <Button Classes="secondary-action"
-                                        Command="{Binding Workspace.NavigateUpCommand}"
-                                        IsEnabled="{Binding Workspace.CanNavigateUp}"
-                                        Content="上一级" />
+                                        Padding="8"
+                                        Command="{Binding Workspace.NavigateForwardCommand}"
+                                        IsEnabled="{Binding Workspace.CanGoForward}"
+                                        ToolTip.Tip="前进">
+                                    <lucide:LucideIcon Kind="ArrowRight" Size="14" />
+                                </Button>
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Spacing="2">
-                                <TextBlock Classes="eyebrow" Text="资源管理器" />
-                                <TextBlock Classes="section-title" Text="{Binding Workspace.ExplorerTitle}" />
-                                <TextBlock Classes="section-subtitle" Text="{Binding Workspace.ExplorerSummary}" />
+                            <!-- 中间：面包屑（左对齐，拉伸占主要宽度） -->
+                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Classes="eyebrow" Text="当前位置" />
+                                <ItemsControl ItemsSource="{Binding Workspace.Breadcrumbs}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BreadcrumbSegment">
+                                            <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                                <Button Classes="breadcrumb-item"
+                                                        IsEnabled="{Binding IsCurrent, Converter={x:Static BoolConverters.Not}}"
+                                                        Command="{Binding NavigateCommand}"
+                                                        CommandParameter="{Binding Node}"
+                                                        ToolTip.Tip="{Binding Node.FullPath}">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontSize="12"
+                                                               MaxWidth="140"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                                                </Button>
+                                                <TextBlock Text="›"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource AppMutedTextBrush}"
+                                                           IsVisible="{Binding !IsCurrent}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
+                            <!-- 右侧：操作按钮 + 摘要 -->
                             <StackPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Classes="eyebrow" Text="当前位置" HorizontalAlignment="Right" />
-                                <TextBlock Foreground="{DynamicResource AppAccentBrush}"
-                                           TextWrapping="Wrap"
-                                           TextAlignment="Right"
-                                           Text="{Binding Workspace.ExplorerPath}" />
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="4" HorizontalAlignment="Right">
+                                    <Button Classes="primary-action"
+                                            Click="AddLibraryFolder_Click"
+                                            Content="添加目录" />
+                                    <Button Classes="secondary-action"
+                                            Command="{Binding Workspace.ScanSelectedLibraryCommand}"
+                                            Content="扫描当前" />
+                                </WrapPanel>
+                                <TextBlock Classes="section-subtitle"
+                                           Text="{Binding Workspace.ExplorerSummary}"
+                                           HorizontalAlignment="Right" />
                             </StackPanel>
                         </Grid>
                     </Border>
 
-                    <Border Grid.Row="1" Classes="sub-card">
-                        <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                   TextWrapping="Wrap"
-                                   Text="大图标视图，点击文件夹继续进入，点击文件可在右侧查看详情。" />
-                    </Border>
-
                     <!-- 筛选工具栏 -->
-                    <Border Grid.Row="2" Classes="sub-card" Padding="8,6">
-                        <Grid ColumnDefinitions="Auto,8,Auto,8,Auto,8,Auto,8,Auto" ColumnSpacing="0">
+                    <Border Grid.Row="2" Classes="sub-card" Padding="8,6" MinWidth="480">
+                        <WrapPanel Orientation="Horizontal" ItemSpacing="8" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                 <TextBlock Classes="eyebrow" Text="类型" VerticalAlignment="Center" />
                                 <ComboBox ItemsSource="{Binding Workspace.FilterAssetTypeOptions}"
@@ -171,7 +230,7 @@
                                           BorderBrush="{DynamicResource AppBorderBrush}"
                                           Foreground="{DynamicResource AppTextBrush}" />
                             </StackPanel>
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                 <TextBlock Classes="eyebrow" Text="状态" VerticalAlignment="Center" />
                                 <ComboBox ItemsSource="{Binding Workspace.FilterStatusOptions}"
                                           SelectedItem="{Binding Workspace.FilterStatus, Mode=TwoWay}"
@@ -182,7 +241,7 @@
                                           BorderBrush="{DynamicResource AppBorderBrush}"
                                           Foreground="{DynamicResource AppTextBrush}" />
                             </StackPanel>
-                            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                 <TextBlock Classes="eyebrow" Text="排序" VerticalAlignment="Center" />
                                 <ComboBox ItemsSource="{Binding Workspace.FilterSortByOptions}"
                                           SelectedItem="{Binding Workspace.FilterSortBy, Mode=TwoWay}"
@@ -202,7 +261,7 @@
                                 </Button>
                             </StackPanel>
                             <!-- 视图模式切换 -->
-                            <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                                 <Button Background="Transparent"
                                         BorderBrush="{DynamicResource AppBorderBrush}"
                                         BorderThickness="1"
@@ -234,10 +293,15 @@
                                     <lucide:LucideIcon Kind="Table" Size="14" />
                                 </Button>
                             </StackPanel>
-                        </Grid>
+                        </WrapPanel>
                     </Border>
 
-                    <Border Grid.Row="3" Classes="page-card"
+                    <GridSplitter Grid.Row="3"
+                                  Height="6"
+                                  Classes="side-splitter-h"
+                                  ResizeDirection="Rows" />
+
+                    <Border Grid.Row="4" Classes="page-card"
                               x:Name="ExplorerDropArea">
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
@@ -464,46 +528,51 @@
                     </Border>
                 </Grid>
 
-                <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="8">
-                    <!-- 预览区域 -->
-                    <Border Classes="sub-card"
-                            Padding="8"
-                            IsVisible="{Binding AssetDetail.HasPreview}">
-                        <Grid>
-                            <!-- 图片预览 -->
-                            <Image Source="{Binding AssetDetail.PreviewImage}"
-                                   MaxHeight="160"
-                                   Stretch="Uniform"
-                                   HorizontalAlignment="Center"
-                                   IsVisible="{Binding AssetDetail.IsImagePreview}" />
-                            <!-- 文本预览 -->
-                            <ScrollViewer IsVisible="{Binding AssetDetail.IsTextPreview}"
-                                          MaxHeight="160"
-                                          VerticalScrollBarVisibility="Auto">
-                                <TextBlock Text="{Binding AssetDetail.PreviewText}"
-                                           TextWrapping="Wrap"
-                                           Foreground="{DynamicResource AppTextBrush}" />
-                            </ScrollViewer>
-                            <!-- 视频/音频占位 -->
-                            <Border IsVisible="{Binding AssetDetail.IsMediaPlaceholder}"
-                                    Height="80"
-                                    Background="{DynamicResource AppAccentSurfaceBrush}"
-                                    CornerRadius="6"
-                                    HorizontalAlignment="Center">
-                                <StackPanel Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                    <lucide:LucideIcon Kind="File" Size="32" />
-                                    <TextBlock Text="{Binding AssetDetail.SelectedAssetType, StringFormat={}{0} 素材}"
-                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
-                                               FontSize="12" />
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </Border>
+                    <GridSplitter Grid.Column="1" Width="6"
+                                  Classes="side-splitter"
+                                  ResizeDirection="Auto" />
 
-                    <Border Grid.Row="1" Classes="page-card">
-                        <Grid ColumnDefinitions="200,*" ColumnSpacing="12">
+                <Grid Grid.Column="2" RowDefinitions="*,6,*">
+                    <!-- 详情面板（预览区域并入顶部，保证与左栏面板顶部对齐） -->
+                    <Border Classes="page-card">
+                        <Grid RowDefinitions="Auto,*" ColumnDefinitions="200,*" ColumnSpacing="12">
+                            <!-- 预览区域（选中素材时显示） -->
+                            <Border Grid.Row="0" Grid.ColumnSpan="2" Classes="sub-card"
+                                    Padding="8"
+                                    IsVisible="{Binding AssetDetail.HasPreview}">
+                                <Grid>
+                                    <!-- 图片预览 -->
+                                    <Image Source="{Binding AssetDetail.PreviewImage}"
+                                           MaxHeight="160"
+                                           Stretch="Uniform"
+                                           HorizontalAlignment="Center"
+                                           IsVisible="{Binding AssetDetail.IsImagePreview}" />
+                                    <!-- 文本预览 -->
+                                    <ScrollViewer IsVisible="{Binding AssetDetail.IsTextPreview}"
+                                                  MaxHeight="160"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <TextBlock Text="{Binding AssetDetail.PreviewText}"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppTextBrush}" />
+                                    </ScrollViewer>
+                                    <!-- 视频/音频占位 -->
+                                    <Border IsVisible="{Binding AssetDetail.IsMediaPlaceholder}"
+                                            Height="80"
+                                            Background="{DynamicResource AppAccentSurfaceBrush}"
+                                            CornerRadius="6"
+                                            HorizontalAlignment="Center">
+                                        <StackPanel Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <lucide:LucideIcon Kind="File" Size="32" />
+                                            <TextBlock Text="{Binding AssetDetail.SelectedAssetType, StringFormat={}{0} 素材}"
+                                                       Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                       FontSize="12" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
                             <!-- 左侧：基本信息 -->
-                            <Border Classes="sub-card">
+                            <Border Grid.Row="1" Classes="sub-card">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Spacing="8">
                                     <StackPanel>
                                         <TextBlock Classes="eyebrow" Text="类型" />
@@ -576,9 +645,10 @@
                                                 ToolTip.Tip="删除当前素材库及其所有素材" />
                                     </StackPanel>
                                 </StackPanel>
+                                </ScrollViewer>
                             </Border>
                             <!-- 右侧：角度描述列表 -->
-                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto">
                                 <StackPanel Spacing="8">
                                     <TextBox Text="{Binding AssetDetail.EditDescriptionText}"
                                              PlaceholderText="编辑主描述文本后可保存；结构化角度列表在下方只读展示。"
@@ -634,12 +704,17 @@
                         </Grid>
                     </Border>
 
+                    <GridSplitter Grid.Row="1"
+                                  Height="6"
+                                  Classes="side-splitter-h"
+                                  ResizeDirection="Rows" />
+
                     <Border Grid.Row="2" Classes="page-card">
-                        <StackPanel Spacing="8">
+                        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
                             <TextBlock Classes="eyebrow" Text="动态" />
                             <TextBlock Classes="section-title" Text="活动纪要" />
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" Height="240"
-                                          >
+                            <ScrollViewer Grid.Row="2"
+                                          VerticalScrollBarVisibility="Auto">
                                 <ItemsControl ItemsSource="{Binding ActivityFeed}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -664,10 +739,9 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </ScrollViewer>
-                        </StackPanel>
+                        </Grid>
                     </Border>
                 </Grid>
             </Grid>
         </Grid>
-    </ScrollViewer>
 </UserControl>

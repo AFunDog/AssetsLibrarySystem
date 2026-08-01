@@ -55,7 +55,7 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" ColumnDefinitions="320,*" ColumnSpacing="12">
+            <Grid Grid.Row="1" ColumnDefinitions="320,Auto,*" ColumnSpacing="0">
                 <StackPanel Spacing="12">
                     <Border Classes="settings-card">
                         <StackPanel Spacing="8">
@@ -161,7 +161,11 @@
                     </Border>
                 </StackPanel>
 
-                <Grid Grid.Column="1" RowDefinitions="*,Auto" RowSpacing="12">
+                    <GridSplitter Grid.Column="1" Width="6"
+                                  Classes="side-splitter"
+                                  ResizeDirection="Auto" />
+
+                <Grid Grid.Column="2" RowDefinitions="*,Auto" RowSpacing="12">
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                         <Border Classes="settings-card">
                             <StackPanel Spacing="8">

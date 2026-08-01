@@ -38,6 +38,12 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     private List<ManagedAssetRecord> AllAssets { get; } = [];
     private int DescriptionLoadGeneration { get; set; }
 
+    // ===== 导航历史（返回/前进） =====
+    private readonly Stack<AssetLibraryTreeNode?> _backStack = [];
+    private readonly Stack<AssetLibraryTreeNode?> _forwardStack = [];
+    private AssetLibraryTreeNode? _historyCurrent;
+    private bool _isHistoryNavigation;
+
     public LibraryWorkspaceViewModel(
         ILibraryCatalogService catalogService,
         IAssetDescriptionStore? descriptionStore,
@@ -82,6 +88,8 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     public ObservableCollection<LibraryWorkspace> Libraries { get; }
     public ObservableCollection<AssetLibraryTreeNode> CurrentExplorerItems { get; }
     public ObservableCollection<AngleDescriptionRecord> SelectedAssetDescriptionAngles { get; }
+    /// <summary>面包屑导航段（库根 › 目录 › … › 当前）</summary>
+    public ObservableCollection<BreadcrumbSegment> Breadcrumbs { get; } = [];
 
     [ObservableProperty] public partial LibraryWorkspace? SelectedLibrary { get; set; }
     [ObservableProperty] public partial ManagedAssetRecord? SelectedAsset { get; set; }
@@ -93,6 +101,8 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     [ObservableProperty] public partial string ExplorerSummary { get; set; } = "选择一个素材库或目录后，中央区域会显示当前内容。";
     [ObservableProperty] public partial string ExplorerPath { get; set; } = "尚未选择";
     [ObservableProperty] public partial bool CanNavigateUp { get; set; }
+    [ObservableProperty] public partial bool CanGoBack { get; set; }
+    [ObservableProperty] public partial bool CanGoForward { get; set; }
     [ObservableProperty] public partial string OperatorNotice { get; set; } = "先在桌面端选择一个文件夹并登记为素材库目录。";
     [ObservableProperty] public partial string SelectedAssetName { get; set; } = "尚未选择素材";
     [ObservableProperty] public partial string SelectedAssetLibrary { get; set; } = "请先添加并扫描一个素材库";
@@ -327,8 +337,28 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     [RelayCommand]
     private void OpenExplorerItem(AssetLibraryTreeNode? node)
     {
-        if (node is not null)
-            SelectedAssetTreeNode = node;
+        // node 为 null 时回到素材库列表（面包屑根项）
+        SelectedAssetTreeNode = node;
+    }
+
+    [RelayCommand]
+    private void NavigateBack()
+    {
+        if (_backStack.Count == 0) return;
+        _forwardStack.Push(_historyCurrent);
+        _historyCurrent = _backStack.Pop();
+        _isHistoryNavigation = true;
+        SelectedAssetTreeNode = _historyCurrent;
+    }
+
+    [RelayCommand]
+    private void NavigateForward()
+    {
+        if (_forwardStack.Count == 0) return;
+        _backStack.Push(_historyCurrent);
+        _historyCurrent = _forwardStack.Pop();
+        _isHistoryNavigation = true;
+        SelectedAssetTreeNode = _historyCurrent;
     }
 
     public void SelectLibrary(LibraryWorkspace? library)
@@ -823,6 +853,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     {
         var container = GetExplorerContainerNode(node);
         CurrentExplorerItems.Clear();
+        UpdateBreadcrumbs(container);
         if (container is null)
         {
             ExplorerTitle = "素材库";
@@ -841,6 +872,47 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         CanNavigateUp = container.Kind != AssetLibraryTreeNodeKind.Library && FindParentTreeNode(container) is not null;
         ApplyFilterAndSort();
         LoadThumbnailsForCurrentItems();
+    }
+
+    /// <summary>
+    /// 生成面包屑链条：素材库 › 库根 › 各级目录 › 当前容器，每级可点击跳转。
+    /// 链首固定为“素材库”根项，点击返回素材库列表。
+    /// </summary>
+    private void UpdateBreadcrumbs(AssetLibraryTreeNode? container)
+    {
+        Breadcrumbs.Clear();
+
+        // 根项：素材库列表入口（Node 为 null，点击后回到库列表）
+        Breadcrumbs.Add(new BreadcrumbSegment
+        {
+            Name = "素材库",
+            Node = null,
+            IsCurrent = container is null,
+            NavigateCommand = OpenExplorerItemCommand,
+        });
+
+        if (container is null) return;
+
+        var chain = new List<AssetLibraryTreeNode>();
+        var walk = container;
+        while (walk is not null && walk.Kind != AssetLibraryTreeNodeKind.Library)
+        {
+            chain.Insert(0, walk);
+            walk = FindParentTreeNode(walk);
+        }
+        if (walk is not null) chain.Insert(0, walk);
+
+        for (var i = 0; i < chain.Count; i++)
+        {
+            var node = chain[i];
+            Breadcrumbs.Add(new BreadcrumbSegment
+            {
+                Name = node.DisplayName,
+                Node = node,
+                IsCurrent = i == chain.Count - 1,
+                NavigateCommand = OpenExplorerItemCommand,
+            });
+        }
     }
 
     private async void LoadThumbnailsForCurrentItems()
@@ -923,7 +995,23 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
 
     partial void OnSelectedAssetTreeNodeChanged(AssetLibraryTreeNode? value)
     {
-        if (value is null) return;
+        // 导航历史：普通导航把旧位置压入返回栈并清空前进栈；返回/前进操作不重复记录
+        if (!_isHistoryNavigation && !ReferenceEquals(_historyCurrent, value))
+        {
+            _backStack.Push(_historyCurrent);
+            _forwardStack.Clear();
+            _historyCurrent = value;
+        }
+        _isHistoryNavigation = false;
+        CanGoBack = _backStack.Count > 0;
+        CanGoForward = _forwardStack.Count > 0;
+
+        if (value is null)
+        {
+            SelectedAsset = null;
+            UpdateExplorerView(null);
+            return;
+        }
         if (value.Library is not null && !ReferenceEquals(SelectedLibrary, value.Library))
             SelectedLibrary = value.Library;
         WorkspaceTitle = value.DisplayName;
@@ -959,4 +1047,20 @@ file sealed class NullLibraryCatalogService : ILibraryCatalogService
         => Task.CompletedTask;
     public Task UpdateAssetNameAsync(long assetId, string newName, CancellationToken ct = default)
         => Task.CompletedTask;
+}
+
+/// <summary>面包屑导航段：一个可点击的路径层级。</summary>
+public sealed class BreadcrumbSegment
+{
+    /// <summary>层级显示名称（库名或目录名）</summary>
+    public required string Name { get; init; }
+
+    /// <summary>对应的树节点，供点击跳转使用；null 表示素材库列表根项</summary>
+    public AssetLibraryTreeNode? Node { get; init; }
+
+    /// <summary>是否为当前所在层级（末项，不可点击）</summary>
+    public bool IsCurrent { get; init; }
+
+    /// <summary>点击跳转命令（由素材库工作台注入）</summary>
+    public IRelayCommand<AssetLibraryTreeNode?>? NavigateCommand { get; init; }
 }

@@ -10,6 +10,8 @@
         x:DataType="vm:MainWindowViewModel"
         d:DesignWidth="1440"
         d:DesignHeight="860"
+        MinWidth="1150"
+        MinHeight="650"
         Icon="/Assets/avalonia-logo.ico"
         Title="Assets Library System"
         WindowDecorations="BorderOnly"

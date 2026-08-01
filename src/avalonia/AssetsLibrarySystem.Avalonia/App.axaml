@@ -6,6 +6,61 @@
              RequestedThemeVariant="Dark">
     <Application.Styles>
         <FluentTheme />
+
+        <!-- 全局 GridSplitter 样式：侧边分隔条，所有页面通过 Classes="side-splitter" 复用 -->
+        <!-- 默认完全隐藏，仅悬停/拖动时浮现圆角胶囊手柄 -->
+        <Style Selector="GridSplitter.side-splitter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}">
+                        <Border Name="SplitterLine"
+                                Background="{DynamicResource AppBorderBrush}"
+                                Width="5"
+                                Height="36"
+                                CornerRadius="2.5"
+                                Opacity="0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="GridSplitter.side-splitter:pointerover /template/ Border#SplitterLine">
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="GridSplitter.side-splitter:active /template/ Border#SplitterLine">
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+
+        <!-- 水平分割条：上下拖拽调整面板高度，默认隐藏，悬停/拖动时浮现胶囊手柄 -->
+        <Style Selector="GridSplitter.side-splitter-h">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}">
+                        <Border Name="SplitterLine"
+                                Background="{DynamicResource AppBorderBrush}"
+                                Width="36"
+                                Height="5"
+                                CornerRadius="2.5"
+                                Opacity="0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="GridSplitter.side-splitter-h:pointerover /template/ Border#SplitterLine">
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="GridSplitter.side-splitter-h:active /template/ Border#SplitterLine">
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
     </Application.Styles>
 
     <Application.Resources>
@@ -74,7 +129,7 @@
                     <!-- 中性文字 -->
                     <SolidColorBrush x:Key="AppTextBrush" Color="#F2F2F2" />
                     <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#B8B8B8" />
-                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#D0D0D0" />
+                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#8A8A8A" />
 
                     <!-- 徽章/标签背景 -->
                     <SolidColorBrush x:Key="AppBadgeBrush" Color="#242424" />
