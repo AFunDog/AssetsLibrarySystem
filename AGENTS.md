@@ -13,7 +13,7 @@
 ## Code Layout
 
 - `src/avalonia`：Avalonia 桌面端、共享 Application 层、Console 与测试
-- `src/backend`：Python FastAPI 模型网关
+- `src/backend`：Python 模型网关（Python.NET 嵌入桌面端进程内调用，无 HTTP 层）
 - `scripts/`：一次性数据库迁移等 Python 脚本
 - `docs/roadmap.md`：只记录尚未实现或仍需完善的未来计划
 

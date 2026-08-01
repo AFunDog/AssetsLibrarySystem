@@ -5,12 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "assets-library-system-backend"
 version = "0.1.0"
-description = "FastAPI backend skeleton for Assets Library System"
+description = "Assets Library System 的 Python 模型网关（嵌入式 Python.NET 调用）"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-	  "fastapi>=0.115.0",
-	  "uvicorn[standard]>=0.30.0",
 	  "pydantic>=2.8.0",
 	  "pydantic-settings>=2.5.0",
 	  "pyyaml>=6.0.2",

@@ -9,11 +9,11 @@
 - `Avalonia/.NET` 负责图形界面工作台
 - `Console/.NET` 负责无界面命令行操作
 - `Application/.NET` 负责共享服务、模型和本地存储
-- `Python FastAPI` 负责大模型 HTTP 服务，以及素材检索所需的向量化和重排接口
+- `Python` 通过 Python.NET 嵌入桌面端进程内，负责模型生成、向量化和重排
 
 也就是说，素材库、目录、元数据、向量召回、索引持久化和工作流由本地 .NET 侧承担；Python 侧不包含素材管理功能，只提供模型生成、向量化和重排序能力。
 
-当前桌面端默认以 **进程内嵌入 Python.NET** 调用模型网关逻辑（`BaseUrl = in-process`），不再拉起独立 uvicorn 子进程；独立 HTTP 后端仅保留 `uvicorn app.main:app` 手动调试方式。
+当前桌面端以 **进程内嵌入 Python.NET** 调用模型网关逻辑（`BaseUrl = in-process`），不再提供独立 HTTP 服务（FastAPI/uvicorn 已移除）。
 桌面端会把素材描述和向量集中保存到本地 SQLite，通过本地 exact/HNSW 完成召回，再调用 embedding/rerank。
 数据库内部使用数值 `libraries.id` 和 `assets.id` 建立外键关系。`asset_uid` 仅保留在 `assets` 表中，用于兼容素材文件旁的同名 `.uid` 文件；路径只作为 `current_path` 保存。
 结构化描述的主角度键为 **「整体」**（兼容历史数据中的「全面」）。
@@ -40,12 +40,10 @@ src/
     AssetsLibrarySystem.Avalonia/ # 桌面端主入口，承担素材管理工作台
     AssetsLibrarySystem.Console/   # 命令行入口，支持库管理、扫描、描述
   backend/
-    app/                   # Python 模型网关
-      api/                 # HTTP 路由层
+    app/                   # Python 模型网关（嵌入式，无 HTTP 层）
       application/         # 模型调用服务
       core/                # provider / prompt 配置
-      schemas/             # HTTP 输入输出模型
-      main.py              # FastAPI 入口
+      schemas/             # 进程内调用使用的输入输出模型
     pyproject.toml
     configs/
       providers.example.yaml # 私有 provider 模板，实际 providers.yaml 不进仓库
@@ -65,12 +63,11 @@ README.md
   - 工作台状态展示
   - 自然语言检索入口
   - 索引重建入口
-- Python FastAPI
-  - 模型网关健康检查
-  - 模型能力清单
+- Python 模型网关（嵌入式）
   - 文本与多模态素材描述生成
   - 文本向量化与候选集重排
-  - 后续统一扩展多模型 HTTP 调用
+  - 视频场景检测与片段帧提取
+  - 后续统一扩展多模型调用
 
 ## 现有检索入口
 
@@ -93,13 +90,13 @@ README.md
 
 当前主要有两个入口。
 
-Python 模型网关：
+Python 模型网关：由桌面端启动时自动嵌入（Python.NET），无需单独启动；若需手动验证可执行：
 
 ```powershell
 cd src/backend
 copy configs\providers.example.yaml configs\providers.yaml
 pip install -e .
-uvicorn app.main:app --reload
+pytest
 ```
 
 后端测试：

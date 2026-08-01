@@ -7,15 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "Assets Library System API"
-    app_version: str = "0.1.0"
-    api_prefix: str = "/api/v1"
-
     app_env: str = "dev"
-    database_url: str = "sqlite:///app.db"
-    log_level: str = "INFO"
-    host: str = "127.0.0.1"
-    port: int = 8000
     data_root: str | None = Field(default=None, validation_alias="DATA_ROOT")
     dashscope_api_key: str = Field(default="", validation_alias="DASHSCOPE_API_KEY")
     media_temp_dir: str | None = Field(default=None, validation_alias="ALS_MEDIA_TEMP_DIR")

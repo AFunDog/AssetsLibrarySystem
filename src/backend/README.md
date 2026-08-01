@@ -1,13 +1,12 @@
 # Assets Library System Backend
 
-这是 `Assets Library System` 的 Python 模型网关。
+这是 `Assets Library System` 的 Python 模型网关，通过 **Python.NET 嵌入桌面端进程** 调用，不提供独立 HTTP 服务（FastAPI/uvicorn 已移除）。
 
-当前后端只承担一类职责：
+当前后端承担：
 
-- 暴露大模型 HTTP 接口
-- 提供健康检查与能力清单
-- 作为 Avalonia/.NET 桌面端的模型调用出口
-- 提供文本向量化和候选集重排序能力
+- 文本与多模态素材的描述生成（DashScope / OpenAI 兼容路径）
+- 文本向量化和候选集重排序
+- 视频场景分割（PySceneDetect）与片段起始帧提取（ffmpeg）
 - 在多模态打标前对图片/视频做轻量预处理压缩
 
 当前后端不再承担：
@@ -16,19 +15,31 @@
 - 文件扫描
 - 素材元数据管理
 - 本地目录浏览
+- 任何 HTTP 接口（健康检查、能力清单等已随 FastAPI 层一并移除）
+
+## 调用方式
+
+桌面端（Avalonia）启动时通过 `PythonEngineService` 嵌入 Python 运行时（`python312.dll` + `src/backend` 源码目录），C# 侧用 Python.NET 直接调用本包中的服务：
+
+- `app.application.services.model_service.ModelService`：描述生成（`generate_text`）
+- `app.application.services.search_service.SearchService`：向量化与重排
+- `app.application.services.video_frame_extractor.extract_frame`：片段帧提取
+
+对应的 C# 包装服务位于 `src/avalonia/AssetsLibrarySystem.Application/Services/Python/`（`PythonModelService`、`PythonSearchService`、`VideoFrameService`）。
 
 ## 配置方式
 
-后端使用 `.env` 和环境变量加载配置，推荐本地开发时放一份 `src/backend/.env`，并用 `.env.example` 作为模板。
+后端使用 `.env` 和环境变量加载配置（`app/core/config.py`），推荐本地开发时放一份 `src/backend/.env`，并用 `.env.example` 作为模板。
 
 常用字段：
 
 - `APP_ENV`：`dev` 或 `prod`
 - `DATA_ROOT`：共享 `data` 目录，留空时按环境推导默认值
-- `DATABASE_URL`：保留给后续数据库接入
-- `LOG_LEVEL`：日志级别
-- `HOST`：服务监听地址
-- `PORT`：服务监听端口
+- `DASHSCOPE_API_KEY`：模型 API Key
+- `ALS_MEDIA_TEMP_DIR`：多模态预处理临时目录（默认 `DATA_ROOT/temp/`）
+- `ALS_ENABLE_MEDIA_PREPROCESS`：是否启用图片/视频预处理压缩
+- `ALS_IMAGE_MAX_SIDE` / `ALS_IMAGE_JPEG_QUALITY`：图片压缩参数
+- `ALS_VIDEO_CRF` / `ALS_VIDEO_AUDIO_BITRATE`：视频压缩参数
 
 规则：
 
@@ -38,26 +49,16 @@
    - 其他环境下，如果是打包后的可执行文件，则默认使用程序目录下的 `data/`
    - 否则回退到后端源码目录下的 `data/`
 
-桌面端启动后端时，会把 `APP_ENV` 和 `DATA_ROOT` 传给子进程，保证 Avalonia 和 Python 后端看到的是同一个数据目录。
-
 ## 与桌面端的关系
 
-- 桌面端默认 **嵌入进程内** 调用本包中的模型与检索服务（Python.NET），不必单独起 uvicorn。
-- 仍可用 `uvicorn app.main:app` 以 HTTP 方式调试网关。
+- 桌面端默认 **嵌入进程内** 调用本包中的模型与检索服务（Python.NET），不启动独立进程、无 HTTP 端口。
 - 结构化描述主角度为 **「整体」**，解析时兼容历史键 **「全面」**。
 - 视频切片会透传 `min_scene_len` / `adaptive_threshold`；时长未知时不切片；LLM 失败会向上抛错而非空描述。
 - OpenAI 兼容路径的视频抽帧有硬上限（默认 32 帧）；DashScope 响应会检查 `status_code`。
 
-## 当前接口
+## 模型调用约定
 
-- `GET /health`
-- `POST /internal/heartbeat`
-- `GET /api/v1/model/capabilities`
-- `POST /api/v1/model/generate`
-- `POST /api/v1/search/index`（文本向量化，不写库）
-- `POST /api/v1/search/query`（候选集重排序，不读库）
-
-`POST /api/v1/model/generate` 现在接收的是素材打标请求，而不是对话消息流。请求体的核心字段是：
+`ModelService.generate_text` 接收的是素材打标请求，而不是对话消息流。请求体的核心字段是：
 
 - `asset_format`：`文本`、`图片`、`视频`、`音频` 之一，用来选择对应的 `prompts.yaml` 配置
 - `asset_path`：素材文件的绝对路径
@@ -71,7 +72,7 @@
 
 `configs/providers.yaml` 也已经按素材类型分组，分别为 `文本`、`图片`、`视频`、`音频` 配置独立模型。后端会优先读取与 `asset_format` 同名的槽位，再按兼容顺序回退到 `llm_gateway`、`asset_describer` 或第一个可用槽位。
 
-`POST /api/v1/search/index` 只负责把传入文本转换成向量，不会写入数据库。请求需携带 `provider` 与 `model`；当前实现以 **DashScope 云端 embedding** 为主。桌面端默认使用：
+向量化（embedding）与重排（rerank）以 **DashScope 云端** 为主。桌面端默认使用：
 
 - embedding：`dashscope / text-embedding-v4`
 - rerank：`dashscope / qwen3-rerank`
@@ -83,17 +84,6 @@
 - 音频：直接使用原始文件，不做压缩或转码
 - 如果当前环境缺少所需依赖或压缩失败，图片/视频会自动回退到原始文件，不阻断打标
 - 图片/视频预处理生成的临时文件会在模型调用结束后清理，调用失败时也会清理
-
-相关可选配置：
-
-- `ALS_ENABLE_MEDIA_PREPROCESS`
-- `ALS_MEDIA_TEMP_DIR`
-- `ALS_IMAGE_MAX_SIDE`
-- `ALS_IMAGE_JPEG_QUALITY`
-- `ALS_VIDEO_CRF`
-- `ALS_VIDEO_AUDIO_BITRATE`
-
-`POST /api/v1/search/query` 只对调用方传入的候选文本做 rerank，不负责数据库读取或写入。`provider` 与 `model` 同样由调用方显式指定。
 
 当前推荐架构下，`asset_descriptions.db`、HNSW 索引文件和向量召回都由 Avalonia/C# 本地维护；Python 保持为纯模型网关，只负责 embedding 与 rerank。
 
@@ -107,42 +97,14 @@
 - `音频`：后端直接使用原始音频文件路径，并转成 `file://` 形式，通过 `MultiModalConversation.call()` 的 `audio` 项发送；如果当前配置模型不是音频兼容模型，会自动回退到 `qwen3-omni-30b-a3b-captioner`
 - 四类素材的描述请求都会显式携带 `response_format={"type":"json_object"}`，按阿里云百炼的结构化输出方式要求模型返回 JSON 字符串；结构化描述的解析、存储和多角度向量化由 .NET Application 层负责
 
-## 本地启动
+## 本地验证
 
 ```powershell
 cd src/backend
 copy .env.example .env
 copy configs\providers.example.yaml configs\providers.yaml
 pip install -e .
-uvicorn app.main:app --reload
+pytest
 ```
 
-如果未配置真实 API Key，`/api/v1/model/generate` 会返回占位响应，便于先和桌面端联调。
-
-模型描述网关内部按职责拆分：
-
-- `ModelService`：请求编排与 Prompt 选择
-- `ProviderResolver`：provider 槽位解析，单个服务实例复用一次配置加载
-- `DashScopeModelClient`：DashScope SDK 调用
-- `MediaPreprocessor`：图片/视频预处理与临时文件清理
-- `ModelResponseParser`：输出文本与 token 使用量解析
-
-## 单素材控制台测试入口
-
-安装后可以直接运行：
-
-```powershell
-assets-library-system-tag --asset-format 图片 --asset-path D:\Data\sample.png --mock-response
-```
-
-或者在源码目录下直接用模块方式运行：
-
-```powershell
-python -m app.cli --asset-format 图片 --asset-path D:\Data\sample.png --mock-response
-```
-
-可选参数：
-
-- `--prompt`：覆盖默认提示词
-- `--system-prompt`：覆盖默认系统提示词
-- `--json`：输出完整 JSON 响应，便于脚本化检查
+如果未配置真实 API Key，模型生成会返回占位响应（mock 模式），便于先和桌面端联调。

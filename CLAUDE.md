@@ -13,9 +13,9 @@
 
 ## Technical Direction
 
-- 后端：`FastAPI`
+- 后端：`Python`（Python.NET 嵌入桌面端进程内，无独立 HTTP 服务）
 - 桌面端：`.NET 10 + Avalonia`
-- 模型网关：`Python FastAPI`
+- 模型网关：`Python`（Python.NET 进程内嵌入调用）
 - 检索链路设计参考：`D:\GitRepository\RenderTest\test2.py`
 
 ## Guardrails

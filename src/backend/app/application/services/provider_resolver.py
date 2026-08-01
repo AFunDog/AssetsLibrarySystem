@@ -43,7 +43,7 @@ class ProviderResolver:
             import importlib
             return importlib.util.find_spec("dashscope") is not None
         if provider_name == "openai":
-            # OpenAI 兼容 API 只需要 httpx（FastAPI 已依赖）
+            # OpenAI 兼容 API 依赖 httpx
             import importlib
             return importlib.util.find_spec("httpx") is not None
         # 未知 provider，保守返回 False
