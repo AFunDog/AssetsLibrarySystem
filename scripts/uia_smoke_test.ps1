@@ -5,13 +5,19 @@ Add-Type -AssemblyName UIAutomationTypes
 
 $exe = "D:\GitRepository\AssetsLibrarySystem\src\avalonia\AssetsLibrarySystem.Avalonia\bin\Debug\net10.0\AssetsLibrarySystem.Avalonia.exe"
 $proc = Start-Process -FilePath $exe -PassThru
-Start-Sleep -Seconds 8
 
 try {
-    $root = [System.Windows.Automation.AutomationElement]::RootElement
-    $cond = New-Object System.Windows.Automation.PropertyCondition(
-        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $proc.Id)
-    $win = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
+    # 轮询等待主窗口出现（首次启动含 Python 引擎初始化，可能超过 10 秒）
+    $deadline = (Get-Date).AddSeconds(30)
+    $win = $null
+    while ((Get-Date) -lt $deadline -and $null -eq $win) {
+        Start-Sleep -Seconds 2
+        if ($proc.HasExited) { throw "应用进程提前退出 (pid=$($proc.Id))" }
+        $root = [System.Windows.Automation.AutomationElement]::RootElement
+        $cond = New-Object System.Windows.Automation.PropertyCondition(
+            [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $proc.Id)
+        $win = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
+    }
     if ($null -eq $win) { throw "主窗口未找到 (pid=$($proc.Id))" }
     Write-Output ("主窗口: " + $win.Current.Name)
 
