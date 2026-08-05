@@ -215,7 +215,6 @@ public static string ExtractPrimaryText(string? rawDescription)
 
         if (segments.Count > 0)
         {
-            SortSegments(segments);
             return segments;
         }
 
@@ -481,14 +480,6 @@ public static string ExtractPrimaryText(string? rawDescription)
         }
 
         return null;
-    }
-
-    private static void SortSegments(List<StructuredDescriptionSegment> segments)
-    {
-        // 保持 JSON 中的原始顺序，不做硬编码优先级排序。
-        // 子类型和角度配置由 C# 端的 AngleProfileManager 管理，
-        // 不再在此处硬编码 "全面"→0, "乐器"→1 等优先级。
-        // 仅按出现顺序稳定排序即可。
     }
 
     // ===== 视频剪辑片段合并（两阶段描述） =====

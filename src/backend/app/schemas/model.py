@@ -66,6 +66,8 @@ class ModelGenerateResponse(BaseModel):
         input_tokens_details: dict[str, Any] | None = Field(default=None)
         output_tokens_details: dict[str, Any] | None = Field(default=None)
         prompt_tokens_details: dict[str, Any] | None = Field(default=None)
+        # 按 providers.yaml 的 pricing 配置估算的费用（元）；未配置价格时为 None
+        estimated_cost_cny: float | None = Field(default=None, ge=0)
 
     provider_slot: str
     provider: str

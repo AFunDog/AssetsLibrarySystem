@@ -7,11 +7,18 @@ public sealed record SearchModelOptions(
     string EmbeddingModel,
     int EmbeddingDimensions,
     string RerankProvider,
-    string RerankModel)
+    string RerankModel,
+    double EmbeddingPricePerMillion,
+    double RerankPricePerMillion)
 {
     private const string DashScopeProvider = "dashscope";
     private const string DefaultDashScopeEmbeddingModel = "text-embedding-v4";
     private const string DefaultDashScopeRerankModel = "qwen3-rerank";
+
+    // 计费参考（阿里云百炼官网，人民币/百万 token）：
+    //   text-embedding-v4 ≈ 0.7 元/百万 token；qwen3-rerank ≈ 0.2 元/百万 token
+    private const double DefaultEmbeddingPricePerMillion = 0.7;
+    private const double DefaultRerankPricePerMillion = 0.2;
 
     public string EmbeddingModelKey => FormatEmbeddingModelKey(EmbeddingModel, EmbeddingDimensions);
 
@@ -22,7 +29,9 @@ public sealed record SearchModelOptions(
             ReadEmbeddingModel(configuration),
             ReadEmbeddingDimensions(configuration),
             DashScopeProvider,
-            ReadRerankModel(configuration));
+            ReadRerankModel(configuration),
+            configuration.GetValue<double?>("SearchModels:Pricing:EmbeddingPricePerMillion") ?? DefaultEmbeddingPricePerMillion,
+            configuration.GetValue<double?>("SearchModels:Pricing:RerankPricePerMillion") ?? DefaultRerankPricePerMillion);
     }
 
     public static int NormalizeEmbeddingDimensions(int? value)

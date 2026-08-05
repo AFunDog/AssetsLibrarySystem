@@ -8,6 +8,7 @@ using AssetsLibrarySystem.Avalonia.Services.Activity;
 using AssetsLibrarySystem.Application.Services.BackgroundTasks;
 using AssetsLibrarySystem.Application.Services.Python;
 using AssetsLibrarySystem.Avalonia.Services.Settings;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Serilog;
 using Microsoft.Extensions.Configuration;
@@ -78,6 +79,29 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
 
     public bool IsBackendReady => _isBackendReady;
 
+    /// <summary>更新后端状态（属性 + 事件），确保在 UI 线程执行。</summary>
+    private void SetBackendStatus(string title, string stage, string detail, bool isReady)
+    {
+        _isBackendReady = isReady;
+        var update = () =>
+        {
+            BackendStatusTitle = title;
+            BackendStatusStage = stage;
+            BackendStatusDetail = detail;
+            BackendStatusChanged?.Invoke();
+        };
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            update();
+        }
+        else
+        {
+            // 后台线程更新 UI 属性/事件必须派发到 UI 线程；
+            // 同步等待保证调用方（await InitializeAsync）返回时状态已就绪
+            Dispatcher.UIThread.InvokeAsync(update).Wait();
+        }
+    }
+
     public string BaseUrl => BackendEndpoint;
 
     public Task InitializeAsync()
@@ -98,7 +122,23 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
 
         if (_initTask is not null)
         {
-            return _initTask;
+            if (_initTask.IsCompleted)
+            {
+                // 初始化失败（引擎未就绪）后允许重新初始化；
+                // 成功则直接复用已完成的 task
+                if (!_isBackendReady)
+                {
+                    _initTask = null;
+                }
+                else
+                {
+                    return _initTask;
+                }
+            }
+            else
+            {
+                return _initTask;
+            }
         }
 
         Log.Information("开始初始化嵌入的 Python 引擎。");
@@ -122,32 +162,23 @@ public sealed partial class BackendSessionService : ObservableObject, IBackendSe
         {
             await Task.Run(() => PythonEngine!.Initialize(), ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
-            _isBackendReady = true;
-            BackendStatusTitle = "Python 引擎已就绪";
-            BackendStatusStage = "就绪";
-            BackendStatusDetail = "Python 引擎嵌入在桌面端进程中，直接调用模型 API。";
+            SetBackendStatus("Python 引擎已就绪", "就绪", "Python 引擎嵌入在桌面端进程中，直接调用模型 API。", true);
             Log.Information("Python 引擎初始化完成");
             ActivityFeedService.Add("Python 引擎就绪（嵌入模式）");
             CompleteTask(taskId, "Python 引擎就绪", BackendStatusDetail);
-            BackendStatusChanged?.Invoke();
         }
         catch (OperationCanceledException)
         {
-            _isBackendReady = false;
+            SetBackendStatus("Python 引擎初始化已取消", "已取消", "应用已退出", false);
             Log.Information("Python 引擎初始化已取消（应用退出）。");
             CompleteTask(taskId, "引擎初始化已取消", "应用已退出");
-            BackendStatusChanged?.Invoke();
         }
         catch (Exception ex)
         {
-            _isBackendReady = false;
-            BackendStatusTitle = "Python 引擎初始化失败";
-            BackendStatusStage = "启动失败";
-            BackendStatusDetail = ex.Message;
+            SetBackendStatus("Python 引擎初始化失败", "启动失败", ex.Message, false);
             Log.Error(ex, "Python 引擎初始化失败。");
             ActivityFeedService.Add($"Python 引擎初始化失败：{ex.Message}");
             FailTask(taskId, "引擎初始化失败", ex.Message);
-            BackendStatusChanged?.Invoke();
         }
     }
 

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -106,9 +108,185 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             AddParameter(command, "$metadata_status", metadataStatus);
 
             await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            if (document.TokenUsage is { } usage)
+            {
+                await AppendUsageLogCoreAsync(
+                    connection,
+                    transaction,
+                    "describe",
+                    document.Mode,
+                    string.Empty,
+                    document.AssetId,
+                    document.AssetName,
+                    document.AssetType,
+                    null,
+                    usage.InputTokens,
+                    usage.OutputTokens,
+                    usage.TotalTokens,
+                    usage.EstimatedCostCny,
+                    token).ConfigureAwait(false);
+            }
+
             await UpdateAssetMetadataAsync(connection, transaction, document, token).ConfigureAwait(false);
             await transaction.CommitAsync(token).ConfigureAwait(false);
         }, ct);
+    }
+
+    public async Task AppendTokenUsageAsync(AssetDescriptionDocument document, CancellationToken ct = default)
+    {
+        if (document.TokenUsage is null)
+        {
+            return;
+        }
+
+        var usage = document.TokenUsage;
+        await AppendApiUsageAsync(
+            operation: "describe",
+            mode: document.Mode,
+            model: string.Empty,
+            assetId: document.AssetId,
+            assetName: document.AssetName,
+            assetType: document.AssetType,
+            query: null,
+            inputTokens: usage.InputTokens,
+            outputTokens: usage.OutputTokens,
+            totalTokens: usage.TotalTokens,
+            estimatedCostCny: usage.EstimatedCostCny,
+            ct);
+    }
+
+    public async Task AppendApiUsageAsync(
+        string operation,
+        string mode,
+        string model,
+        long? assetId,
+        string assetName,
+        string assetType,
+        string? query,
+        int inputTokens,
+        int outputTokens,
+        int totalTokens,
+        double? estimatedCostCny,
+        CancellationToken ct = default)
+    {
+        await AssetDatabase.EnsureSchemaAsync(ct);
+        await WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(token).ConfigureAwait(false);
+            await AppendUsageLogCoreAsync(
+                connection,
+                transaction,
+                operation,
+                mode,
+                model,
+                assetId,
+                assetName,
+                assetType,
+                query,
+                inputTokens,
+                outputTokens,
+                totalTokens,
+                estimatedCostCny,
+                token).ConfigureAwait(false);
+            await transaction.CommitAsync(token).ConfigureAwait(false);
+        }, ct);
+    }
+
+    public async Task<AssetTokenUsageSummary> GetTokenUsageSummaryAsync(
+        long? assetId = null,
+        long? libraryId = null,
+        int limit = 20,
+        CancellationToken ct = default)
+    {
+        await AssetDatabase.EnsureSchemaAsync(ct);
+        await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
+
+        var conditions = new List<string>();
+        var parameters = new List<(string Name, object Value)>();
+        if (assetId is not null)
+        {
+            conditions.Add("l.asset_id = $asset_id");
+            parameters.Add(("$asset_id", assetId.Value));
+        }
+
+        if (libraryId is not null)
+        {
+            conditions.Add("a.library_id = $library_id");
+            parameters.Add(("$library_id", libraryId.Value));
+        }
+
+        var whereSql = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
+        var joinsSql = assetId is null && libraryId is null ? "" : "INNER JOIN assets AS a ON a.id = l.asset_id";
+
+        await using var agg = connection.CreateCommand();
+        agg.CommandText = $"""
+            SELECT COUNT(*),
+                   COALESCE(SUM(l.input_tokens), 0),
+                   COALESCE(SUM(l.output_tokens), 0),
+                   COALESCE(SUM(l.total_tokens), 0),
+                   COALESCE(SUM(l.estimated_cost_cny), 0)
+            FROM asset_token_usage_log AS l
+            {joinsSql}
+            {whereSql};
+            """;
+        foreach (var (name, value) in parameters)
+        {
+            AddParameter(agg, name, value);
+        }
+
+        long callCount = 0, totalInput = 0, totalOutput = 0, totalTokens = 0;
+        double totalCost = 0;
+        await using (var reader = await agg.ExecuteReaderAsync(ct).ConfigureAwait(false))
+        {
+            if (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                callCount = reader.GetInt64(0);
+                totalInput = reader.GetInt64(1);
+                totalOutput = reader.GetInt64(2);
+                totalTokens = reader.GetInt64(3);
+                totalCost = reader.GetDouble(4);
+            }
+        }
+
+        var entries = new List<AssetTokenUsageLogEntry>();
+        await using var detail = connection.CreateCommand();
+        detail.CommandText = $"""
+            SELECT l.asset_id, l.asset_name, l.asset_type, l.mode, l.operation, l.model, l.query,
+                   l.input_tokens, l.output_tokens, l.total_tokens, l.estimated_cost_cny, l.created_at
+            FROM asset_token_usage_log AS l
+            {joinsSql}
+            {whereSql}
+            ORDER BY l.id DESC
+            LIMIT $limit;
+            """;
+        foreach (var (name, value) in parameters)
+        {
+            AddParameter(detail, name, value);
+        }
+
+        AddParameter(detail, "$limit", Math.Max(1, limit));
+        await using (var reader = await detail.ExecuteReaderAsync(ct).ConfigureAwait(false))
+        {
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                entries.Add(new AssetTokenUsageLogEntry(
+                    reader.IsDBNull(0) ? null : reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    reader.GetString(3),
+                    reader.GetString(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5),
+                    reader.IsDBNull(6) ? null : reader.GetString(6),
+                    reader.GetInt32(7),
+                    reader.GetInt32(8),
+                    reader.GetInt32(9),
+                    reader.GetDouble(10),
+                    DateTimeOffset.Parse(reader.GetString(11))));
+            }
+        }
+
+        return new AssetTokenUsageSummary(callCount, totalInput, totalOutput, totalTokens, totalCost, entries);
     }
 
     public async Task<AssetDescriptionDocument?> TryGetAsync(long assetId, CancellationToken ct = default)
@@ -146,6 +324,60 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         }
 
         return ReadDocument(reader);
+    }
+
+    public async Task<IReadOnlyDictionary<long, AssetDescriptionDocument>> GetDescriptionsAsync(
+        IReadOnlyCollection<long> assetIds,
+        CancellationToken ct = default)
+    {
+        var result = new Dictionary<long, AssetDescriptionDocument>();
+        if (assetIds is null || assetIds.Count == 0)
+        {
+            return result;
+        }
+
+        await using var connection = await AssetDatabase.OpenConnectionAsync(ct);
+        await using var command = connection.CreateCommand();
+
+        var placeholders = string.Join(", ", assetIds.Select((_, i) => $"$asset_id_{i}"));
+        command.CommandText = $"""
+            SELECT
+                d.asset_id,
+                a.asset_uid,
+                d.asset_name,
+                d.asset_type,
+                d.asset_path,
+                d.description,
+                d.backend_endpoint,
+                d.mode,
+                d.generated_at,
+                d.token_usage_json,
+                d.prompt,
+                d.system_prompt,
+                d.content_hash,
+                d.metadata_status
+            FROM asset_descriptions AS d
+            INNER JOIN assets AS a ON a.id = d.asset_id
+            WHERE d.asset_id IN ({placeholders});
+            """;
+        var index = 0;
+        foreach (var assetId in assetIds)
+        {
+            AddParameter(command, $"$asset_id_{index}", assetId);
+            index++;
+        }
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var document = ReadDocument(reader);
+            if (document is not null)
+            {
+                result[document.AssetId] = document;
+            }
+        }
+
+        return result;
     }
 
     public async Task<AssetDescriptionDocument?> TryGetForAssetAsync(ManagedAssetRecord asset, CancellationToken ct = default)
@@ -256,6 +488,21 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
             AddParameter(cmd2, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
             await cmd2.ExecuteNonQueryAsync(token).ConfigureAwait(false);
 
+            // 非剪辑素材：整篇文本替换后旧向量立即过期，删除向量行避免搜索命中
+            // 已不存在的描述文本（剪辑素材编辑只合并进「整体」，片段向量仍有效，不删）
+            var assetType = await ReadAssetTypeAsync(connection, assetId, token).ConfigureAwait(false);
+            if (!string.Equals(assetType, "视频剪辑", StringComparison.Ordinal))
+            {
+                await using var cmd3 = connection.CreateCommand();
+                cmd3.Transaction = transaction;
+                cmd3.CommandText = """
+                    DELETE FROM asset_description_vectors
+                    WHERE asset_id = $asset_id;
+                    """;
+                AddParameter(cmd3, "$asset_id", assetId);
+                await cmd3.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }
+
             await transaction.CommitAsync(token).ConfigureAwait(false);
         }, ct);
     }
@@ -296,6 +543,69 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
     private static void AddParameter(SqliteCommand command, string name, object? value)
     {
         command.Parameters.AddWithValue(name, value ?? DBNull.Value);
+    }
+
+    private static async Task AppendUsageLogCoreAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string operation,
+        string mode,
+        string model,
+        long? assetId,
+        string assetName,
+        string assetType,
+        string? query,
+        int inputTokens,
+        int outputTokens,
+        int totalTokens,
+        double? estimatedCostCny,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO asset_token_usage_log (
+                asset_id,
+                asset_name,
+                asset_type,
+                mode,
+                operation,
+                model,
+                query,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                estimated_cost_cny,
+                created_at
+            )
+            VALUES (
+                $asset_id,
+                $asset_name,
+                $asset_type,
+                $mode,
+                $operation,
+                $model,
+                $query,
+                $input_tokens,
+                $output_tokens,
+                $total_tokens,
+                $estimated_cost_cny,
+                $created_at
+            );
+            """;
+        AddParameter(command, "$asset_id", assetId);
+        AddParameter(command, "$asset_name", assetName);
+        AddParameter(command, "$asset_type", assetType);
+        AddParameter(command, "$mode", mode);
+        AddParameter(command, "$operation", operation);
+        AddParameter(command, "$model", string.IsNullOrWhiteSpace(model) ? DBNull.Value : model);
+        AddParameter(command, "$query", query);
+        AddParameter(command, "$input_tokens", inputTokens);
+        AddParameter(command, "$output_tokens", outputTokens);
+        AddParameter(command, "$total_tokens", totalTokens);
+        AddParameter(command, "$estimated_cost_cny", estimatedCostCny ?? 0.0);
+        AddParameter(command, "$created_at", DateTimeOffset.UtcNow.ToString("O"));
+        await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     private static string? SerializeTokenUsage(AssetDescriptionTokenUsage? tokenUsage)
@@ -369,5 +679,20 @@ public sealed class AssetDescriptionStore : IAssetDescriptionStore
         AddParameter(command, "$asset_id", assetId);
         AddParameter(command, "$updated_at", DateTimeOffset.UtcNow.ToString("O"));
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
+    private static async Task<string?> ReadAssetTypeAsync(
+        SqliteConnection connection,
+        long assetId,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT asset_type
+            FROM assets
+            WHERE id = $asset_id;
+            """;
+        AddParameter(command, "$asset_id", assetId);
+        return (string?)await command.ExecuteScalarAsync(ct).ConfigureAwait(false);
     }
 }

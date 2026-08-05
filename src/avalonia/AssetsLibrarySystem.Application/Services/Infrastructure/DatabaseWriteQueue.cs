@@ -25,11 +25,22 @@ public sealed class DatabaseWriteQueue : IDatabaseWriteQueue
 
     public ValueTask EnqueueAsync(Func<CancellationToken, Task> work, CancellationToken cancellationToken = default)
     {
-        return new ValueTask(EnqueueAsync(async token =>
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            throw new ObjectDisposedException(nameof(DatabaseWriteQueue));
+        }
+
+        var item = new QueuedWrite<bool>(async token =>
         {
             await work(token).ConfigureAwait(false);
             return true;
-        }, cancellationToken).AsTask());
+        }, cancellationToken);
+        if (!_queue.Writer.TryWrite(item))
+        {
+            throw new InvalidOperationException("数据库写队列不可用。");
+        }
+
+        return new ValueTask(item.Task);
     }
 
     public ValueTask<T> EnqueueAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken cancellationToken = default)

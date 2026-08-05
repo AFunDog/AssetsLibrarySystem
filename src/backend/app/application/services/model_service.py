@@ -12,9 +12,13 @@ from app.application.services.media_preprocessor import MediaPreprocessor
 from app.application.services.model_response_parser import ModelResponseParser
 from app.application.services.openai_model_client import OpenAIModelClient
 from app.application.services.provider_resolver import ProviderResolver
-from app.application.services.video_slice_describer import VideoSliceDescriber
+from app.application.services.video_slice_describer import (
+    DEFAULT_MAX_SCENE_SECONDS,
+    VideoSliceDescriber,
+)
 from app.core.angle_prompt_builder import build_system_prompt_from_angles
 from app.core.config import get_settings
+from app.core.provider_config import ProviderConfig
 from app.core.paths import ensure_shared_data_dir
 from app.core.prompt_config import extract_prompt_templates, load_prompt_config
 from app.core.provider_config import ProviderConfig, ProviderConfigManager
@@ -54,6 +58,39 @@ class ModelRuntimeContext:
     system_prompt: str
     prompt: str
     supports_live_call: bool
+    provider_config: ProviderConfig | None = None
+
+
+class _SliceUsageAccumulator:
+    """单次生成请求内的切片 token 累计器（per-request，避免实例字段并发串账）。"""
+
+    def __init__(self) -> None:
+        self.has_usage = False
+        self.input_tokens = 0
+        self.output_tokens = 0
+
+    def add(self, usage: ModelGenerateResponse.TokenUsage | None) -> None:
+        if usage is None:
+            return
+        self.has_usage = True
+        self.input_tokens += usage.input_tokens
+        self.output_tokens += usage.output_tokens
+
+    def build(self, provider_config: ProviderConfig) -> ModelGenerateResponse.TokenUsage | None:
+        """汇总切片模式 token 用量并按 pricing 估算费用。"""
+        if not self.has_usage:
+            return None
+        cost = (
+            provider_config.pricing.estimate_cost_cny(self.input_tokens, self.output_tokens)
+            if provider_config.pricing is not None
+            else None
+        )
+        return ModelGenerateResponse.TokenUsage(
+            input_tokens=self.input_tokens,
+            output_tokens=self.output_tokens,
+            total_tokens=self.input_tokens + self.output_tokens,
+            estimated_cost_cny=cost,
+        )
 
 
 class ModelService:
@@ -79,7 +116,8 @@ class ModelService:
         self._provider_resolver: ProviderResolver | None = None
         self._clients: dict[str, ModelClient] = {}
         self._response_parser = ModelResponseParser()
-        self._current_fps: int = 5
+        # 注意：fps 与切片 token 累计均采用 per-request 局部变量/闭包（见 generate_text），
+        # 不得改回实例字段——并发描述多个素材时会互相串扰（fps 错乱、token 串账）。
 
     def get_capabilities(self, provider_slot: str = DEFAULT_PROVIDER_SLOT) -> ModelCapabilitiesResponse:
         context = self._resolve_provider_context(provider_slot)
@@ -88,7 +126,7 @@ class ModelService:
             provider=context.provider,
             model=context.model,
             supports_live_call=context.supports_live_call,
-            description="桌面端通过该 HTTP 服务调用大模型；素材管理逻辑保留在 Avalonia/.NET。",
+            description="桌面端通过嵌入的 Python 引擎直接调用大模型（Python.NET 进程内）；素材管理逻辑保留在 Avalonia/.NET。",
         )
 
     async def generate_text(
@@ -111,8 +149,34 @@ class ModelService:
             payload.subtype,
         )
 
-        # 存储当前请求的 fps，供 _call_slice_llm 使用
-        self._current_fps = payload.fps
+        # fps 与切片 token 累计均为本请求私有（局部变量 + 闭包），并发安全
+        fps = payload.fps
+        usage_accumulator = _SliceUsageAccumulator()
+
+        async def call_slice_llm(
+            system_prompt: str,
+            prompt: str,
+            asset_format: str,
+            asset_path: str,
+        ) -> tuple[str, ModelGenerateResponse.TokenUsage | None]:
+            """VideoSliceDescriber 的 LLM 回调：按本请求 fps 调用并累计 token。"""
+            provider_context = self._resolve_provider_context_for_asset_format(asset_format)
+            call_model = self._resolve_model_name(provider_context.model, asset_format)
+            text, usage = await self._call_model(
+                provider_context,
+                system_prompt,
+                prompt,
+                asset_format,
+                asset_path,
+                call_model,
+                fps=fps,
+            )
+            usage_accumulator.add(usage)
+            return text, usage
+
+        async def summarize_text(text: str) -> str:
+            """VideoSliceDescriber 的摘要回调：结果同样计入本请求 token。"""
+            return await self._summarize_text_impl(text, usage_accumulator)
 
         # 如果 C# 端传入了角度定义，使用动态构建的 system prompt
         if payload.angles:
@@ -168,10 +232,11 @@ class ModelService:
                 adaptive_threshold=payload.adaptive_threshold,
                 min_scene_len=payload.min_scene_len,
                 min_seconds=5.0,
+                max_seconds=getattr(payload, "max_scene_seconds", DEFAULT_MAX_SCENE_SECONDS),
             )
             slice_describer = VideoSliceDescriber(
-                call_llm=self._call_slice_llm,
-                summarize_fn=self._summarize_text,
+                call_llm=call_slice_llm,
+                summarize_fn=summarize_text,
                 scene_detector=scene_detector,
                 slice_threshold=payload.slice_threshold,
                 min_seconds=5.0,
@@ -238,6 +303,7 @@ class ModelService:
                 logger.info(
                     "视频片段描述完成: segments=%d", len(sliced_result.get("segments", []))
                 )
+                slice_usage = usage_accumulator.build(provider_context.provider_config)
                 return ModelGenerateResponse(
                     provider_slot=DEFAULT_PROVIDER_SLOT,
                     provider=provider_context.provider,
@@ -245,7 +311,7 @@ class ModelService:
                     mode="live",
                     output_text=output_text,
                     system_prompt=system_prompt,
-                    token_usage=None,
+                    token_usage=slice_usage,
                 )
 
             if is_clip_mode or slice_describer.should_slice(payload.asset_path):
@@ -265,6 +331,7 @@ class ModelService:
                 output_text = json.dumps(sliced_result, ensure_ascii=False)
                 output_text = self._clean_llm_output(output_text)
                 logger.info("视频切片描述完成: scenes=%d", len(sliced_result.get("segments", [])))
+                slice_usage = usage_accumulator.build(provider_context.provider_config)
                 return ModelGenerateResponse(
                     provider_slot=DEFAULT_PROVIDER_SLOT,
                     provider=provider_context.provider,
@@ -272,7 +339,7 @@ class ModelService:
                     mode="live",
                     output_text=output_text,
                     system_prompt=system_prompt,
-                    token_usage=None,
+                    token_usage=slice_usage,
                 )
 
         logger.info(
@@ -291,6 +358,7 @@ class ModelService:
             fps=payload.fps,
         )
         output_text = self._clean_llm_output(raw_output_text)
+        usage = self._with_estimated_cost(usage, provider_context.provider_config)
         token_info = f", tokens={usage.total_tokens}" if usage else ""
         logger.info("描述生成完成: format=%s, model=%s%s", payload.asset_format, call_model, token_info)
         return ModelGenerateResponse(
@@ -314,6 +382,7 @@ class ModelService:
             system_prompt="",
             prompt="",
             supports_live_call=self._supports_live_call(provider),
+            provider_config=provider,
         )
 
     def _resolve_prompt_context(self, asset_format: str) -> ModelRuntimeContext:
@@ -339,6 +408,7 @@ class ModelService:
             system_prompt="",
             prompt="",
             supports_live_call=self._supports_live_call(provider),
+            provider_config=provider,
         )
 
     def _resolve_provider_slot(
@@ -393,6 +463,17 @@ class ModelService:
             return override_prompt.strip()
         return configured_prompt.strip()
 
+    def _with_estimated_cost(
+        self,
+        usage: ModelGenerateResponse.TokenUsage | None,
+        provider_config: ProviderConfig,
+    ) -> ModelGenerateResponse.TokenUsage | None:
+        """为非切片模式填充费用估算（不修改原对象）。"""
+        if usage is None or provider_config.pricing is None:
+            return usage
+        cost = provider_config.pricing.estimate_cost_cny(usage.input_tokens, usage.output_tokens)
+        return usage.model_copy(update={"estimated_cost_cny": cost})
+
     async def _call_slice_llm(
         self,
         system_prompt: str,
@@ -403,7 +484,7 @@ class ModelService:
         """VideoSliceDescriber 使用的 LLM 回调，封装 _call_model 的调用。"""
         provider_context = self._resolve_provider_context_for_asset_format(asset_format)
         call_model = self._resolve_model_name(provider_context.model, asset_format)
-        return await self._call_model(
+        text, usage = await self._call_model(
             provider_context,
             system_prompt,
             prompt,
@@ -412,14 +493,26 @@ class ModelService:
             call_model,
             fps=self._current_fps,
         )
+        self._accumulate_slice_usage(usage)
+        return text, usage
 
-    async def _summarize_text(self, text: str) -> str:
-        """将累积摘要总结为 ≤300 字的自然语言段落。"""
+    async def _summarize_text_impl(
+        self,
+        text: str,
+        usage_accumulator: _SliceUsageAccumulator,
+    ) -> str:
+        """将累积摘要总结为 ≤300 字的自然语言段落（usage 计入 accumulator）。"""
         if not text.strip():
             return ""
 
-        provider_manager = self._get_provider_manager()
-        provider_config = provider_manager.get("视频")
+        try:
+            provider_config = self._get_provider_manager().get("视频")
+        except KeyError:
+            logger.warning("provider 槽位 '视频' 不存在，跳过摘要调用，返回原文片段")
+            return text[:300]
+        if not provider_config.api_key:
+            logger.warning("未配置 API Key，跳过摘要调用，返回原文片段")
+            return text[:300]
 
         summary_prompt = (
             "请将以下视频片段描述总结为一段通顺的自然语言段落，不超过300字。\n"
@@ -443,6 +536,8 @@ class ModelService:
                 {"type": "text"},  # 不要 JSON 格式
             )
             raw = self._extract_response_text(response)
+            # 摘要调用也计入 token 统计
+            usage_accumulator.add(self._extract_token_usage(response))
             cleaned = raw.strip().strip('"').strip()
             if len(cleaned) > 300:
                 cleaned = cleaned[:297] + "..."
@@ -450,6 +545,10 @@ class ModelService:
         except Exception as e:
             logger.warning("文本总结失败，返回原文片段: %s", e)
             return text[:300]
+
+    async def _summarize_text(self, text: str) -> str:
+        """兼容入口：独立调用（测试用），usage 不累计到任何请求。"""
+        return await self._summarize_text_impl(text, _SliceUsageAccumulator())
 
     async def _call_model(
         self,

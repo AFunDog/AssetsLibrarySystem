@@ -74,9 +74,9 @@ README.md
 - Avalonia 库页：描述当前范围 / 描述当前素材 / 批量向量化、素材树右键描述与向量化
 - Avalonia 快速检索：托盘模式下 `Ctrl+Shift+Space` 打开弹窗，回车后查看最相关结果
 - 本地 HNSW：按 embedding 模型进程内缓存；库中无向量时清空索引文件并成功返回
-- 命令行入口支持：
-  - `assets search <query>`
-  - `assets reindex`
+- 命令行入口支持（`AssetsLibrarySystem.Console`，子命令见 `--help`）：
+  - `dotnet run --project AssetsLibrarySystem.Console -- assets search <query> [--format <素材类型>]`
+  - `dotnet run --project AssetsLibrarySystem.Console -- assets reindex`
 
 ## 文档约定
 
@@ -123,3 +123,13 @@ python scripts/migrate_to_surrogate_ids_and_multi_model_vectors.py
 ```
 
 脚本会把旧 `libraries.json` 中的素材库信息迁入数据库，并在修改前创建带 UTC 时间戳的 `.bak` 备份。可通过 `--db <path>` 指定数据库文件；旧 JSON 不在数据库同目录时，可通过 `--libraries-json <path>` 指定。
+
+## 剪辑素材整体摘要重算
+
+增量描述合并时"整体"采用"已有非空则保留"，整体摘要可能停留在最早批次或仅为拼接文本。`scripts/rebuild_clip_overall_summary.py` 会读取该素材全部片段描述，调用 LLM（`providers.yaml` 中"视频"槽位模型，默认 qwen3.7-flash）生成精炼概述与精选标签并写回 DB；LLM 调用失败时自动回退为纯拼接：
+
+```powershell
+src/backend/.venv/Scripts/python.exe scripts/rebuild_clip_overall_summary.py --asset-id 1720
+```
+
+`--dry-run` 只打印不写库。整体摘要仅作为素材概览展示，不参与片段向量检索，重算后无需刷新向量。

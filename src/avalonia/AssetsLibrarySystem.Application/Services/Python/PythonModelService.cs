@@ -159,7 +159,8 @@ public sealed class PythonModelService : IBackendModelClient
                 AudioTokens: SafeInt(tu.audio_tokens),
                 InputTokensDetails: SafeJson(tu.input_tokens_details),
                 OutputTokensDetails: SafeJson(tu.output_tokens_details),
-                PromptTokensDetails: SafeJson(tu.prompt_tokens_details));
+                PromptTokensDetails: SafeJson(tu.prompt_tokens_details),
+                EstimatedCostCny: SafeDouble(tu.estimated_cost_cny));
         }
 
         return new BackendModelGenerateResponse(
@@ -177,6 +178,13 @@ public sealed class PythonModelService : IBackendModelClient
         if (value == null)
             return null;
         return (int)value;
+    }
+
+    private static double? SafeDouble(dynamic value)
+    {
+        if (value == null)
+            return null;
+        return (double)value;
     }
 
     private static JsonElement? SafeJson(dynamic value)

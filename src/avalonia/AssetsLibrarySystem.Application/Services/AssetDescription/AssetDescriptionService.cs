@@ -68,6 +68,9 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
         ct.ThrowIfCancellationRequested(); // 取消检查：取消时不发起 LLM 调用
         var backendResponse = await BackendModelClient.GenerateAsync(backendBaseUrl, request, ct).ConfigureAwait(false);
 
+        // 取消检查点：LLM 已返回但用户已点取消时，不保存结果（与 DescribeClipAsync 行为一致）
+        ct.ThrowIfCancellationRequested();
+
         // 6. 构建文档
         var document = new AssetDescriptionDocument(
             AssetId: asset.DatabaseId,
@@ -292,5 +295,6 @@ public sealed class AssetDescriptionService : IAssetDescriptionService
             usage.AudioTokens,
             usage.InputTokensDetails,
             usage.OutputTokensDetails,
-            usage.PromptTokensDetails);
+            usage.PromptTokensDetails,
+            usage.EstimatedCostCny);
 }

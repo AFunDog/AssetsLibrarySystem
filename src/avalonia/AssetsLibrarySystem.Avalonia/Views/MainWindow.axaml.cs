@@ -13,7 +13,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Closing += MainWindow_Closing;
+        // 关闭拦截（隐藏到托盘）由 ShellWindowService.AttachMainWindow 统一处理，
+        // 此处不再重复订阅，避免两套 IsShuttingDown 状态失步。
         KeyDown += MainWindow_KeyDown;
     }
 
@@ -30,15 +31,6 @@ public partial class MainWindow : Window
     private void CloseWindow_Click(object? sender, RoutedEventArgs e)
     {
         Close();
-    }
-
-    private void MainWindow_Closing(object? sender, WindowClosingEventArgs e)
-    {
-        if (global::Avalonia.Application.Current is App app && app.ShellViewModel?.IsShuttingDown == false)
-        {
-            e.Cancel = true;
-            Hide();
-        }
     }
 
     private void MainWindow_KeyDown(object? sender, KeyEventArgs e)

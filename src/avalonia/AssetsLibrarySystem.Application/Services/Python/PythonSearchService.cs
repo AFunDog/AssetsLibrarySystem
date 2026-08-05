@@ -158,9 +158,10 @@ public sealed class PythonSearchService : IBackendSearchClient
         for (int i = 0; i < count; i++)
         {
             using var item = pyResults[i];
+            dynamic dynamicItem = item;
             results.Add(new BackendSearchQueryResult(
-                CandidateId: item["candidate_id"]?.As<string>(),
-                RerankScore: (float)(double)item["rerank_score"].As<double>()));
+                CandidateId: dynamicItem.candidate_id?.As<string>(),
+                RerankScore: (float)(double)dynamicItem.rerank_score.As<double>()));
         }
 
         return new BackendSearchQueryResponse(

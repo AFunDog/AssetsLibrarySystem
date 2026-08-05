@@ -26,6 +26,9 @@ public partial class QuickSearchViewModel : ObservableObject
     private IUserSettingsService? UserSettingsService { get; }
     private SearchHistoryService SearchHistory { get; }
 
+    /// <summary>检索进行中标记：防止连按回车并发重入导致结果竞态覆盖</summary>
+    private bool _isSearching;
+
     public QuickSearchViewModel()
         : this(null, null, null, null)
     {
@@ -126,6 +129,12 @@ public partial class QuickSearchViewModel : ObservableObject
     [RelayCommand]
     private async Task ExecuteSearchAsync()
     {
+        if (_isSearching)
+        {
+            Log.Debug("快速检索已在进行中，忽略重复触发。");
+            return;
+        }
+
         var candidateTopK = SearchCandidateTopK;
         var expandedCandidateTopK = SearchExpandedCandidateTopK;
         var rerankTopK = SearchRerankTopK;
@@ -156,6 +165,8 @@ public partial class QuickSearchViewModel : ObservableObject
 
         try
         {
+            _isSearching = true;
+
             if (BackendLauncher is not null && BackendLauncher.IsRunning != true)
             {
                 SearchStatus = "正在启动 Python 模型服务...";
@@ -220,6 +231,10 @@ public partial class QuickSearchViewModel : ObservableObject
             SearchStatus = $"检索失败：{ex.Message}";
             SearchMetricsSummary = $"参数：候选 {candidateTopK}，扩展候选 {expandedCandidateTopK}，Top-K {finalTopK}；重排 {rerankTopK}；类型：{SearchAssetFormat}。";
             Log.Error(ex, "快速检索失败。");
+        }
+        finally
+        {
+            _isSearching = false;
         }
     }
 

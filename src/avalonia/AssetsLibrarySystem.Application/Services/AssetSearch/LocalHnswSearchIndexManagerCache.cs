@@ -8,6 +8,7 @@ namespace AssetsLibrarySystem.Application.Services.AssetSearch;
 /// </summary>
 internal static class LocalHnswSearchIndexManagerCache
 {
+    private const int MaxCachedModels = 4;
     private static readonly ConcurrentDictionary<string, LocalHnswSearchIndexManager> ByModel =
         new(StringComparer.Ordinal);
 
@@ -16,6 +17,13 @@ internal static class LocalHnswSearchIndexManagerCache
         if (string.IsNullOrWhiteSpace(embeddingModelKey))
         {
             embeddingModelKey = "default";
+        }
+
+        // 模型切换后旧 manager（含整张内存图）驻留：达到上限时整体清空释放，
+        // 避免无上限累积造成内存泄漏（下次访问时重建即可）
+        if (ByModel.Count >= MaxCachedModels && !ByModel.ContainsKey(embeddingModelKey))
+        {
+            ByModel.Clear();
         }
 
         return ByModel.GetOrAdd(embeddingModelKey, key => new LocalHnswSearchIndexManager(key));

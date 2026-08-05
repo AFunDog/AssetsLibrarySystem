@@ -22,6 +22,9 @@ class SearchService:
         self._dashscope_api_key = settings.dashscope_api_key
 
     def vectorize(self, payload: SearchIndexRequest) -> SearchIndexResponse:
+        if not self._dashscope_api_key:
+            raise RuntimeError("DashScope API Key 未配置，无法执行向量化（请在 src/backend/.env 配置 DASHSCOPE_API_KEY）")
+
         import dashscope
         import numpy as np
 
@@ -37,6 +40,7 @@ class SearchService:
             "api_key": self._dashscope_api_key or None,
             "model": payload.model,
             "input": payload.description,
+            "timeout": 300,
         }
         if payload.embedding_dimensions is not None:
             request_args["dimension"] = payload.embedding_dimensions
@@ -84,6 +88,9 @@ class SearchService:
         )
 
     def rerank(self, payload: SearchQueryRequest) -> SearchQueryResponse:
+        if not self._dashscope_api_key:
+            raise RuntimeError("DashScope API Key 未配置，无法执行重排（请在 src/backend/.env 配置 DASHSCOPE_API_KEY）")
+
         import dashscope
 
         candidates = payload.candidates
@@ -103,6 +110,7 @@ class SearchService:
                 documents=descriptions,
                 top_n=len(descriptions),
                 return_documents=False,
+                timeout=300,
             )
         except Exception as exc:
             logger.error("DashScope 重排序调用异常: %s", exc)
@@ -119,7 +127,15 @@ class SearchService:
         results = response.output["results"]
         scores = [0.0] * len(descriptions)
         for result in results:
-            scores[int(result["index"])] = float(result["relevance_score"])
+            try:
+                index = int(result["index"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise RuntimeError(f"DashScope 重排序结果缺少有效 index: {result}") from exc
+            if index < 0 or index >= len(scores):
+                raise RuntimeError(
+                    f"DashScope 重排序返回越界 index={index}，候选数={len(scores)}"
+                )
+            scores[index] = float(result["relevance_score"])
         token_usage = _extract_token_usage(response)
 
         ranked_items = []

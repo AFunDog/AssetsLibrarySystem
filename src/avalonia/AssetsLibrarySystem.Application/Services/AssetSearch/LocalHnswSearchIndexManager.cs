@@ -14,7 +14,9 @@ internal sealed class LocalHnswSearchIndexManager
 {
     private const string IndexFileName = "asset_search_vectors.hnsw";
     private const string MetadataFileName = "asset_search_vectors.meta.json";
-    private static object SyncRoot { get; } = new();
+    // 实例级锁：同一模型内的构建/搜索互斥；不同模型实例各自独立，
+    // 避免一个模型的索引重建阻塞所有模型的搜索（旧实现为 static 锁）
+    private object SyncRoot { get; } = new();
 
     private SmallWorld<float[], float>? _graph;
     private int? _dim;
@@ -55,7 +57,7 @@ internal sealed class LocalHnswSearchIndexManager
             ValidateInputs(vectors, orderedKeys);
 
             // 内存已加载且身份一致：跳过磁盘反序列化
-            if (_graph is not null && IsLoadedStateCurrent(orderedKeys, state))
+            if (_graph is not null && IsLoadedStateCurrent(vectors, orderedKeys, state))
             {
                 return;
             }
@@ -240,7 +242,10 @@ internal sealed class LocalHnswSearchIndexManager
         }
     }
 
-    private bool IsLoadedStateCurrent(IReadOnlyList<string> orderedKeys, LocalVectorIndexState state)
+    private bool IsLoadedStateCurrent(
+        IReadOnlyList<float[]> vectors,
+        IReadOnlyList<string> orderedKeys,
+        LocalVectorIndexState state)
     {
         if (_loadedState is null || _loadedKeys is null || _loadedFingerprint is null)
         {
@@ -262,7 +267,9 @@ internal sealed class LocalHnswSearchIndexManager
             }
         }
 
-        return true;
+        // 内容指纹：批量向量化可能在同一 tick 内写入（LatestUpdatedAt 相同）而内容不同，
+        // 仅靠键与时间戳判断会命中过期内存图；与磁盘 IsCurrent 的指纹校验保持一致。
+        return string.Equals(_loadedFingerprint, BuildEntriesFingerprint(vectors, orderedKeys), StringComparison.Ordinal);
     }
 
     private void RememberLoadedState(

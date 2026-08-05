@@ -36,10 +36,17 @@ public sealed class ThumbnailCacheService
         var cacheKey = filePath.ToUpperInvariant();
 
         // 检查缓存
-        if (_cache.TryGetValue(cacheKey, out var weakRef) && weakRef.TryGetTarget(out var cachedBitmap))
+        if (_cache.TryGetValue(cacheKey, out var weakRef))
         {
-            Touch(cacheKey);
-            return cachedBitmap;
+            if (weakRef.TryGetTarget(out var cachedBitmap))
+            {
+                Touch(cacheKey);
+                return cachedBitmap;
+            }
+
+            // 弱引用目标已被 GC 回收：移除失效条目，避免 key 永久滞留队列
+            _cache.Remove(cacheKey);
+            RemoveFromAccessOrder(cacheKey);
         }
 
         // 异步生成缩略图
@@ -104,9 +111,14 @@ public sealed class ThumbnailCacheService
     private void Touch(string key)
     {
         // 移到访问队列末尾
+        RemoveFromAccessOrder(key);
+        _accessOrder.Enqueue(key);
+    }
+
+    private void RemoveFromAccessOrder(string key)
+    {
         var tempList = new List<string>(_accessOrder);
         tempList.Remove(key);
-        tempList.Add(key);
         _accessOrder.Clear();
         foreach (var k in tempList)
             _accessOrder.Enqueue(k);
@@ -114,11 +126,17 @@ public sealed class ThumbnailCacheService
 
     private void EvictOldest()
     {
+        // 从队首清理：失效条目（弱引用已被 GC 回收）直接丢弃，
+        // 直到移除一个仍存活的条目，保证缓存容量不超过上限。
         while (_accessOrder.Count > 0)
         {
             var oldest = _accessOrder.Dequeue();
-            if (_cache.Remove(oldest))
+            var alive = _cache.TryGetValue(oldest, out var weakRef) && weakRef.TryGetTarget(out _);
+            _cache.Remove(oldest);
+            if (alive)
+            {
                 break;
+            }
         }
     }
 }

@@ -63,8 +63,8 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
                 vector_dim,
                 vector_blob,
                 vectorized_at,
-                content_hash,
-                source_fingerprint
+                v.content_hash,
+                v.source_fingerprint
             FROM asset_description_vectors AS v
             INNER JOIN assets AS a ON a.id = v.asset_id
             WHERE v.asset_id = $asset_id
@@ -116,6 +116,38 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
         }, ct);
     }
 
+    public async Task DeleteAnglesAsync(
+        long assetId,
+        string embeddingModel,
+        IReadOnlyCollection<string> angleTypes,
+        CancellationToken ct = default)
+    {
+        if (angleTypes.Count == 0)
+        {
+            return;
+        }
+
+        await AssetDatabase.EnsureSchemaAsync(ct);
+        await WriteQueue.EnqueueAsync(async token =>
+        {
+            await using var connection = await AssetDatabase.OpenConnectionAsync(token);
+            foreach (var angleType in angleTypes)
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = """
+                    DELETE FROM asset_description_vectors
+                    WHERE asset_id = $asset_id
+                      AND embedding_model = $embedding_model
+                      AND angle_type = $angle_type;
+                    """;
+                AddParameter(command, "$asset_id", assetId);
+                AddParameter(command, "$embedding_model", embeddingModel);
+                AddParameter(command, "$angle_type", angleType);
+                await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }
+        }, ct);
+    }
+
     public async Task<bool> NeedsVectorizationAsync(
         long assetId,
         string embeddingModel,
@@ -160,13 +192,17 @@ public sealed class AssetDescriptionVectorStore : IAssetDescriptionVectorStore
             return !string.Equals(descriptionContentHash, vectorContentHash, StringComparison.OrdinalIgnoreCase);
         }
 
-        // 描述生成时间 <= 向量化时间，且未触发上述任何条件 → 向量已是最新
-        if (descriptionGeneratedAt.HasValue && descriptionGeneratedAt.Value <= maxVectorizedAt)
+        // hash 信息不完整（旧数据/历史导入）时不能依赖时间戳判定“已最新”：
+        // 描述可能已被外部修改（如脚本直改 description 字段且未更新 generated_at），
+        // 保守地认为需要向量化。仅当双方 hash 完整且时间戳证明未更新时才可跳过。
+        if (!string.IsNullOrEmpty(descriptionContentHash)
+            && !string.IsNullOrEmpty(vectorContentHash)
+            && descriptionGeneratedAt.HasValue
+            && descriptionGeneratedAt.Value <= maxVectorizedAt)
         {
             return false;
         }
 
-        // 信息不足 → 保守地认为需要向量化
         return true;
     }
 

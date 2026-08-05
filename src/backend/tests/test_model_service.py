@@ -258,7 +258,7 @@ class ModelServiceTestCase(unittest.TestCase):
                 service.generate_text(
                     ModelGenerateRequest(
                         asset_format="音频",
-                        asset_path=r"D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav",
+                        asset_path=r"D:\示例素材库\music\sample1.wav",
                         prompt="请生成一句适合桌面端联调的说明。",
                     )
                 )
@@ -267,7 +267,7 @@ class ModelServiceTestCase(unittest.TestCase):
         self.assertEqual(response.mode, "mock")
         self.assertIn("桌面端联调阶段", response.output_text)
         self.assertIn("音频", response.output_text)
-        self.assertIn(r"D:\Data\全资源\music\DDLC\DDLC_PLUS\1.wav", response.output_text)
+        self.assertIn(r"D:\示例素材库\music\sample1.wav", response.output_text)
 
     def test_text_asset_helpers_build_real_inputs(self) -> None:
         service = ModelService()
@@ -290,9 +290,9 @@ class ModelServiceTestCase(unittest.TestCase):
     def test_multimodal_content_uses_file_uri(self) -> None:
         service = ModelService()
 
-        content = service._build_multimodal_content("图片", r"D:\Data\全资源\music\cover.png", "请打标")
+        content = service._build_multimodal_content("图片", r"D:\示例素材库\images\cover.png", "请打标")
 
-        self.assertEqual(content[0], {"image": "file://D:/Data/全资源/music/cover.png"})
+        self.assertEqual(content[0], {"image": "file://D:/示例素材库/images/cover.png"})
         self.assertEqual(content[1], {"text": "请打标"})
 
     def test_multimodal_content_clip_asset_uses_video(self) -> None:

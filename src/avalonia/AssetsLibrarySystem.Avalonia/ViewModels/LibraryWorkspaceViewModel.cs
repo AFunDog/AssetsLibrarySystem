@@ -278,7 +278,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         foreach (var library in Libraries.ToList())
         {
             var assets = await CatalogService.ScanLibraryAsync(library);
-            AllAssets.RemoveAll(a => a.LibraryName == library.Name);
+            AllAssets.RemoveAll(a => a.LibraryId == library.Id);
             AllAssets.AddRange(assets);
             library.AssetCount = assets.Count;
             if (SelectedLibrary?.Id == library.Id)
@@ -310,14 +310,14 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
             library = existing;
         }
         SelectedLibrary = library;
-        if (AllAssets.All(a => a.LibraryName != library.Name))
+        if (AllAssets.All(a => a.LibraryId != library.Id))
             _ = LoadLibraryDataForAsync(library);
     }
 
     private async Task LoadLibraryDataForAsync(LibraryWorkspace library)
     {
         var assets = await CatalogService.ScanLibraryAsync(library);
-        AllAssets.RemoveAll(a => a.LibraryName == library.Name);
+        AllAssets.RemoveAll(a => a.LibraryId == library.Id);
         AllAssets.AddRange(assets);
         library.AssetCount = assets.Count;
         RebuildAssetTree();
@@ -329,7 +329,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     {
         if (SelectedLibrary is null) return;
         var assets = await CatalogService.ScanLibraryAsync(SelectedLibrary);
-        AllAssets.RemoveAll(a => a.LibraryName == SelectedLibrary.Name);
+        AllAssets.RemoveAll(a => a.LibraryId == SelectedLibrary.Id);
         AllAssets.AddRange(assets);
         SelectedLibrary.AssetCount = assets.Count;
         RebuildAssetTree();
@@ -402,8 +402,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     {
         if (SelectedLibrary is null) return;
         var id = SelectedLibrary.Id;
-        var name = SelectedLibrary.Name;
-        AllAssets.RemoveAll(a => a.LibraryName == name);
+        AllAssets.RemoveAll(a => a.LibraryId == id);
         await CatalogService.DeleteLibraryAsync(id);
         Libraries.Remove(SelectedLibrary);
         SelectedLibrary = null;
@@ -492,7 +491,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
             if (SelectedAssetTreeNode.Kind == AssetLibraryTreeNodeKind.File && SelectedAssetTreeNode.Asset is not null)
                 return [SelectedAssetTreeNode.Asset];
             if (SelectedAssetTreeNode.Kind == AssetLibraryTreeNodeKind.Library && SelectedAssetTreeNode.Library is not null)
-                return AllAssets.Where(a => a.LibraryName == SelectedAssetTreeNode.Library.Name).ToList();
+                return AllAssets.Where(a => a.LibraryId == SelectedAssetTreeNode.Library.Id).ToList();
             if (SelectedAssetTreeNode.Kind == AssetLibraryTreeNodeKind.Directory)
             {
                 var prefix = NormalizePathPrefix(SelectedAssetTreeNode.FullPath);
@@ -887,23 +886,31 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     /// <summary>异步加载各片段起始帧缩略图（generation 防选中切换竞态）</summary>
     private async void LoadSegmentThumbnailsAsync(ManagedAssetRecord asset)
     {
-        var generation = ++SegmentThumbnailGeneration;
-        if (VideoFrameService is null || !File.Exists(asset.LocalPath))
+        try
         {
-            return;
-        }
-
-        var videoPath = asset.LocalPath;
-        foreach (var item in SelectedAssetSegmentItems)
-        {
-            var timestamp = item.Start;
-            var jpegBytes = await Task.Run(() => VideoFrameService.ExtractFrame(videoPath, timestamp)).ConfigureAwait(true);
-            if (generation != SegmentThumbnailGeneration)
+            var generation = ++SegmentThumbnailGeneration;
+            if (VideoFrameService is null || !File.Exists(asset.LocalPath))
             {
                 return;
             }
 
-            item.SetThumbnail(jpegBytes);
+            var videoPath = asset.LocalPath;
+            foreach (var item in SelectedAssetSegmentItems)
+            {
+                var timestamp = item.Start;
+                var jpegBytes = await Task.Run(() => VideoFrameService.ExtractFrame(videoPath, timestamp)).ConfigureAwait(true);
+                if (generation != SegmentThumbnailGeneration)
+                {
+                    return;
+                }
+
+                item.SetThumbnail(jpegBytes);
+        }
+        }
+        catch (Exception ex)
+        {
+            // 缩略图加载失败不影响主流程：记录并静默返回（ffmpeg 缺失/文件被移动等）
+            Log.Warning(ex, "片段缩略图加载失败: {AssetPath}", asset.LocalPath);
         }
     }
 
@@ -1061,7 +1068,7 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
     private AssetLibraryTreeNode BuildLibraryTree(LibraryWorkspace library)
     {
         var libraryAssets = AllAssets
-            .Where(a => a.LibraryName == library.Name)
+            .Where(a => a.LibraryId == library.Id)
             .OrderBy(a => a.RelativePath, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -1207,25 +1214,33 @@ public sealed partial class LibraryWorkspaceViewModel : ObservableObject
         if (ThumbnailCache is null)
             return;
 
-        // 在 Filtered 集合上也加载：UI 绑定的是 FilteredExplorerItems
-        var candidates = FilteredExplorerItems
-            .Concat(CurrentExplorerItems)
-            .Distinct()
-            .Where(item => item.Kind == AssetLibraryTreeNodeKind.File
-                           && item.Asset is not null
-                           && !item.HasThumbnail
-                           && string.Equals(item.Asset.AssetType, "图片", StringComparison.Ordinal))
-            .ToList();
-
-        foreach (var item in candidates)
+        try
         {
-            var thumbnail = await ThumbnailCache.GetThumbnailAsync(
-                item.FullPath, item.Asset!.AssetType);
-            if (thumbnail is not null)
+            // 在 Filtered 集合上也加载：UI 绑定的是 FilteredExplorerItems
+            var candidates = FilteredExplorerItems
+                .Concat(CurrentExplorerItems)
+                .Distinct()
+                .Where(item => item.Kind == AssetLibraryTreeNodeKind.File
+                               && item.Asset is not null
+                               && !item.HasThumbnail
+                               && string.Equals(item.Asset.AssetType, "图片", StringComparison.Ordinal))
+                .ToList();
+
+            foreach (var item in candidates)
             {
-                // AssetLibraryTreeNode 已实现 INotifyPropertyChanged，直接赋值即可刷新绑定
-                item.Thumbnail = thumbnail;
+                var thumbnail = await ThumbnailCache.GetThumbnailAsync(
+                    item.FullPath, item.Asset!.AssetType);
+                if (thumbnail is not null)
+                {
+                    // AssetLibraryTreeNode 已实现 INotifyPropertyChanged，直接赋值即可刷新绑定
+                    item.Thumbnail = thumbnail;
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            // 缩略图加载失败不影响主流程：记录并静默返回
+            Log.Warning(ex, "素材缩略图批量加载失败");
         }
     }
 

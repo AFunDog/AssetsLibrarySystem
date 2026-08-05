@@ -147,13 +147,13 @@
                         <TextBox Width="64"
                                  FontSize="11"
                                  Padding="4,2"
-                                 Watermark="开始"
+                                 PlaceholderText="开始"
                                  Text="{Binding DescriptionPanel.RangeStartText}"
                                  IsVisible="{Binding DescriptionPanel.IsClipRangeVisible}" />
                         <TextBox Width="64"
                                  FontSize="11"
                                  Padding="4,2"
-                                 Watermark="结束"
+                                 PlaceholderText="结束"
                                  Text="{Binding DescriptionPanel.RangeEndText}"
                                  IsVisible="{Binding DescriptionPanel.IsClipRangeVisible}" />
                         <ToggleButton Classes="secondary-action"
@@ -170,7 +170,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="332" />
                 </Grid.ColumnDefinitions>
-                <Grid RowDefinitions="Auto,8,Auto,6,*">
+                <Grid RowDefinitions="Auto,8,Auto,Auto,6,*">
                     <Border Classes="page-card">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                             <!-- 左侧：返回/前进导航 -->
@@ -237,10 +237,19 @@
                                     <Button Classes="secondary-action"
                                             Command="{Binding Workspace.ScanSelectedLibraryCommand}"
                                             Content="扫描当前" />
+                                    <Button Classes="secondary-action"
+                                            Command="{Binding SearchPanel.RebuildSearchIndexCommand}"
+                                            ToolTip.Tip="重新扫描本地 SQLite 向量数据并重建 HNSW 索引"
+                                            Content="重建索引" />
                                 </WrapPanel>
                                 <TextBlock Classes="section-subtitle"
                                            Text="{Binding Workspace.ExplorerSummary}"
                                            HorizontalAlignment="Right" />
+                                <TextBlock Classes="section-subtitle"
+                                           Text="{Binding SearchPanel.SearchIndexSummary}"
+                                           HorizontalAlignment="Right"
+                                           TextTrimming="CharacterEllipsis"
+                                           MaxWidth="420" />
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -325,12 +334,126 @@
                         </WrapPanel>
                     </Border>
 
-                    <GridSplitter Grid.Row="3"
+                    <!-- 语义检索面板：搜索框 + 参数 + 结果列表（复用 SearchPanel 命令） -->
+                    <Border Grid.Row="3" Classes="sub-card" Padding="10,8">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                                <TextBox PlaceholderText="输入素材描述，回车执行语义检索..."
+                                         FontSize="13"
+                                         Padding="8,6"
+                                         KeyDown="SearchTextBox_KeyDown"
+                                         Text="{Binding SearchPanel.SearchQuery}" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <TextBlock Classes="eyebrow" Text="类型" VerticalAlignment="Center" />
+                                    <ComboBox ItemsSource="{Binding SearchPanel.SearchAssetFormats}"
+                                              SelectedItem="{Binding SearchPanel.SearchAssetFormat, Mode=TwoWay}"
+                                              MinWidth="90"
+                                              FontSize="12"
+                                              Padding="4,2"
+                                              Background="{DynamicResource AppWindowBackgroundBrush}"
+                                              BorderBrush="{DynamicResource AppBorderBrush}"
+                                              Foreground="{DynamicResource AppTextBrush}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <TextBlock Classes="eyebrow" Text="候选" VerticalAlignment="Center" />
+                                    <TextBox Width="42"
+                                             FontSize="12"
+                                             Padding="4,2"
+                                             Text="{Binding SearchPanel.SearchCandidateTopKText}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <TextBlock Classes="eyebrow" Text="返回" VerticalAlignment="Center" />
+                                    <TextBox Width="42"
+                                             FontSize="12"
+                                             Padding="4,2"
+                                             Text="{Binding SearchPanel.SearchFinalTopKText}" />
+                                </StackPanel>
+                                <Button Grid.Column="4"
+                                        Classes="primary-action"
+                                        Command="{Binding SearchPanel.ExecuteSearchCommand}"
+                                        Content="检索"
+                                        MinHeight="30"
+                                        Padding="14,4" />
+                            </Grid>
+                            <TextBlock Classes="section-subtitle"
+                                       Text="{Binding SearchPanel.SearchStatus}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <ScrollViewer MaxHeight="170"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          IsVisible="{Binding SearchPanel.HasSearchResults}">
+                                <ItemsControl ItemsSource="{Binding SearchPanel.SearchResults}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="6" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="appmodels:AssetSearchDocument">
+                                            <Button Background="#662B2B2B"
+                                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Padding="10"
+                                                    HorizontalAlignment="Stretch"
+                                                    Click="RevealSearchResult_Click"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="点击定位到文件资源管理器">
+                                                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                        <StackPanel Spacing="1">
+                                                            <TextBlock Foreground="{DynamicResource AppTextBrush}"
+                                                                       FontSize="13"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Text="{Binding AssetName}" />
+                                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                       FontSize="10"
+                                                                       Text="{Binding AssetType}" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                            <Border Padding="5,1"
+                                                                    CornerRadius="4"
+                                                                    Background="#33FFFFFF"
+                                                                    BorderBrush="{DynamicResource AppBorderBrush}"
+                                                                    BorderThickness="1"
+                                                                    IsVisible="{Binding IsSegmentResult}">
+                                                                <TextBlock Foreground="{DynamicResource AppAccentBrush}"
+                                                                           FontSize="10"
+                                                                           FontWeight="SemiBold"
+                                                                           Text="{Binding SegmentTimeLabel}" />
+                                                            </Border>
+                                                            <TextBlock Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                                       FontSize="9"
+                                                                       HorizontalAlignment="Center"
+                                                                       Text="{Binding CombinedScore, StringFormat={}{0:0.0%}}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <TextBlock Grid.Row="1"
+                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               FontSize="10"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding AssetPath}" />
+                                                    <TextBlock Grid.Row="2"
+                                                               Foreground="{DynamicResource AppSecondaryTextBrush}"
+                                                               FontSize="10"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding Description}" />
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+
+                    <GridSplitter Grid.Row="4"
                                   Height="6"
                                   Classes="side-splitter-h"
                                   ResizeDirection="Rows" />
 
-                    <Border Grid.Row="4" Classes="page-card"
+                    <Border Grid.Row="5" Classes="page-card"
                               x:Name="ExplorerDropArea">
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
@@ -718,13 +841,13 @@
                                     <TextBox Width="64"
                                              FontSize="11"
                                              Padding="4,2"
-                                             Watermark="开始"
+                                             PlaceholderText="开始"
                                              Text="{Binding DescriptionPanel.RangeStartText}"
                                              IsVisible="{Binding DescriptionPanel.IsClipRangeVisible}" />
                                     <TextBox Width="64"
                                              FontSize="11"
                                              Padding="4,2"
-                                             Watermark="结束"
+                                             PlaceholderText="结束"
                                              Text="{Binding DescriptionPanel.RangeEndText}"
                                              IsVisible="{Binding DescriptionPanel.IsClipRangeVisible}" />
                                     <Button Classes="secondary-action"
@@ -735,6 +858,38 @@
                                             Command="{Binding VectorizeDescriptionsCommand}"
                                             Content="批量向量化" />
                                 </WrapPanel>
+
+                                <!-- 重命名：右键「重命名」填充文本后在此保存 -->
+                                <StackPanel Spacing="4" IsVisible="{Binding AssetDetail.IsAssetSelected}">
+                                    <TextBlock Classes="eyebrow" Text="重命名素材" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                        <TextBox FontSize="12"
+                                                 Padding="6,3"
+                                                 PlaceholderText="输入新名称..."
+                                                 Text="{Binding AssetDetail.RenameText}" />
+                                        <Button Grid.Column="1"
+                                                Classes="secondary-action"
+                                                Command="{Binding AssetDetail.RenameAssetCommand}"
+                                                Content="保存"
+                                                FontSize="11"
+                                                Padding="8,4" />
+                                    </Grid>
+                                </StackPanel>
+                                <StackPanel Spacing="4" IsVisible="{Binding AssetDetail.IsLibrarySelected}">
+                                    <TextBlock Classes="eyebrow" Text="重命名素材库" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                        <TextBox FontSize="12"
+                                                 Padding="6,3"
+                                                 PlaceholderText="输入新库名..."
+                                                 Text="{Binding AssetDetail.RenameText}" />
+                                        <Button Grid.Column="1"
+                                                Classes="secondary-action"
+                                                Command="{Binding AssetDetail.RenameLibraryCommand}"
+                                                Content="保存"
+                                                FontSize="11"
+                                                Padding="8,4" />
+                                    </Grid>
+                                </StackPanel>
 
                                 <!-- 标签行：chips + 添加 -->
                                 <StackPanel Spacing="4">

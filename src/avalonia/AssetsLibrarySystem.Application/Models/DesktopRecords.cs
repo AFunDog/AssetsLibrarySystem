@@ -61,6 +61,9 @@ public sealed class ManagedAssetRecord : ObservableModel
     public string AssetUid { get; init; } = string.Empty;
     public string Id => AssetUid;
     public string Name { get; init; } = string.Empty;
+
+    /// <summary>所属素材库 ID（同名库可能重复，按 ID 区分归属）</summary>
+    public long LibraryId { get; init; }
     public string LibraryName { get; init; } = string.Empty;
 
     /// <summary>素材类型（文本/图片/视频/音频/视频剪辑），可写以便类型转换后刷新</summary>

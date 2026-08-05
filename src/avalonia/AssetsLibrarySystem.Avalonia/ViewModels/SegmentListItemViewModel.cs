@@ -52,7 +52,9 @@ public sealed partial class SegmentListItemViewModel : ObservableObject
         try
         {
             using var stream = new MemoryStream(jpegBytes);
+            var previous = Thumbnail;
             Thumbnail = new Bitmap(stream);
+            previous?.Dispose();
             HasThumbnail = true;
         }
         catch

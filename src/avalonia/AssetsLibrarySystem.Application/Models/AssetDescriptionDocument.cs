@@ -32,4 +32,5 @@ public sealed record AssetDescriptionTokenUsage(
     int? AudioTokens,
     object? InputTokensDetails,
     object? OutputTokensDetails,
-    object? PromptTokensDetails);
+    object? PromptTokensDetails,
+    double? EstimatedCostCny = null);

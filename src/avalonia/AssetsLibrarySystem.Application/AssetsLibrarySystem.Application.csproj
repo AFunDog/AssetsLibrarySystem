@@ -16,6 +16,9 @@
     <PackageReference Include="HNSW" Version="26.6.1655" />
     <PackageReference Include="MessagePack" Version="3.1.7" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
+    <!-- 覆盖传递依赖 SQLitePCLRaw.lib.e_sqlite3 2.1.11（CVE-2025-6965，SQLite < 3.50.2 内存损坏）；
+         3.0.5 自带原生 SQLite 3.50.3，消除 NU1903 高危漏洞警告 -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />

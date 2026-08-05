@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Services.AssetDescription;
 using Serilog;
 
 namespace AssetsLibrarySystem.Application.Services.AssetSearch;
@@ -53,6 +54,7 @@ public sealed class AssetSearchPipeline : IAssetSearchPipeline
     private IRerankClient RerankClient { get; }
     private IScoreFusionService ScoreFusionService { get; }
     private ISearchResultAggregator SearchResultAggregator { get; }
+    private IAssetDescriptionStore DescriptionStore { get; }
 
     public AssetSearchPipeline(
         ISearchModelOptionsProvider searchModelOptionsProvider,
@@ -64,7 +66,8 @@ public sealed class AssetSearchPipeline : IAssetSearchPipeline
         IRerankCandidateSelector rerankCandidateSelector,
         IRerankClient rerankClient,
         IScoreFusionService scoreFusionService,
-        ISearchResultAggregator searchResultAggregator)
+        ISearchResultAggregator searchResultAggregator,
+        IAssetDescriptionStore descriptionStore)
     {
         SearchModelOptionsProvider = searchModelOptionsProvider;
         ParameterNormalizer = parameterNormalizer;
@@ -76,6 +79,7 @@ public sealed class AssetSearchPipeline : IAssetSearchPipeline
         RerankClient = rerankClient;
         ScoreFusionService = scoreFusionService;
         SearchResultAggregator = searchResultAggregator;
+        DescriptionStore = descriptionStore;
     }
 
     public async Task<AssetSearchResponseDocument> ExecuteAsync(
@@ -148,8 +152,71 @@ public sealed class AssetSearchPipeline : IAssetSearchPipeline
             RerankTokenUsage: rerankResponse.TokenUsage,
             TotalTokenUsage: SumTokenUsage(queryVectorResponse.TokenUsage, rerankResponse.TokenUsage),
             Results: aggregatedResults);
+        await AppendSearchUsageAsync(parameters.Query, searchModels, queryVectorResponse.TokenUsage, rerankResponse.TokenUsage, ct)
+            .ConfigureAwait(false);
         LogCompletion(response, parameters.RerankTopK);
         return response;
+    }
+
+    private async Task AppendSearchUsageAsync(
+        string query,
+        SearchModelOptions searchModels,
+        int? embeddingTokenUsage,
+        int? rerankTokenUsage,
+        CancellationToken ct)
+    {
+        // 检索与单个素材无关：asset_id 记 NULL，靠 operation/query 区分
+        const string assetName = "(检索)";
+        const string assetType = "检索";
+        if (embeddingTokenUsage is { } embeddingTokens)
+        {
+            try
+            {
+                await DescriptionStore.AppendApiUsageAsync(
+                    operation: "query",
+                    mode: "live",
+                    model: searchModels.EmbeddingModelKey,
+                    assetId: null,
+                    assetName: assetName,
+                    assetType: assetType,
+                    query: query,
+                    inputTokens: embeddingTokens,
+                    outputTokens: 0,
+                    totalTokens: embeddingTokens,
+                    estimatedCostCny: embeddingTokens / 1_000_000.0 * searchModels.EmbeddingPricePerMillion,
+                    ct).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // 用量统计失败不应中断检索主流程
+                Log.Warning("检索用量统计落库失败（query）：{Message}", ex.Message);
+            }
+        }
+
+        if (rerankTokenUsage is { } rerankTokens)
+        {
+            try
+            {
+                await DescriptionStore.AppendApiUsageAsync(
+                    operation: "rerank",
+                    mode: "live",
+                    model: searchModels.RerankModel,
+                    assetId: null,
+                    assetName: assetName,
+                    assetType: assetType,
+                    query: query,
+                    inputTokens: rerankTokens,
+                    outputTokens: 0,
+                    totalTokens: rerankTokens,
+                    estimatedCostCny: rerankTokens / 1_000_000.0 * searchModels.RerankPricePerMillion,
+                    ct).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // 用量统计失败不应中断检索主流程
+                Log.Warning("检索用量统计落库失败（rerank）：{Message}", ex.Message);
+            }
+        }
     }
 
     private static void EnsureRecordsAvailable<T>(IReadOnlyCollection<T> records, string message)

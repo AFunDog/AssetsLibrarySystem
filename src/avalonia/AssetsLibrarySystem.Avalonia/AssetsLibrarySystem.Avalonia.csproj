@@ -48,6 +48,9 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
+    <!-- 覆盖传递依赖 SQLitePCLRaw.lib.e_sqlite3 2.1.11（CVE-2025-6965，SQLite < 3.50.2 内存损坏）；
+         3.0.5 自带原生 SQLite 3.50.3，消除 NU1903 高危漏洞警告 -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageReference Include="Serilog" Version="4.3.1" />
     <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />

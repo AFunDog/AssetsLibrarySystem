@@ -1,5 +1,6 @@
 using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Models;
+using AssetsLibrarySystem.Application.Services.AssetDescription;
 using AssetsLibrarySystem.Application.Services.AssetSearch;
 using Xunit;
 
@@ -26,7 +27,8 @@ public sealed class AssetSearchPipelineTests
             new RerankCandidateSelector(),
             new FakeRerankClient(),
             new ScoreFusionService(),
-            new SearchResultAggregator());
+            new SearchResultAggregator(),
+            new FakeDescriptionStore());
 
         var response = await pipeline.ExecuteAsync(
             new AssetSearchPipelineRequest("http://backend", "  夜晚图片  ", 20, 5, "智能类型", 160, 50));
@@ -96,7 +98,8 @@ public sealed class AssetSearchPipelineTests
             new RerankCandidateSelector(),
             new FakeRerankClient(),
             new ScoreFusionService(),
-            new SearchResultAggregator());
+            new SearchResultAggregator(),
+            new FakeDescriptionStore());
 
         var response = await pipeline.ExecuteAsync(
             new AssetSearchPipelineRequest("http://backend", "片段", 20, 5, null, 160, 50));
@@ -166,7 +169,7 @@ public sealed class AssetSearchPipelineTests
     private sealed class FakeSearchModelOptionsProvider : ISearchModelOptionsProvider
     {
         public SearchModelOptions Current { get; } =
-            new("dashscope", "embedding-test", 1024, "dashscope", "rerank-test");
+            new("dashscope", "embedding-test", 1024, "dashscope", "rerank-test", 0.7, 0.2);
     }
 
     private sealed class FakeVectorRecordRepository(IReadOnlyList<LocalVectorRecord> records)
@@ -203,5 +206,41 @@ public sealed class AssetSearchPipelineTests
                 .ToArray();
             return Task.FromResult(new RerankResult(searchModels.RerankModel, scores, 11));
         }
+    }
+
+    private sealed class FakeDescriptionStore : IAssetDescriptionStore
+    {
+        public string DatabasePath => "test.db";
+
+        public Task SaveAsync(AssetDescriptionDocument document, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<AssetDescriptionDocument?> TryGetAsync(long assetId, CancellationToken ct = default) =>
+            Task.FromResult<AssetDescriptionDocument?>(null);
+
+        public Task<IReadOnlyDictionary<long, AssetDescriptionDocument>> GetDescriptionsAsync(
+            IReadOnlyCollection<long> assetIds, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyDictionary<long, AssetDescriptionDocument>>(
+                new Dictionary<long, AssetDescriptionDocument>());
+
+        public Task<AssetDescriptionDocument?> TryGetForAssetAsync(ManagedAssetRecord asset, CancellationToken ct = default) =>
+            Task.FromResult<AssetDescriptionDocument?>(null);
+
+        public Task<bool> DeleteAsync(long assetId, CancellationToken ct = default) => Task.FromResult(true);
+
+        public Task UpdateDescriptionAsync(long assetId, string newDescription, CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public Task AppendTokenUsageAsync(AssetDescriptionDocument document, CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public Task AppendApiUsageAsync(
+            string operation, string mode, string model, long? assetId, string assetName, string assetType,
+            string? query, int inputTokens, int outputTokens, int totalTokens, double? estimatedCostCny,
+            CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public Task<AssetTokenUsageSummary> GetTokenUsageSummaryAsync(
+            long? assetId = null, long? libraryId = null, int limit = 20, CancellationToken ct = default) =>
+            Task.FromResult(new AssetTokenUsageSummary(0, 0, 0, 0, 0, []));
     }
 }

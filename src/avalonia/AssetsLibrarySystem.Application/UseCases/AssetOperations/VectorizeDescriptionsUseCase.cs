@@ -86,13 +86,16 @@ public sealed class VectorizeDescriptionsUseCase
                     asset.DatabaseId, embeddingModelKey, description.ContentHash, description.GeneratedAt, ct).ConfigureAwait(false);
 
                 // 剪辑素材：片段级增量判定（按角度文本指纹对比，避免重复向量化未变化片段）
+                // 只取当前 embedding 模型的向量：多模型共存时旧模型行既不能复用，
+                // 也会让按 AngleType 分组出现重复键。
                 var isClip = string.Equals(description.AssetType, "视频剪辑", StringComparison.Ordinal);
                 Dictionary<string, AssetDescriptionVectorDocument>? existingByAngle = null;
                 if (isClip)
                 {
                     var existingVectors = await VectorStore.ListByAssetIdAsync(asset.DatabaseId, ct).ConfigureAwait(false);
                     existingByAngle = existingVectors
-                        .Where(vector => vector.SourceFingerprint is not null)
+                        .Where(vector => vector.SourceFingerprint is not null
+                            && string.Equals(vector.EmbeddingModel, embeddingModelKey, StringComparison.Ordinal))
                         .ToDictionary(vector => vector.AngleType);
                 }
 
@@ -105,6 +108,19 @@ public sealed class VectorizeDescriptionsUseCase
                             && existingByAngle.TryGetValue(pair.Key, out var vector)
                             && string.Equals(vector.SourceFingerprint, pair.Value, StringComparison.Ordinal)))
                     {
+                        // 片段集合可能已变化（重新分割/删除片段）：清理不再属于当前描述的残留向量
+                        if (existingByAngle is not null)
+                        {
+                            var staleAngles = existingByAngle.Keys
+                                .Where(angle => !expected.ContainsKey(angle))
+                                .ToArray();
+                            if (staleAngles.Length > 0)
+                            {
+                                await VectorStore.DeleteAnglesAsync(
+                                    asset.DatabaseId, embeddingModelKey, staleAngles, ct).ConfigureAwait(false);
+                            }
+                        }
+
                         await VectorStore.MarkAsIndexedAsync(asset.DatabaseId, ct).ConfigureAwait(false);
                         skipCount++;
                         await ReportAsync(progress, VectorizeDescriptionProgress.Skipped(asset, "片段向量已是最新"), ct).ConfigureAwait(false);
@@ -122,7 +138,7 @@ public sealed class VectorizeDescriptionsUseCase
 
                 try
                 {
-                    var vectorDocuments = await TextVectorizationService
+                    var vectorization = await TextVectorizationService
                         .VectorizeAsync(
                             description,
                             backendBaseUrl,
@@ -133,7 +149,19 @@ public sealed class VectorizeDescriptionsUseCase
                             existingByAngle,
                             ct)
                         .ConfigureAwait(false);
+                    var vectorDocuments = vectorization.Documents;
                     await VectorStore.ReplaceForAssetAsync(asset.DatabaseId, embeddingModelKey, vectorDocuments, ct).ConfigureAwait(false);
+                    if (vectorization.TotalTokens > 0)
+                    {
+                        await AppendVectorizeUsageAsync(
+                            description,
+                            asset,
+                            embeddingModelKey,
+                            searchModels.EmbeddingPricePerMillion,
+                            vectorization.TotalTokens,
+                            ct).ConfigureAwait(false);
+                    }
+
                     successCount++;
                     await ReportAsync(progress, VectorizeDescriptionProgress.Completed(asset, vectorDocuments), ct).ConfigureAwait(false);
                 }
@@ -178,6 +206,30 @@ public sealed class VectorizeDescriptionsUseCase
     {
         ct.ThrowIfCancellationRequested();
         return progress?.Invoke(value) ?? Task.CompletedTask;
+    }
+
+    private async Task AppendVectorizeUsageAsync(
+        AssetDescriptionDocument description,
+        ManagedAssetRecord asset,
+        string embeddingModelKey,
+        double embeddingPricePerMillion,
+        int totalTokens,
+        CancellationToken ct)
+    {
+        var cost = totalTokens / 1_000_000.0 * embeddingPricePerMillion;
+        await DescriptionStore.AppendApiUsageAsync(
+            operation: "vectorize",
+            mode: description.Mode,
+            model: embeddingModelKey,
+            assetId: asset.DatabaseId,
+            assetName: asset.Name,
+            assetType: asset.AssetType,
+            query: null,
+            inputTokens: totalTokens,
+            outputTokens: 0,
+            totalTokens: totalTokens,
+            estimatedCostCny: cost,
+            ct).ConfigureAwait(false);
     }
 }
 

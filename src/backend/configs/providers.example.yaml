@@ -21,7 +21,7 @@ api_key: ""
 
 视频:
   provider: dashscope
-  model: qwen3.6-plus
+  model: qwen3.7-flash
   temperature: 0.2
   max_tokens: 1024
   reasoning_effort: null
@@ -29,7 +29,7 @@ api_key: ""
 
 音频:
   provider: dashscope
-  model: qwen3-omni-30b-a3b-captioner
+  model: qwen3.5-omni-flash
   temperature: 0.2
   max_tokens: 1024
   reasoning_effort: null

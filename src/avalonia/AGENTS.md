@@ -32,7 +32,7 @@ AssetsLibrarySystem.Application.Tests/  # xUnit 单元测试
 
 ## 关键技术选型
 
-- **UI**: Avalonia 11.x, FluentTheme Dark, compiled bindings (`AvaloniaUseCompiledBindingsByDefault=true`)
+- **UI**: Avalonia 12.x, FluentTheme Dark, compiled bindings (`AvaloniaUseCompiledBindingsByDefault=true`)
 - **MVVM**: CommunityToolkit.Mvvm 8.4.1 源码生成器 (`[ObservableProperty]`, `[RelayCommand]`)
 - **DI**: Autofac（所有注册在 `App.BuildContainer()` 中手动完成）
 - **日志**: Serilog（appsettings.json 配置）
@@ -56,7 +56,7 @@ AssetsLibrarySystem.Application.Tests/  # xUnit 单元测试
 
 ## 导航方案
 
-- **主窗口**: `TabControl` 四标签页（Overview / Library / DescriptionTasks / Settings）
+- **主窗口**: `TabControl` 三标签页（Overview / Library / Settings），描述与向量化面板集成在 Library 页内
 - **快捷搜索**: 独立 `QuickSearchWindow`，`Ctrl+Shift+Space` 全局热键切换
 - **窗口管理**: `ShellWindowService` 接管显示/隐藏/托盘逻辑，`ShutdownMode.OnExplicitShutdown`
 
@@ -68,7 +68,7 @@ AssetsLibrarySystem.Application.Tests/  # xUnit 单元测试
 
 - 记录数 ≤5000 时用 exact cosine 暴力搜索，否则用 HNSW
 - HNSW 索引持久化到文件，带指纹校验
-- 描述分"角度"存储（全面/风格/情感/乐器等），向量化时按角度分别建立索引
+- 描述分"角度"存储（整体/风格/情感/乐器等，主角度「整体」，兼容历史「全面」），向量化时按角度分别建立索引
 
 ## 当前阶段
 

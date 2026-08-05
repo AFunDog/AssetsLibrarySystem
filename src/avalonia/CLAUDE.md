@@ -34,8 +34,7 @@ dotnet test AssetsLibrarySystem.Application.Tests
 | SQLite 数据库 | `AssetsLibrarySystem.Application/Services/Infrastructure/SqliteAssetDatabase.cs` |
 | 搜索索引管理 | `AssetsLibrarySystem.Application/Services/AssetSearch/LocalHnswSearchIndexManager.cs` |
 | 用例编排 | `AssetsLibrarySystem.Application/UseCases/AssetOperations/` |
-| 导航/目录服务 | `AssetsLibrarySystem.Avalonia/Services/Library/` |
-| 窗口管理 | `AssetsLibrarySystem.Avalonia/Services/Shell/ShellWindowService.cs` |
+| 窗口管理/导航 | `AssetsLibrarySystem.Avalonia/Services/Shell/ShellWindowService.cs` |
 
 ## C# 编码风格
 

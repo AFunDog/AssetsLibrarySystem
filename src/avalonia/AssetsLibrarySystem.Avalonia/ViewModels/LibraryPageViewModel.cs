@@ -7,6 +7,7 @@ using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Serilog;
 
 namespace AssetsLibrarySystem.Avalonia.ViewModels;
 
@@ -40,11 +41,6 @@ public sealed partial class LibraryPageViewModel : ObservableObject
         VectorizationPanel = vectorizationPanel;
         BackendStatus = backendStatus;
         ActivityFeed = activityFeedService.Entries;
-
-        Workspace.PropertyChanged += BubblePropertyChanged;
-        AssetDetail.PropertyChanged += BubblePropertyChanged;
-        SearchPanel.PropertyChanged += BubblePropertyChanged;
-        BackendStatus.PropertyChanged += BubblePropertyChanged;
     }
 
     [Obsolete("仅供设计器使用")]
@@ -118,14 +114,22 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             return;
 
         var path = System.IO.Path.GetFullPath(node.FullPath);
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        try
         {
-            FileName = "explorer.exe",
-            UseShellExecute = true,
-            Arguments = node.Kind == AssetLibraryTreeNodeKind.File
-                ? $"/select,\"{path}\""
-                : $"\"{path}\""
-        });
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                UseShellExecute = true,
+                Arguments = node.Kind == AssetLibraryTreeNodeKind.File
+                    ? $"/select,\"{path}\""
+                    : $"\"{path}\""
+            });
+        }
+        catch (System.Exception ex)
+        {
+            Log.Warning(ex, "打开资源管理器失败: path={Path}", path);
+            Workspace.SetOperatorNotice($"打开文件资源管理器失败：{ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -135,8 +139,4 @@ public sealed partial class LibraryPageViewModel : ObservableObject
             Workspace.SelectLibrary(library);
     }
 
-    private void BubblePropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        OnPropertyChanged(e.PropertyName);
-    }
 }

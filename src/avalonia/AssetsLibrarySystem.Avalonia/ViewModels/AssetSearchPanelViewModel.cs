@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -44,6 +45,7 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         SearchQuery = "紧张氛围的音乐";
         SearchCandidateTopKText = "20";
         SearchFinalTopKText = "5";
+        SearchAssetFormats = ["全部", "智能类型", "文本", "图片", "视频", "音频", "视频剪辑"];
         SearchAssetFormat = string.Empty;
         SearchStatus = "尚未执行素材检索。";
         SearchIndexSummary = "尚未刷新本地检索状态。";
@@ -52,6 +54,12 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         ExecuteSearchCommand = new AsyncRelayCommand(ExecuteSearchAsync);
         RebuildSearchIndexCommand = new AsyncRelayCommand(RebuildSearchIndexAsync);
     }
+
+    public ObservableCollection<AssetSearchDocument> SearchResults { get; }
+    public IReadOnlyList<string> SearchAssetFormats { get; }
+
+    /// <summary>是否存在搜索结果（控制结果列表可见性）</summary>
+    public bool HasSearchResults => SearchResults.Count > 0;
 
     [ObservableProperty]
     public partial string SearchQuery { get; set; }
@@ -74,7 +82,6 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
     [ObservableProperty]
     public partial string SearchIndexDetail { get; set; }
 
-    public ObservableCollection<AssetSearchDocument> SearchResults { get; }
     public IAsyncRelayCommand ExecuteSearchCommand { get; }
     public IAsyncRelayCommand RebuildSearchIndexCommand { get; }
 
@@ -88,12 +95,21 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
         }
 
         var path = Path.GetFullPath(result.AssetPath);
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = "explorer.exe",
-            UseShellExecute = true,
-            Arguments = $"/select,\"{path}\"",
-        });
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                UseShellExecute = true,
+                Arguments = $"/select,\"{path}\"",
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "打开资源管理器失败: path={Path}", path);
+            Workspace.SetOperatorNotice($"打开文件资源管理器失败：{ex.Message}");
+            return;
+        }
 
         Workspace.SetOperatorNotice($"已在文件资源管理器中显示：{path}");
         _activityFeedService.Add($"搜索结果定位：{result.AssetName}");
@@ -159,13 +175,15 @@ public sealed partial class AssetSearchPanelViewModel : ObservableObject
                 SearchQuery,
                 candidateTopK,
                 finalTopK,
-                string.IsNullOrWhiteSpace(SearchAssetFormat) ? null : SearchAssetFormat);
+                string.IsNullOrWhiteSpace(SearchAssetFormat) || SearchAssetFormat == "全部" ? null : SearchAssetFormat);
 
             SearchResults.Clear();
             foreach (var item in response.Results)
             {
                 SearchResults.Add(item);
             }
+
+            OnPropertyChanged(nameof(HasSearchResults));
 
             SearchStatus = $"检索完成：候选 {response.CandidateTopK} 条，返回 {response.Results.Length} 条。";
             Workspace.SetOperatorNotice(SearchStatus);

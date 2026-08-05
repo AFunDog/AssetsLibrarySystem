@@ -42,10 +42,26 @@ public sealed partial class AssetDetailViewModel : ObservableObject
                 OnPropertyChanged(nameof(ChangeAssetTypeTargetLabel));
             }
 
+            // SelectedAsset 引用可能不变（类型/名称等原地修改），HasSelectedAsset 依赖引用非空，
+            // 这里按选中状态显式通知，避免详情头部可见性卡在初始值
+            if (e.PropertyName is nameof(Workspace.SelectedAsset) or nameof(Workspace.SelectedAssetType))
+            {
+                OnPropertyChanged(nameof(HasSelectedAsset));
+                OnPropertyChanged(nameof(IsAssetSelected));
+            }
+
+            if (e.PropertyName is nameof(Workspace.SelectedLibrary))
+            {
+                OnPropertyChanged(nameof(IsLibrarySelected));
+            }
+
             if (e.PropertyName is nameof(Workspace.SelectedAsset) or nameof(Workspace.SelectedAssetDescriptionAngles)
-                or nameof(Workspace.SelectedAssetSegmentDescriptionGroups))
+                or nameof(Workspace.SelectedAssetSegmentDescriptionGroups)
+                or nameof(Workspace.SelectedAssetType))
             {
                 OnPropertyChanged(nameof(ShowAngleEmptyHint));
+                // 类型修改（视频↔视频剪辑）是原地改 AssetType，SelectedAsset 引用不变，
+                // 需要随 SelectedAssetType 变化刷新分组/平铺展示状态
                 OnPropertyChanged(nameof(IsClipAssetSelected));
             }
 
@@ -119,6 +135,12 @@ public sealed partial class AssetDetailViewModel : ObservableObject
 
     /// <summary>当前是否选中了素材（头部/操作区可见性：预览失败时也不隐藏操作）</summary>
     public bool HasSelectedAsset => Workspace.SelectedAsset is not null;
+
+    /// <summary>当前是否选中了素材（重命名素材行可见性）</summary>
+    public bool IsAssetSelected => Workspace.SelectedAsset is not null;
+
+    /// <summary>当前是否选中了素材库（重命名库行可见性）</summary>
+    public bool IsLibrarySelected => Workspace.SelectedLibrary is not null;
 
     /// <summary>当前选中素材是否为剪辑素材（控制分组/平铺两种描述展示）</summary>
     public bool IsClipAssetSelected => Workspace.SelectedAsset is { AssetType: "视频剪辑" };

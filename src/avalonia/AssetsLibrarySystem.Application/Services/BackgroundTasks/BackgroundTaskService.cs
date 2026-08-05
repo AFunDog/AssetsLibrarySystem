@@ -278,6 +278,10 @@ public sealed class BackgroundTaskService : ObservableModel, IBackgroundTaskServ
         {
             TaskIndex.Remove(task.Id);
             Tasks.Remove(task);
+            // 任务已结束并从列表移除，释放取消令牌源避免注册回调长期存活。
+            // 注意：释放后任务不再在 TaskIndex 中，GetCancellationToken 只会返回
+            // CancellationToken.None，不会再向已释放源注册新回调（会抛 ObjectDisposedException）。
+            task.Cancellation.Dispose();
         }
     }
 

@@ -6,6 +6,7 @@ using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.UseCases.AssetOperations;
 using AssetsLibrarySystem.Avalonia.Models;
 using AssetsLibrarySystem.Avalonia.Services.Activity;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Serilog;
@@ -116,7 +117,10 @@ public sealed partial class AssetVectorizationPanelViewModel : ObservableObject
                 {
                     if (progress.Kind == VectorizeDescriptionProgressKind.Completed)
                     {
-                        Workspace.MarkAssetVectorized(progress.Asset);
+                        // UseCase 内部 ConfigureAwait(false) 后回调在后台线程执行，
+                        // 统一派发到 UI 线程再刷新工作台状态，避免跨线程改集合
+                        // （与描述面板 progress 回调保持一致）。
+                        Dispatcher.UIThread.Post(() => Workspace.MarkAssetVectorized(progress.Asset));
                     }
 
                     return Task.CompletedTask;

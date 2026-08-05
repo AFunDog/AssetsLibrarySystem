@@ -15,6 +15,8 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
     private const string DashScopeProvider = "dashscope";
     private const string DefaultDashScopeEmbeddingModel = "text-embedding-v4";
     private const string DefaultDashScopeRerankModel = "qwen3-rerank";
+    private const double DefaultEmbeddingPricePerMillion = 0.7;
+    private const double DefaultRerankPricePerMillion = 0.2;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -226,7 +228,14 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
         }
     }
 
-    public SearchModelOptions Current => new(EmbeddingProvider, EmbeddingModel, EmbeddingDimensions, RerankProvider, RerankModel);
+    public SearchModelOptions Current => new(
+        EmbeddingProvider,
+        EmbeddingModel,
+        EmbeddingDimensions,
+        RerankProvider,
+        RerankModel,
+        DefaultEmbeddingPricePerMillion,
+        DefaultRerankPricePerMillion);
 
     private ProviderEmbeddingSettings CurrentEmbeddingSettings => _dashScopeEmbedding;
 
@@ -327,6 +336,11 @@ public sealed class UserSettingsService : IUserSettingsService, IDisposable
     {
         lock (_saveGate)
         {
+            if (_isDisposed)
+            {
+                return;
+            }
+
             if (!_hasPendingSave)
             {
                 return;

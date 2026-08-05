@@ -21,6 +21,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
 
     private IDatabaseWriteQueue WriteQueue { get; }
     private IAssetDatabase AssetDatabase { get; }
+    private ISearchModelOptionsProvider? SearchModelOptionsProvider { get; }
     private JsonSerializerOptions JsonOptions { get; } = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -30,10 +31,14 @@ public sealed class AssetLibraryService : IAssetLibraryService
     private AssetUidSidecarStore UidSidecarStore { get; } = new();
     private AssetContentHasher ContentHasher { get; } = new();
 
-    public AssetLibraryService(IDatabaseWriteQueue writeQueue, IAssetDatabase assetDatabase)
+    public AssetLibraryService(
+        IDatabaseWriteQueue writeQueue,
+        IAssetDatabase assetDatabase,
+        ISearchModelOptionsProvider? searchModelOptionsProvider = null)
     {
         WriteQueue = writeQueue;
         AssetDatabase = assetDatabase;
+        SearchModelOptionsProvider = searchModelOptionsProvider;
     }
 
     public async Task<IReadOnlyList<LibraryWorkspace>> GetLibrariesAsync(CancellationToken ct = default)
@@ -314,7 +319,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
         else
         {
             currentHash = ContentHasher.GetHash(normalizedPath, fileInfo, stats);
-            assetRecord = TryGetAssetByContentHash(connection, currentHash);
+            assetRecord = TryGetAssetByContentHash(connection, currentHash, normalizedPath);
             // 素材级手动类型覆盖（视频 ↔ 视频剪辑）优先于扫描派生类型，扫描不还原
             if (assetRecord is not null
                 && IsVideoLikeType(assetRecord.AssetType)
@@ -412,6 +417,7 @@ public sealed class AssetLibraryService : IAssetLibraryService
             DatabaseId = assetRecord.Id,
             AssetUid = assetRecord.AssetUid,
             Name = fileInfo.Name,
+            LibraryId = library.Id,
             LibraryName = library.Name,
             AssetType = assetType,
             RelativePath = relativePath,
@@ -757,7 +763,10 @@ public sealed class AssetLibraryService : IAssetLibraryService
         return reader.Read() ? ReadAssetDbRecord(reader) : null;
     }
 
-    private AssetDbRecord? TryGetAssetByContentHash(SqliteConnection connection, string contentHash)
+    private AssetDbRecord? TryGetAssetByContentHash(
+        SqliteConnection connection,
+        string contentHash,
+        string currentPath)
     {
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -786,7 +795,23 @@ public sealed class AssetLibraryService : IAssetLibraryService
         AddParameter(command, "$content_hash", contentHash);
 
         using var reader = command.ExecuteReader();
-        return reader.Read() ? ReadAssetDbRecord(reader) : null;
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        var record = ReadAssetDbRecord(reader);
+        if (string.Equals(record.CurrentPath, currentPath, StringComparison.OrdinalIgnoreCase))
+        {
+            // 同路径同内容：正常幂等复用
+            return record;
+        }
+
+        // 命中记录是另一个路径（重复内容文件）。若该记录的原路径文件仍然存在，
+        // 说明是两个独立文件，不能共享 asset_uid（否则 current_path 每轮互相顶替、
+        // 扫描永不幂等），视为新文件返回 null 让其创建独立 uid；
+        // 仅当原路径文件已不存在（移动/重命名场景）才复用记录恢复关联。
+        return File.Exists(record.CurrentPath) ? null : record;
     }
 
     private static AssetDbRecord ReadAssetDbRecord(SqliteDataReader reader)
@@ -823,16 +848,31 @@ public sealed class AssetLibraryService : IAssetLibraryService
         return command.ExecuteScalar() is not null;
     }
 
-    private static bool HasVector(SqliteConnection connection, long assetId)
+    private bool HasVector(SqliteConnection connection, long assetId)
     {
+        // 区分 embedding 模型：只有旧模型向量的素材不应显示为“已向量化”
+        var embeddingModel = SearchModelOptionsProvider?.Current.EmbeddingModelKey;
         using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT 1
-            FROM asset_description_vectors
-            WHERE asset_id = $asset_id
-            LIMIT 1;
-            """;
+        command.CommandText = embeddingModel is null
+            ? """
+                SELECT 1
+                FROM asset_description_vectors
+                WHERE asset_id = $asset_id
+                LIMIT 1;
+                """
+            : """
+                SELECT 1
+                FROM asset_description_vectors
+                WHERE asset_id = $asset_id
+                  AND embedding_model = $embedding_model
+                LIMIT 1;
+                """;
         AddParameter(command, "$asset_id", assetId);
+        if (embeddingModel is not null)
+        {
+            AddParameter(command, "$embedding_model", embeddingModel);
+        }
+
         return command.ExecuteScalar() is not null;
     }
 

@@ -13,6 +13,7 @@ import json
 import logging
 import subprocess
 import tempfile
+import uuid
 from collections.abc import Awaitable
 from pathlib import Path
 from typing import Any, Callable
@@ -26,6 +27,21 @@ logger = logging.getLogger(__name__)
 
 # 切片阈值：视频时长超过此值才启用切片（秒）
 DEFAULT_SLICE_THRESHOLD_SECONDS = 60.0
+
+# 单片段最大时长（秒）：超过此时长的场景会被等分成多段（max_seconds 兜底）
+DEFAULT_MAX_SCENE_SECONDS = 40.0
+
+# 片段提取失败时回退“整视频”的次数上限：超过后改写占位描述，避免 token 爆炸
+MAX_FALLBACK_TO_FULL_VIDEO = 3
+
+
+def _safe_unlink(path: str) -> None:
+    """删除临时文件，忽略 OSError（Windows 上 ffmpeg 句柄未释放/杀软扫描时会失败，
+    不应让清理失败中断已成功的描述流程）。"""
+    try:
+        Path(path).unlink(missing_ok=True)
+    except OSError as exc:
+        logger.debug("删除临时文件失败: path=%s, error=%s", path, exc)
 
 
 def ffmpeg_extract_segment(
@@ -104,6 +120,8 @@ class VideoSliceDescriber:
         scene_detector: 场景检测器实例。
         slice_threshold: 切片阈值（秒），超过此值时长的视频才启用切片。
         min_seconds: 最小场景时长（秒），相邻过短场景会被合并。默认 5.0。
+        max_seconds: 最大场景时长（秒），超过此长度的场景会被等分成多段，
+            避免出现超长片段（如片尾曲、长对话）。默认 40.0。
         overlap_seconds: 相邻切片的重叠秒数，前后各延伸此值，避免切点遗漏关键内容。默认 0.5。
         temp_dir: 临时文件目录。
     """
@@ -115,12 +133,15 @@ class VideoSliceDescriber:
         scene_detector: VideoSceneDetector | None = None,
         slice_threshold: float = DEFAULT_SLICE_THRESHOLD_SECONDS,
         min_seconds: float = 5.0,
+        max_seconds: float = DEFAULT_MAX_SCENE_SECONDS,
         overlap_seconds: float = 0.5,
         temp_dir: str | Path | None = None,
     ) -> None:
         self._call_llm = call_llm
         self._summarize_fn = summarize_fn
-        self._scene_detector = scene_detector or VideoSceneDetector(min_seconds=min_seconds)
+        self._scene_detector = scene_detector or VideoSceneDetector(
+            min_seconds=min_seconds, max_seconds=max_seconds
+        )
         self._slice_threshold = slice_threshold
         self._overlap_seconds = overlap_seconds
         self._temp_dir = Path(temp_dir) if temp_dir else Path(tempfile.gettempdir())
@@ -183,6 +204,7 @@ class VideoSliceDescriber:
         segment_descriptions = []
         previous_context = ""
         cumulative_summary = ""
+        fallback_count: list[int] = [0]
         for i, scene in enumerate(scenes):
             # 应用重叠：起点向前延伸，终点向后延伸，不超出视频边界
             overlap = self._overlap_seconds
@@ -207,6 +229,7 @@ class VideoSliceDescriber:
                 prompt=prompt,
                 previous_context=previous_context,
                 cumulative_summary=cumulative_summary,
+                fallback_count=fallback_count,
             )
             # 提取当前片段描述，更新累积摘要和上一片段上下文
             seg_texts = []
@@ -216,7 +239,7 @@ class VideoSliceDescriber:
                     value = seg_desc[key]
                     if isinstance(value, dict):
                         text = value.get("text", "")
-                        if text:
+                        if text and "已跳过描述" not in text:
                             seg_texts.append(f"{key}: {text}")
 
             seg_brief = "；".join(seg_texts) if seg_texts else ""
@@ -318,17 +341,31 @@ class VideoSliceDescriber:
         prompt: str,
         previous_context: str = "",
         cumulative_summary: str = "",
+        fallback_count: list[int] | None = None,
     ) -> dict[str, Any]:
         """描述单个视频片段。"""
-        # 提取片段
+        # 提取片段（带随机后缀，避免并发/重试时同名文件互相覆盖）
         segment_path = str(
-            self._temp_dir / f"seg_{index}_{Path(video_path).stem}.mp4"
+            self._temp_dir / f"seg_{index}_{Path(video_path).stem}_{uuid.uuid4().hex[:8]}.mp4"
         )
         try:
             ffmpeg_extract_segment(video_path, scene.start_sec, scene.end_sec, segment_path)
         except (RuntimeError, ValueError) as e:
-            logger.warning("片段提取失败，使用原视频: seg=%d, error=%s", index, e)
-            segment_path = video_path
+            fallback_exhausted = fallback_count is not None and fallback_count[0] >= MAX_FALLBACK_TO_FULL_VIDEO
+            if not fallback_exhausted:
+                if fallback_count is not None:
+                    fallback_count[0] += 1
+                logger.warning("片段提取失败，使用原视频: seg=%d, error=%s", index, e)
+                segment_path = video_path
+            else:
+                # 回退整视频次数已达上限（长视频回退会导致 token 爆炸）：写占位描述跳过
+                logger.warning("片段提取失败且回退次数已达上限，写入占位描述: seg=%d, error=%s", index, e)
+                placeholder = {angle["key"]: {"text": "该片段视频截取失败，已跳过描述。", "tags": []} for angle in angles}
+                return {
+                    "start_time": scene.start_sec,
+                    "end_time": scene.end_sec,
+                    **placeholder,
+                }
 
         # 构建带时间戳和上下文的 prompt
         parts = [f"[时间范围: {scene.start_sec:.1f}s - {scene.end_sec:.1f}s]"]
@@ -366,12 +403,23 @@ class VideoSliceDescriber:
         except Exception as e:
             logger.error("片段描述失败: seg=%d, error=%s", index, e)
             if segment_path != video_path:
-                Path(segment_path).unlink(missing_ok=True)
+                _safe_unlink(segment_path)
+            if "DataInspectionFailed" in str(e):
+                # 平台内容审核拦截（400 DataInspectionFailed）：重试无意义，
+                # 写入占位描述并跳过该片段，避免整批任务中断导致前序片段丢失。
+                logger.warning("片段内容审核未通过，写入占位描述跳过: seg=%d, range=[%.1fs-%.1fs]",
+                               index, scene.start_sec, scene.end_sec)
+                placeholder = {angle["key"]: {"text": "该片段未通过平台内容审核，已跳过描述。", "tags": []} for angle in angles}
+                return {
+                    "start_time": scene.start_sec,
+                    "end_time": scene.end_sec,
+                    **placeholder,
+                }
             raise RuntimeError(f"片段描述失败 (seg={index}): {e}") from e
 
         # 清理临时文件
         if segment_path != video_path:
-            Path(segment_path).unlink(missing_ok=True)
+            _safe_unlink(segment_path)
 
         return {
             "start_time": scene.start_sec,

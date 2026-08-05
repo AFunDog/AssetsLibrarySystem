@@ -5,6 +5,10 @@ from typing import Any
 from app.application.services.model_client import ModelClient
 from app.core.provider_config import ProviderConfig
 
+# 显式请求超时（秒）：与 OpenAIModelClient 的 300s 对齐，避免 SDK 默认 60s
+# 杀掉长视频多模态等耗时请求
+DEFAULT_TIMEOUT_SECONDS = 300
+
 
 class DashScopeModelClient(ModelClient):
     """封装 DashScope SDK 的同步模型调用。"""
@@ -35,6 +39,8 @@ class DashScopeModelClient(ModelClient):
             max_tokens=provider_config.max_tokens,
             result_format="message",
             response_format=response_format,
+            # 显式超时：与 OpenAI 客户端(300s)对齐，避免 SDK 默认 60s 杀掉长视频请求
+            timeout=DEFAULT_TIMEOUT_SECONDS,
         )
 
     def call_multimodal(
@@ -60,5 +66,7 @@ class DashScopeModelClient(ModelClient):
             model=model_name,
             messages=messages,
             response_format=response_format,
+            # 显式超时：与 OpenAI 客户端(300s)对齐，避免 SDK 默认 60s 杀掉长视频请求
+            timeout=DEFAULT_TIMEOUT_SECONDS,
             **kwargs,
         )

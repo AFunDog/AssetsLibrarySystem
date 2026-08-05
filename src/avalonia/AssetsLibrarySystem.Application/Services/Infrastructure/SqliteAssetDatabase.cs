@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Infrastructure;
 using Microsoft.Data.Sqlite;
+using Serilog;
 
 namespace AssetsLibrarySystem.Application.Services.Infrastructure;
 
@@ -170,6 +171,24 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
             CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_descriptions_asset_id
                 ON asset_descriptions(asset_id);
 
+            CREATE TABLE IF NOT EXISTS asset_token_usage_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id INTEGER NULL REFERENCES assets(id) ON DELETE CASCADE,
+                asset_name TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                operation TEXT NOT NULL DEFAULT 'describe',
+                model TEXT NULL,
+                query TEXT NULL,
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                estimated_cost_cny REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_asset_token_usage_log_asset_id
+                ON asset_token_usage_log(asset_id);
+
             CREATE TABLE IF NOT EXISTS asset_description_vectors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
@@ -186,6 +205,8 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
                 ON asset_description_vectors(embedding_model);
             """;
         command.ExecuteNonQuery();
+
+        EnsureUsageLogSchema(connection);
 
         EnsureColumn(connection, "asset_descriptions", "content_hash", "TEXT NULL");
         EnsureColumn(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'");
@@ -221,6 +242,135 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// usage 流水表迁移：旧结构（asset_id NOT NULL、无 operation/model/query 列）重建为新结构，
+    /// 保留已有描述调用记录。同步版。
+    /// </summary>
+    private static void EnsureUsageLogSchema(SqliteConnection connection)
+    {
+        if (!ColumnExists(connection, "asset_token_usage_log", "operation"))
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+            BEGIN;
+            CREATE TABLE asset_token_usage_log_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id INTEGER NULL REFERENCES assets(id) ON DELETE CASCADE,
+                asset_name TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                operation TEXT NOT NULL DEFAULT 'describe',
+                model TEXT NULL,
+                query TEXT NULL,
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                estimated_cost_cny REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            INSERT INTO asset_token_usage_log_new (
+                id, asset_id, asset_name, asset_type, mode,
+                input_tokens, output_tokens, total_tokens, estimated_cost_cny, created_at
+            )
+            SELECT id, asset_id, asset_name, asset_type, mode,
+                   input_tokens, output_tokens, total_tokens, estimated_cost_cny, created_at
+            FROM asset_token_usage_log;
+            DROP TABLE asset_token_usage_log;
+            ALTER TABLE asset_token_usage_log_new RENAME TO asset_token_usage_log;
+            CREATE INDEX IF NOT EXISTS ix_asset_token_usage_log_asset_id
+                ON asset_token_usage_log(asset_id);
+            CREATE INDEX IF NOT EXISTS ix_asset_token_usage_log_operation
+                ON asset_token_usage_log(operation);
+            COMMIT;
+            """;
+            try
+            {
+                command.ExecuteNonQuery();
+            }
+            catch
+            {
+                // 迁移失败时回滚，避免旧表被 DROP 后无法恢复（历史数据留在日志表即可）
+                using var rollback = connection.CreateCommand();
+                rollback.CommandText = "ROLLBACK;";
+                try
+                {
+                    rollback.ExecuteNonQuery();
+                }
+                catch (Exception rollbackEx)
+                {
+                    Log.Warning(rollbackEx, "usage 表迁移回滚失败");
+                }
+
+                throw;
+            }
+
+            return;
+        }
+
+        // 新结构已就位时，幂等补建 operation 索引（旧库重建后可能缺失）
+        using (var indexCommand = connection.CreateCommand())
+        {
+            indexCommand.CommandText = """
+                CREATE INDEX IF NOT EXISTS ix_asset_token_usage_log_operation
+                    ON asset_token_usage_log(operation);
+                """;
+            indexCommand.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>usage 流水表迁移，异步版。</summary>
+    private static async Task EnsureUsageLogSchemaAsync(SqliteConnection connection, CancellationToken ct)
+    {
+        if (!await ColumnExistsAsync(connection, "asset_token_usage_log", "operation", ct).ConfigureAwait(false))
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+            BEGIN;
+            CREATE TABLE asset_token_usage_log_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id INTEGER NULL REFERENCES assets(id) ON DELETE CASCADE,
+                asset_name TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                operation TEXT NOT NULL DEFAULT 'describe',
+                model TEXT NULL,
+                query TEXT NULL,
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                estimated_cost_cny REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            INSERT INTO asset_token_usage_log_new (
+                id, asset_id, asset_name, asset_type, mode,
+                input_tokens, output_tokens, total_tokens, estimated_cost_cny, created_at
+            )
+            SELECT id, asset_id, asset_name, asset_type, mode,
+                   input_tokens, output_tokens, total_tokens, estimated_cost_cny, created_at
+            FROM asset_token_usage_log;
+            DROP TABLE asset_token_usage_log;
+            ALTER TABLE asset_token_usage_log_new RENAME TO asset_token_usage_log;
+            CREATE INDEX IF NOT EXISTS ix_asset_token_usage_log_asset_id
+                ON asset_token_usage_log(asset_id);
+            CREATE INDEX IF NOT EXISTS ix_asset_token_usage_log_operation
+                ON asset_token_usage_log(operation);
+            COMMIT;
+            """;
+            await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            return;
+        }
+
+        // 新结构已就位时，幂等补建 operation 索引（旧库重建后可能缺失）
+        await using (var indexCommand = connection.CreateCommand())
+        {
+            indexCommand.CommandText = """
+                CREATE INDEX IF NOT EXISTS ix_asset_token_usage_log_operation
+                    ON asset_token_usage_log(operation);
+                """;
+            await indexCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
     }
 
     public async Task UpdateSubtypeAsync(long assetId, string subtype, CancellationToken ct = default)
@@ -388,6 +538,24 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
             CREATE UNIQUE INDEX IF NOT EXISTS ux_asset_descriptions_asset_id
                 ON asset_descriptions(asset_id);
 
+            CREATE TABLE IF NOT EXISTS asset_token_usage_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id INTEGER NULL REFERENCES assets(id) ON DELETE CASCADE,
+                asset_name TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                operation TEXT NOT NULL DEFAULT 'describe',
+                model TEXT NULL,
+                query TEXT NULL,
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                estimated_cost_cny REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_asset_token_usage_log_asset_id
+                ON asset_token_usage_log(asset_id);
+
             CREATE TABLE IF NOT EXISTS asset_description_vectors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
@@ -404,6 +572,8 @@ public sealed class SqliteAssetDatabase : IAssetDatabase
                 ON asset_description_vectors(embedding_model);
             """;
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+
+        await EnsureUsageLogSchemaAsync(connection, ct).ConfigureAwait(false);
 
         await EnsureColumnAsync(connection, "asset_descriptions", "content_hash", "TEXT NULL", ct).ConfigureAwait(false);
         await EnsureColumnAsync(connection, "asset_descriptions", "metadata_status", "TEXT NOT NULL DEFAULT 'ready'", ct).ConfigureAwait(false);

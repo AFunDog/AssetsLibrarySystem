@@ -87,7 +87,7 @@
 
 当前推荐架构下，`asset_descriptions.db`、HNSW 索引文件和向量召回都由 Avalonia/C# 本地维护；Python 保持为纯模型网关，只负责 embedding 与 rerank。
 
-`api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；如果顶层没配，后端再回退到对应槽位自己的 `api_key`，最后才读取 `DASHSCOPE_API_KEY`。注意 `providers.yaml` 已被 gitignore，真实 Key 推荐通过环境变量 `DASHSCOPE_API_KEY` 或本目录 `.env`（gitignore）注入，避免明文入库。
+`api_key` 建议统一放在 `providers.yaml` 顶层，这样四个素材类型槽位都能继承同一把 Key；实际回退顺序为：**槽位自己的 `api_key` 优先**，槽位未配置时回退到顶层 `api_key`，最后才读取 `DASHSCOPE_API_KEY`（`app/core/provider_config.py`）。注意 `providers.yaml` 已被 gitignore，真实 Key 推荐通过环境变量 `DASHSCOPE_API_KEY` 或本目录 `.env`（gitignore）注入，避免明文入库。
 
 当前 DashScope 传参方式如下：
 

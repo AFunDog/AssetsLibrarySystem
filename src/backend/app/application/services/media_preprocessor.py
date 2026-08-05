@@ -36,7 +36,7 @@ class MediaPreprocessor:
             logger.error("素材不存在: %s", source_path)
             raise FileNotFoundError(f"素材不存在: {source_path}")
 
-        if not self.enabled or asset_format not in {"图片", "视频"}:
+        if not self.enabled or asset_format not in {"图片", "视频", "视频剪辑"}:
             logger.debug("预处理跳过: format=%s, enabled=%s", asset_format, self.enabled)
             return str(source_path)
 
@@ -124,7 +124,14 @@ class MediaPreprocessor:
 
     def run_ffmpeg_or_fallback(self, command: list[str], source_path: Path, target_path: Path) -> Path:
         try:
-            subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # 加超时兜底：大视频压缩可能长时间挂起，超时后回退原始文件
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=300,
+            )
             logger.debug("视频压缩完成: %s -> %s", source_path.name, target_path)
         except Exception as exc:
             logger.warning("视频压缩失败，回退到原始文件: %s, error=%s", source_path, exc)

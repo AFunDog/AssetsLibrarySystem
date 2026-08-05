@@ -121,6 +121,41 @@ public sealed class LocalHnswSearchIndexManagerTests : IDisposable
         Assert.Throws<InvalidOperationException>(action);
     }
 
+    [Fact]
+    public void EnsureCurrent_RebuildsWhenContentChangedWithinSameTimestamp()
+    {
+        // 回归：批量向量化可能在同一 tick 写入（LatestUpdatedAt 相同）而内容已变化，
+        // 仅靠键与时间戳判断会命中过期内存图；指纹不一致时应重建索引。
+        Directory.CreateDirectory(TempDirectory);
+        var indexPath = Path.Combine(TempDirectory, "vectors.hnsw");
+        var metadataPath = Path.Combine(TempDirectory, "vectors.meta.json");
+        var keys = new[] { "asset-1::整体", "asset-2::整体" };
+        var state = new LocalVectorIndexState(2, "2026-06-10T12:00:00.0000000+00:00");
+
+        var before = new[]
+        {
+            new[] { 1f, 0f, 0f },
+            new[] { 0f, 1f, 0f },
+        };
+        var after = new[]
+        {
+            new[] { 0f, 1f, 0f },
+            new[] { 1f, 0f, 0f },
+        };
+
+        var manager = new LocalHnswSearchIndexManager(indexPath, metadataPath);
+        manager.EnsureCurrent(before, keys, state);
+
+        // 同实例、同键、同时间戳，但向量内容已变化
+        manager.EnsureCurrent(after, keys, state);
+
+        // 查询应命中内容变化后的第一个向量（0,1,0）
+        var results = manager.Search(new[] { 0f, 1f, 0f }, 1);
+
+        Assert.Single(results);
+        Assert.Equal(0, results[0].Index);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(TempDirectory))

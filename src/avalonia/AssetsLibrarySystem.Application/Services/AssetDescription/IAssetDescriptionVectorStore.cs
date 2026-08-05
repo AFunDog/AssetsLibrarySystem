@@ -16,6 +16,12 @@ public interface IAssetDescriptionVectorStore
 
     Task<bool> DeleteAsync(long assetId, CancellationToken ct = default);
 
+    /// <summary>删除指定素材在当前模型下的一组角度向量（用于清理剪辑素材已删除片段的残留向量）。</summary>
+    Task DeleteAnglesAsync(
+        long assetId,
+        string embeddingModel,
+        IReadOnlyCollection<string> angleTypes,
+        CancellationToken ct = default);
     Task<bool> NeedsVectorizationAsync(
         long assetId,
         string embeddingModel,

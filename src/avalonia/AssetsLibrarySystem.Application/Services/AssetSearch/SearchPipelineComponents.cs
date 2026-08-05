@@ -252,12 +252,71 @@ public sealed class VectorRecordRepository : IVectorRecordRepository
 {
     private IAssetDatabase AssetDatabase { get; }
 
+    // 版本化内存缓存：搜索热路径避免每次查询都全量加载向量 + 解析 JSON。
+    // 版本 = (COUNT, MAX(vectorized_at))，写库后任一变化即失效重载；
+    // 同一批写入共享同一 vectorized_at，内容变化必然伴随新版本。
+    private static readonly object CacheSync = new();
+    private static readonly Dictionary<string, (int Count, string LatestVectorizedAt, IReadOnlyList<LocalVectorRecord> Records)> Cache =
+        new(StringComparer.Ordinal);
+
     public VectorRecordRepository(IAssetDatabase assetDatabase)
     {
         AssetDatabase = assetDatabase;
     }
 
     public async Task<IReadOnlyList<LocalVectorRecord>> LoadAsync(string embeddingModel, CancellationToken ct = default)
+    {
+        var (count, latest) = await GetVersionAsync(embeddingModel, ct).ConfigureAwait(false);
+        lock (CacheSync)
+        {
+            if (Cache.TryGetValue(embeddingModel, out var cached)
+                && cached.Count == count
+                && string.Equals(cached.LatestVectorizedAt, latest, StringComparison.Ordinal))
+            {
+                return cached.Records;
+            }
+        }
+
+        var records = await LoadCoreAsync(embeddingModel, ct).ConfigureAwait(false);
+        lock (CacheSync)
+        {
+            Cache[embeddingModel] = (count, latest, records);
+        }
+
+        return records;
+    }
+
+    /// <summary>仅供测试：清空版本缓存，避免静态缓存跨测试用例串扰。</summary>
+    internal static void ResetCacheForTesting()
+    {
+        lock (CacheSync)
+        {
+            Cache.Clear();
+        }
+    }
+
+    /// <summary>轻量版本探测：向量行数 + 最新向量化时间（不加载向量数据）</summary>
+    private async Task<(int Count, string LatestVectorizedAt)> GetVersionAsync(string embeddingModel, CancellationToken ct)
+    {
+        await AssetDatabase.EnsureSchemaAsync(ct).ConfigureAwait(false);
+        await using var connection = await AssetDatabase.OpenConnectionAsync(ct).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT(*), COALESCE(MAX(vectorized_at), '')
+            FROM asset_description_vectors
+            WHERE embedding_model = $embedding_model;
+            """;
+        command.Parameters.AddWithValue("$embedding_model", embeddingModel);
+        await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            return (0, string.Empty);
+        }
+
+        return (reader.GetInt32(0), reader.GetString(1));
+    }
+
+    private async Task<IReadOnlyList<LocalVectorRecord>> LoadCoreAsync(string embeddingModel, CancellationToken ct = default)
     {
         await AssetDatabase.EnsureSchemaAsync(ct).ConfigureAwait(false);
         await using var connection = await AssetDatabase.OpenConnectionAsync(ct).ConfigureAwait(false);
@@ -549,8 +608,7 @@ public sealed class SearchResultAggregator : ISearchResultAggregator
         }
 
         return results
-            .OrderByDescending(item => item.CombinedScore ?? item.RerankScore)
-            .Take(candidateTopK)
+            .OrderByDescending(item => item.CombinedScore)
             .Take(finalTopK)
             .ToArray();
     }

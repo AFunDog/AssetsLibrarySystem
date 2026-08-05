@@ -23,6 +23,7 @@ public sealed class ConsoleCommandRunner
     private VectorizeDescriptionsUseCase VectorizeDescriptionsUseCase { get; }
     private RebuildSearchIndexUseCase RebuildSearchIndexUseCase { get; }
     private SplitClipSegmentsUseCase SplitClipSegmentsUseCase { get; }
+    private DeleteAssetDescriptionUseCase DeleteAssetDescriptionUseCase { get; }
 
     public ConsoleCommandRunner(
         IAssetLibraryService libraryService,
@@ -33,7 +34,8 @@ public sealed class ConsoleCommandRunner
         DescribeAssetsUseCase describeAssetsUseCase,
         VectorizeDescriptionsUseCase vectorizeDescriptionsUseCase,
         RebuildSearchIndexUseCase rebuildSearchIndexUseCase,
-        SplitClipSegmentsUseCase splitClipSegmentsUseCase)
+        SplitClipSegmentsUseCase splitClipSegmentsUseCase,
+        DeleteAssetDescriptionUseCase deleteAssetDescriptionUseCase)
     {
         LibraryService = libraryService;
         DescriptionStore = descriptionStore;
@@ -44,6 +46,7 @@ public sealed class ConsoleCommandRunner
         VectorizeDescriptionsUseCase = vectorizeDescriptionsUseCase;
         RebuildSearchIndexUseCase = rebuildSearchIndexUseCase;
         SplitClipSegmentsUseCase = splitClipSegmentsUseCase;
+        DeleteAssetDescriptionUseCase = deleteAssetDescriptionUseCase;
     }
 
     public async Task<int> RunAsync(string[] args)
@@ -101,6 +104,8 @@ public sealed class ConsoleCommandRunner
             "list" => await ListLibrariesAsync(),
             "add" => await AddLibraryAsync(args.Skip(1).ToArray()),
             "scan" => await ScanLibraryAsync(args.Skip(1).ToArray()),
+            "remove" => await RemoveLibraryAsync(args.Skip(1).ToArray()),
+            "rename" => await RenameLibraryAsync(args.Skip(1).ToArray()),
             _ => PrintLibraryHelpAndFail()
         };
     }
@@ -122,6 +127,13 @@ public sealed class ConsoleCommandRunner
             "search" => await SearchAssetsAsync(args.Skip(1).ToArray()),
             "query" => await SearchAssetsAsync(args.Skip(1).ToArray()),
             "reindex" => await ReindexSearchIndexAsync(args.Skip(1).ToArray()),
+            "delete" => await DeleteAssetAsync(args.Skip(1).ToArray()),
+            "rename" => await RenameAssetAsync(args.Skip(1).ToArray()),
+            "set-type" => await SetAssetTypeAsync(args.Skip(1).ToArray()),
+            "tag" => await TagAssetAsync(args.Skip(1).ToArray()),
+            "set-description" => await SetAssetDescriptionAsync(args.Skip(1).ToArray()),
+            "clear-description" => await ClearAssetDescriptionAsync(args.Skip(1).ToArray()),
+            "usage" => await ShowTokenUsageAsync(args.Skip(1).ToArray()),
             _ => PrintAssetHelpAndFail()
         };
     }
@@ -157,10 +169,82 @@ public sealed class ConsoleCommandRunner
             return 1;
         }
 
-        var library = await LibraryService.AddLibraryAsync(folderPath);
-        Console.WriteLine($"已登记素材库：{library.Name}");
+        var kindValue = GetOptionValue(args, "--kind") ?? GetOptionValue(args, "-k");
+        var kind = LibraryKind.Standard;
+        if (!string.IsNullOrWhiteSpace(kindValue))
+        {
+            if (string.Equals(kindValue, "clip", StringComparison.OrdinalIgnoreCase))
+            {
+                kind = LibraryKind.Clip;
+            }
+            else if (!string.Equals(kindValue, "standard", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine($"未知素材库类型：{kindValue}（支持 standard / clip）。");
+                return 1;
+            }
+        }
+
+        var library = await LibraryService.AddLibraryAsync(folderPath, kind);
+        Console.WriteLine($"已登记素材库：{library.Name}（{(kind == LibraryKind.Clip ? "剪辑库" : "标准库")}）");
         Console.WriteLine($"- ID: {library.Id}");
         Console.WriteLine($"- Path: {library.RootPath}");
+        return 0;
+    }
+
+    private async Task<int> RemoveLibraryAsync(string[] args)
+    {
+        var targetKey = args.FirstOrDefault(item => !item.StartsWith('-'))
+            ?? GetOptionValue(args, "--library")
+            ?? GetOptionValue(args, "-l");
+
+        if (string.IsNullOrWhiteSpace(targetKey))
+        {
+            Console.Error.WriteLine("缺少素材库标识。");
+            PrintLibraryHelp();
+            return 1;
+        }
+
+        var library = await ResolveLibraryAsync(targetKey);
+        if (library is null)
+        {
+            Console.Error.WriteLine($"未找到素材库：{targetKey}");
+            return 1;
+        }
+
+        await LibraryService.DeleteLibraryAsync(library.Id);
+        Console.WriteLine($"已删除素材库：{library.Name}（含全部素材、描述与向量数据）");
+        return 0;
+    }
+
+    private async Task<int> RenameLibraryAsync(string[] args)
+    {
+        var targetKey = args.FirstOrDefault(item => !item.StartsWith('-'))
+            ?? GetOptionValue(args, "--library")
+            ?? GetOptionValue(args, "-l");
+        var newName = GetOptionValue(args, "--name");
+
+        if (string.IsNullOrWhiteSpace(targetKey))
+        {
+            Console.Error.WriteLine("缺少素材库标识。");
+            PrintLibraryHelp();
+            return 1;
+        }
+
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            Console.Error.WriteLine("缺少新名称：--name <新名称>。");
+            return 1;
+        }
+
+        var library = await ResolveLibraryAsync(targetKey);
+        if (library is null)
+        {
+            Console.Error.WriteLine($"未找到素材库：{targetKey}");
+            return 1;
+        }
+
+        await LibraryService.UpdateLibraryAsync(library.Id, newName.Trim());
+        Console.WriteLine($"已重命名素材库：{library.Name} -> {newName.Trim()}");
         return 0;
     }
 
@@ -209,11 +293,19 @@ public sealed class ConsoleCommandRunner
             ?? GetOptionValue(args, "-a");
         var prompt = GetOptionValue(args, "--prompt");
         var systemPrompt = GetOptionValue(args, "--system-prompt") ?? GetOptionValue(args, "--systemprompt");
+        var rangeStart = TryParseSeconds(GetOptionValue(args, "--start"));
+        var rangeEnd = TryParseSeconds(GetOptionValue(args, "--end"));
 
         if (string.IsNullOrWhiteSpace(libraryKey) || string.IsNullOrWhiteSpace(assetKey))
         {
             Console.Error.WriteLine("需要同时提供 --library 和 --asset。");
             PrintAssetHelp();
+            return 1;
+        }
+
+        if (rangeStart is not null && rangeEnd is not null && rangeEnd <= rangeStart)
+        {
+            Console.Error.WriteLine("时间范围无效：--end 必须大于 --start。");
             return 1;
         }
 
@@ -235,7 +327,7 @@ public sealed class ConsoleCommandRunner
         await BackendLauncher.StartAsync();
         try
         {
-            var document = await DescribeSingleAssetAsync(asset, prompt, systemPrompt);
+            var document = await DescribeSingleAssetAsync(asset, prompt, systemPrompt, rangeStart, rangeEnd);
             PrintDescriptionResult(document);
         }
         finally
@@ -327,7 +419,13 @@ public sealed class ConsoleCommandRunner
             return null;
         }
 
-        return double.TryParse(text.Trim(), out var seconds) ? seconds : null;
+        // 非数字输入直接报错，避免静默降级为“全片描述”造成意外费用
+        if (!double.TryParse(text.Trim(), out var seconds))
+        {
+            throw new ArgumentException($"时间参数不是有效数字: {text}（--start/--end 使用秒数，如 --start 12.5）");
+        }
+
+        return seconds;
     }
 
     private async Task<int> DescribeDirectoryAsync(string[] args)
@@ -469,11 +567,6 @@ public sealed class ConsoleCommandRunner
                     continue;
                 }
 
-                if ((await VectorStore.ListByAssetIdAsync(asset.DatabaseId)).Count > 0)
-                {
-                    continue;
-                }
-
                 pending.Add((library, asset, description));
             }
         }
@@ -567,6 +660,232 @@ public sealed class ConsoleCommandRunner
         }
 
         return 0;
+    }
+
+    private async Task<int> DeleteAssetAsync(string[] args)
+    {
+        var (library, asset) = await ResolveLibraryAndAssetAsync(args);
+        if (library is null || asset is null)
+        {
+            return 1;
+        }
+
+        await LibraryService.DeleteAssetAsync(asset.DatabaseId);
+        Console.WriteLine($"已删除素材：{asset.RelativePath}（含描述与向量数据）");
+        return 0;
+    }
+
+    private async Task<int> RenameAssetAsync(string[] args)
+    {
+        var (library, asset) = await ResolveLibraryAndAssetAsync(args);
+        if (library is null || asset is null)
+        {
+            return 1;
+        }
+
+        var newName = GetOptionValue(args, "--name");
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            Console.Error.WriteLine("缺少新名称：--name <新名称>。");
+            return 1;
+        }
+
+        await LibraryService.UpdateAssetNameAsync(asset.DatabaseId, newName.Trim());
+        Console.WriteLine($"已重命名素材：{asset.RelativePath} -> {newName.Trim()}");
+        return 0;
+    }
+
+    private async Task<int> SetAssetTypeAsync(string[] args)
+    {
+        var (library, asset) = await ResolveLibraryAndAssetAsync(args);
+        if (library is null || asset is null)
+        {
+            return 1;
+        }
+
+        var newType = GetOptionValue(args, "--type") ?? GetOptionValue(args, "-t");
+        if (string.IsNullOrWhiteSpace(newType))
+        {
+            Console.Error.WriteLine("缺少目标类型：--type <视频|视频剪辑>。");
+            return 1;
+        }
+
+        if (!string.Equals(newType, "视频", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(newType, "视频剪辑", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Error.WriteLine($"仅支持 视频 ↔ 视频剪辑 互转，收到：{newType}");
+            return 1;
+        }
+
+        var normalizedType = string.Equals(newType, "视频剪辑", StringComparison.OrdinalIgnoreCase) ? "视频剪辑" : "视频";
+        await LibraryService.UpdateAssetTypeAsync(asset.DatabaseId, normalizedType);
+        Console.WriteLine($"已更改素材类型：{asset.RelativePath} -> {normalizedType}");
+        Console.WriteLine("旧描述已标记过期并删除旧向量，请重新生成描述。");
+        return 0;
+    }
+
+    private async Task<int> TagAssetAsync(string[] args)
+    {
+        var (library, asset) = await ResolveLibraryAndAssetAsync(args);
+        if (library is null || asset is null)
+        {
+            return 1;
+        }
+
+        var setText = GetOptionValue(args, "--set");
+        var addText = GetOptionValue(args, "--add");
+        var removeText = GetOptionValue(args, "--remove");
+
+        if (string.IsNullOrWhiteSpace(setText) && string.IsNullOrWhiteSpace(addText) && string.IsNullOrWhiteSpace(removeText))
+        {
+            Console.Error.WriteLine("需要提供 --set <tag1,tag2> / --add <tag> / --remove <tag> 之一。");
+            return 1;
+        }
+
+        var tags = asset.Tags.ToList();
+        if (!string.IsNullOrWhiteSpace(setText))
+        {
+            tags = SplitTags(setText);
+        }
+
+        foreach (var tag in SplitTags(addText))
+        {
+            if (!tags.Contains(tag, StringComparer.OrdinalIgnoreCase))
+            {
+                tags.Add(tag);
+            }
+        }
+
+        foreach (var tag in SplitTags(removeText))
+        {
+            tags.RemoveAll(item => string.Equals(item, tag, StringComparison.OrdinalIgnoreCase));
+        }
+
+        await LibraryService.UpdateAssetTagsAsync(asset.DatabaseId, tags.ToArray());
+        Console.WriteLine($"已更新标签：{asset.RelativePath} -> [{string.Join(", ", tags)}]");
+        return 0;
+    }
+
+    private async Task<int> SetAssetDescriptionAsync(string[] args)
+    {
+        var (library, asset) = await ResolveLibraryAndAssetAsync(args);
+        if (library is null || asset is null)
+        {
+            return 1;
+        }
+
+        var text = GetOptionValue(args, "--text");
+        var filePath = GetOptionValue(args, "--file");
+
+        if (string.IsNullOrWhiteSpace(text) && string.IsNullOrWhiteSpace(filePath))
+        {
+            Console.Error.WriteLine("需要提供 --text <内容> 或 --file <路径>。");
+            return 1;
+        }
+
+        if (!string.IsNullOrWhiteSpace(text) && !string.IsNullOrWhiteSpace(filePath))
+        {
+            Console.Error.WriteLine("--text 与 --file 只能提供一个。");
+            return 1;
+        }
+
+        if (!string.IsNullOrWhiteSpace(filePath))
+        {
+            if (!File.Exists(filePath))
+            {
+                Console.Error.WriteLine($"未找到描述文本文件：{filePath}");
+                return 1;
+            }
+
+            text = await File.ReadAllTextAsync(filePath);
+        }
+
+        var existing = await DescriptionStore.TryGetAsync(asset.DatabaseId);
+        if (existing is not null)
+        {
+            await DescriptionStore.UpdateDescriptionAsync(asset.DatabaseId, text!.Trim());
+        }
+        else
+        {
+            // 素材尚无描述记录：构造手工文档写入（模式标记为「手动」）
+            var document = new AssetDescriptionDocument(
+                AssetId: asset.DatabaseId,
+                AssetUid: asset.Id,
+                AssetName: asset.Name,
+                AssetType: asset.AssetType,
+                CurrentPath: asset.LocalPath,
+                Description: text!.Trim(),
+                BackendEndpoint: "manual",
+                Mode: "手动",
+                GeneratedAt: DateTimeOffset.Now,
+                TokenUsage: null,
+                Prompt: null,
+                SystemPrompt: null,
+                ContentHash: null,
+                MetadataStatus: "ok");
+            await DescriptionStore.SaveAsync(document);
+        }
+
+        Console.WriteLine($"已保存描述文本：{asset.RelativePath}");
+        return 0;
+    }
+
+    private async Task<int> ClearAssetDescriptionAsync(string[] args)
+    {
+        var (library, asset) = await ResolveLibraryAndAssetAsync(args);
+        if (library is null || asset is null)
+        {
+            return 1;
+        }
+
+        var result = await DeleteAssetDescriptionUseCase.ExecuteAsync(asset);
+        Console.WriteLine(result.DescriptionDeleted || result.VectorDeleted
+            ? $"已清除描述与向量：{asset.RelativePath}（本地索引已重建）"
+            : $"该素材没有描述或向量记录：{asset.RelativePath}");
+        return 0;
+    }
+
+    private async Task<(LibraryWorkspace? Library, ManagedAssetRecord? Asset)> ResolveLibraryAndAssetAsync(
+        string[] args)
+    {
+        var libraryKey = GetOptionValue(args, "--library") ?? GetOptionValue(args, "-l");
+        var assetKey = GetOptionValue(args, "--asset") ?? GetOptionValue(args, "-a");
+
+        if (string.IsNullOrWhiteSpace(libraryKey) || string.IsNullOrWhiteSpace(assetKey))
+        {
+            Console.Error.WriteLine($"需要同时提供 --library 和 --asset。");
+            PrintAssetHelp();
+            return (null, null);
+        }
+
+        var library = await ResolveLibraryAsync(libraryKey);
+        if (library is null)
+        {
+            Console.Error.WriteLine($"未找到素材库：{libraryKey}");
+            return (null, null);
+        }
+
+        var assets = await LibraryService.ScanLibraryAsync(library);
+        var asset = ResolveAsset(assets, assetKey);
+        if (asset is null)
+        {
+            Console.Error.WriteLine($"未找到素材：{assetKey}");
+            return (null, null);
+        }
+
+        return (library, asset);
+    }
+
+    private static List<string> SplitTags(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
+        return text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private async Task<int> ReindexSearchIndexAsync(string[] args)
@@ -682,7 +1001,9 @@ public sealed class ConsoleCommandRunner
     private async Task<AssetDescriptionDocument> DescribeSingleAssetAsync(
         ManagedAssetRecord asset,
         string? prompt,
-        string? systemPrompt)
+        string? systemPrompt,
+        double? rangeStart = null,
+        double? rangeEnd = null)
     {
         AssetDescriptionDocument? completedDocument = null;
         Exception? failure = null;
@@ -692,6 +1013,8 @@ public sealed class ConsoleCommandRunner
             BackendLauncher.BaseUrl,
             prompt,
             systemPrompt,
+            rangeStart,
+            rangeEnd,
             progress: progress =>
             {
                 if (progress.Kind == DescribeAssetProgressKind.Completed)
@@ -714,6 +1037,83 @@ public sealed class ConsoleCommandRunner
         throw failure ?? new InvalidOperationException("素材描述失败。");
     }
 
+    private async Task<int> ShowTokenUsageAsync(string[] args)
+    {
+        var libraryKey = GetOptionValue(args, "--library");
+        var assetKey = GetOptionValue(args, "--asset");
+        var limit = GetIntOptionValue(args, "--limit") ?? 20;
+
+        long? libraryId = null;
+        long? assetId = null;
+        string? assetName = null;
+
+        if (!string.IsNullOrWhiteSpace(libraryKey))
+        {
+            var library = await ResolveLibraryAsync(libraryKey);
+            if (library is null)
+            {
+                Console.Error.WriteLine($"素材库不存在: {libraryKey}");
+                return 1;
+            }
+
+            libraryId = library.Id;
+            if (!string.IsNullOrWhiteSpace(assetKey))
+            {
+                var assets = await LibraryService.ScanLibraryAsync(library);
+                var asset = ResolveAsset(assets, assetKey);
+                if (asset is null)
+                {
+                    Console.Error.WriteLine($"素材不存在: {assetKey}");
+                    return 1;
+                }
+
+                assetId = asset.DatabaseId;
+                assetName = asset.Name;
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(assetKey))
+        {
+            Console.Error.WriteLine("--asset 需要与 --library 一起使用。");
+            return 1;
+        }
+
+        var summary = await DescriptionStore.GetTokenUsageSummaryAsync(assetId, libraryId, limit);
+        if (summary.CallCount == 0)
+        {
+            Console.WriteLine(assetId is not null
+                ? $"素材 [{assetName ?? assetId.ToString()}] 暂无 token/费用记录（尚无描述调用或调用未返回用量统计）。"
+                : "暂无 token/费用记录（尚无描述调用或调用未返回用量统计）。");
+            return 0;
+        }
+
+        Console.WriteLine("=== Token/费用统计 ===");
+        Console.WriteLine($"- 调用次数: {summary.CallCount:N0} 次");
+        Console.WriteLine($"- 输入 token: {summary.TotalInputTokens:N0}");
+        Console.WriteLine($"- 输出 token: {summary.TotalOutputTokens:N0}");
+        Console.WriteLine($"- 合计 token: {summary.TotalTokens:N0}");
+        Console.WriteLine($"- 预估费用: ≈ {summary.TotalCostCny:F4} 元 (CNY, 按 providers.yaml 中 qwen3.7-flash 官网价格估算)");
+        Console.WriteLine();
+        Console.WriteLine($"最近 {summary.RecentEntries.Count} 次流水：");
+        var index = 0;
+        foreach (var entry in summary.RecentEntries)
+        {
+            index++;
+            var operation = string.Equals(entry.Operation, "describe", StringComparison.Ordinal)
+                ? string.Empty
+                : $"[{entry.Operation}] ";
+            var model = string.IsNullOrWhiteSpace(entry.Model) ? string.Empty : $" model={entry.Model}";
+            var assetLabel = string.Equals(entry.AssetType, "检索", StringComparison.Ordinal)
+                ? entry.AssetName
+                : $"{entry.AssetName}({entry.AssetType})";
+            Console.WriteLine(
+                $"#{index} {entry.CreatedAt:yyyy-MM-dd HH:mm:ss} | {operation}{assetLabel} | " +
+                $"mode={entry.Mode}{model} | 输入 {entry.InputTokens:N0} / 输出 {entry.OutputTokens:N0} / " +
+                $"合计 {entry.TotalTokens:N0} | ≈{entry.EstimatedCostCny:F4} 元");
+        }
+
+        return 0;
+    }
+
     private static void PrintDescriptionResult(AssetDescriptionDocument document)
     {
         Console.WriteLine("描述生成完成。");
@@ -721,6 +1121,17 @@ public sealed class ConsoleCommandRunner
         Console.WriteLine($"- 模式: {document.Mode}");
         Console.WriteLine($"- 时间: {document.GeneratedAt:yyyy-MM-dd HH:mm:ss}");
         Console.WriteLine($"- 文本: {document.PrimaryDescription}");
+        if (document.TokenUsage is { } usage)
+        {
+            Console.WriteLine($"- Token: 输入 {usage.InputTokens:N0} / 输出 {usage.OutputTokens:N0} / 合计 {usage.TotalTokens:N0}");
+            Console.WriteLine(usage.EstimatedCostCny is { } cost
+                ? $"- 费用: ≈ {cost:F4} 元 (CNY, 按 providers.yaml 中 qwen3.7-flash 官网价格估算)"
+                : "- 费用: 未配置 pricing，无法估算");
+        }
+        else
+        {
+            Console.WriteLine("- Token: 本次调用未返回用量统计");
+        }
     }
 
     private static void PrintSearchResult(AssetSearchResponseDocument response)
@@ -753,18 +1164,33 @@ public sealed class ConsoleCommandRunner
             Console.WriteLine("""
             用法:
               libraries list
-              libraries add <folderPath>
+              libraries add <folderPath> [--kind clip|standard]
               libraries scan <libraryId|libraryName|rootPath>
-              assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>]
+              libraries remove <libraryId|libraryName|rootPath>
+              libraries rename <libraryId|libraryName|rootPath> --name <新名称>
+              assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>] [--start <秒>] [--end <秒>]
               assets describe-dir --library <libraryId|libraryName|rootPath> --folder <relativeFolderPath> [--prompt <prompt>] [--system-prompt <prompt>]
               assets split --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--start <秒>] [--end <秒>]
               assets vectorize-missing --library <libraryId|libraryName|rootPath>
+              assets delete --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName>
+              assets rename --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> --name <新名称>
+              assets set-type --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> --type <视频|视频剪辑>
+              assets tag --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--set <tag1,tag2>] [--add <tag>] [--remove <tag>]
+              assets set-description --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> (--text <内容> | --file <路径>)
+              assets clear-description --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName>
+              assets search <query> [--candidate-top-k <n>] [--top-k <n>] [--format <assetFormat>]
+              assets usage [--library <libraryId|libraryName|rootPath>] [--asset <assetId|relativePath|fileName>] [--limit <n>]
+              assets reindex
 
             示例:
               libraries add D:\Data\WebGal
+              libraries add D:\Data\Clips --kind clip
               libraries scan 我的素材库
               assets describe --library 我的素材库 --asset background.png
+              assets describe --library 我的素材库 --asset intro.mp4 --start 0 --end 30
               assets describe-dir --library 我的素材库 --folder background\bg
+              assets set-type --library 我的素材库 --asset intro.mp4 --type 视频剪辑
+              assets tag --library 我的素材库 --asset background.png --add 风景
               assets reindex
               assets vectorize-missing --library 我的素材库
             """);
@@ -775,8 +1201,10 @@ public sealed class ConsoleCommandRunner
         Console.WriteLine("""
             libraries 命令:
               libraries list
-              libraries add <folderPath>
+              libraries add <folderPath> [--kind clip|standard]
               libraries scan <libraryId|libraryName|rootPath|directoryPath>
+              libraries remove <libraryId|libraryName|rootPath>
+              libraries rename <libraryId|libraryName|rootPath> --name <新名称>
             """);
     }
 
@@ -784,12 +1212,19 @@ public sealed class ConsoleCommandRunner
     {
         Console.WriteLine("""
             assets 命令:
-              assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>]
+              assets describe --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--prompt <prompt>] [--system-prompt <prompt>] [--start <秒>] [--end <秒>]
               assets describe-dir --library <libraryId|libraryName|rootPath> --folder <relativeFolderPath> [--prompt <prompt>] [--system-prompt <prompt>]
               assets split --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--start <秒>] [--end <秒>]
               assets search <query> [--candidate-top-k <n>] [--top-k <n>] [--format <assetFormat>]
               assets reindex
               assets vectorize-missing [--library <libraryId|libraryName|rootPath>]
+              assets delete --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName>
+              assets rename --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> --name <新名称>
+              assets set-type --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> --type <视频|视频剪辑>
+              assets tag --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> [--set <tag1,tag2>] [--add <tag>] [--remove <tag>]
+              assets set-description --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName> (--text <内容> | --file <路径>)
+              assets clear-description --library <libraryId|libraryName|rootPath> --asset <assetId|relativePath|fileName>
+              assets usage [--library <libraryId|libraryName|rootPath>] [--asset <assetId|relativePath|fileName>] [--limit <n>]
             """);
     }
 
@@ -810,9 +1245,12 @@ public sealed class ConsoleCommandRunner
         Console.WriteLine($"扫描目标：{targetLabel}");
         Console.WriteLine($"素材数量：{assets.Count}");
 
+        // 批量读取描述，避免逐素材 N+1 查询
+        var descriptions = await DescriptionStore.GetDescriptionsAsync(
+            assets.Select(a => a.DatabaseId).ToList());
         foreach (var asset in assets)
         {
-            var description = await DescriptionStore.TryGetAsync(asset.DatabaseId);
+            var description = descriptions.GetValueOrDefault(asset.DatabaseId);
             var descriptionState = description is null ? "未描述" : $"已描述({description.Mode})";
             Console.WriteLine($"- {asset.RelativePath} | {asset.AssetType} | {asset.Stage} | {asset.AiState} | {descriptionState}");
         }

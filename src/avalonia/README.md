@@ -47,13 +47,13 @@ src/avalonia/
 
 ## 技术栈
 
-- **.NET 10** + **Avalonia 11**（FluentTheme Dark）
+- **.NET 10** + **Avalonia 12**（FluentTheme Dark）
 - **CommunityToolkit.Mvvm** 源码生成器
 - **Autofac** 依赖注入
 - **Serilog** 日志
 - **SQLite** 本地存储
 - **HNSW.Net** 近似最近邻搜索
-- **Python FastAPI** 后端模型网关
+- **Python.NET** 嵌入式模型网关（进程内，无 HTTP 服务）
 
 ## 快速开始
 
@@ -67,6 +67,40 @@ dotnet run --project AssetsLibrarySystem.Avalonia
 # 命令行帮助
 dotnet run --project AssetsLibrarySystem.Console -- --help
 ```
+
+### 命令行工具（Console）
+
+与桌面端共享同一套 Application 层与 SQLite/HNSW 数据，适合批处理与脚本化维护：
+
+```bash
+# 素材库管理
+dotnet run --project AssetsLibrarySystem.Console -- libraries list
+dotnet run --project AssetsLibrarySystem.Console -- libraries add <folderPath> [--kind clip|standard]
+dotnet run --project AssetsLibrarySystem.Console -- libraries scan <libraryId|libraryName|rootPath>
+dotnet run --project AssetsLibrarySystem.Console -- libraries remove <libraryId|libraryName|rootPath>
+dotnet run --project AssetsLibrarySystem.Console -- libraries rename <libraryId|libraryName|rootPath> --name <新名称>
+
+# 素材维护（与桌面端操作等价）
+dotnet run --project AssetsLibrarySystem.Console -- assets delete --library <key> --asset <key>
+dotnet run --project AssetsLibrarySystem.Console -- assets rename --library <key> --asset <key> --name <新名称>
+dotnet run --project AssetsLibrarySystem.Console -- assets set-type --library <key> --asset <key> --type <视频|视频剪辑>
+dotnet run --project AssetsLibrarySystem.Console -- assets tag --library <key> --asset <key> --add <标签>
+dotnet run --project AssetsLibrarySystem.Console -- assets set-description --library <key> --asset <key> --text <内容>
+dotnet run --project AssetsLibrarySystem.Console -- assets clear-description --library <key> --asset <key>
+
+# 核心链路（描述/分割/向量化/搜索/重建索引）
+dotnet run --project AssetsLibrarySystem.Console -- assets describe --library <key> --asset <key> [--start <秒>] [--end <秒>]
+dotnet run --project AssetsLibrarySystem.Console -- assets describe-dir --library <key> --folder <相对路径>
+dotnet run --project AssetsLibrarySystem.Console -- assets split --library <key> --asset <key> [--start <秒>] [--end <秒>]
+dotnet run --project AssetsLibrarySystem.Console -- assets vectorize-missing [--library <key>]
+dotnet run --project AssetsLibrarySystem.Console -- assets search <查询文本> [--top-k <n>] [--format <素材类型>]
+dotnet run --project AssetsLibrarySystem.Console -- assets reindex
+
+# Token/费用统计（描述/向量化/检索等所有 API 调用自动累计持久化到 SQLite 流水表）
+dotnet run --project AssetsLibrarySystem.Console -- assets usage [--library <key>] [--asset <key>] [--limit <n>]
+```
+
+`<key>` 可以是素材库 ID、名称或根路径。详细参数见 `--help`。
 
 ## 系统要求
 

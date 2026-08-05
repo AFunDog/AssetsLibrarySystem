@@ -18,7 +18,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
         BackendSearchClient = backendSearchClient;
     }
 
-    public async Task<IReadOnlyList<AssetDescriptionVectorDocument>> VectorizeAsync(
+    public async Task<VectorizationResult> VectorizeAsync(
         AssetDescriptionDocument document,
         string backendBaseUrl,
         string provider,
@@ -48,6 +48,7 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
         }
 
         var vectorDocuments = new List<AssetDescriptionVectorDocument>(vectorSources.Count);
+        var totalTokens = 0;
         var requestedDimensions = string.Equals(provider, "dashscope", StringComparison.OrdinalIgnoreCase)
             ? embeddingDimensions
             : (int?)null;
@@ -81,6 +82,10 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
                 GeneratedAt: document.GeneratedAt);
 
             var vectorResponse = await BackendSearchClient.IndexAsync(backendBaseUrl, request, ct).ConfigureAwait(false);
+            if (vectorResponse.TokenUsage is { } tokenUsage)
+            {
+                totalTokens += tokenUsage;
+            }
 
             vectorDocuments.Add(new AssetDescriptionVectorDocument(
                 AssetId: document.AssetId,
@@ -99,8 +104,13 @@ public sealed class AssetTextVectorizationService : IAssetTextVectorizationServi
             throw new InvalidOperationException("当前描述中没有可向量化的有效角度文本。");
         }
 
-        return vectorDocuments;
+        return new VectorizationResult(vectorDocuments, totalTokens);
     }
+
+    /// <summary>向量化结果：文档列表 + 本次实际 API 调用的累计 token（跳过的未变片段不计入）。</summary>
+    public sealed record VectorizationResult(
+        IReadOnlyList<AssetDescriptionVectorDocument> Documents,
+        int TotalTokens);
 
     /// <summary>计算剪辑素材期望的片段角度指纹（angleType → 文本指纹），用于增量判断</summary>
     public static IReadOnlyDictionary<string, string> ComputeExpectedFingerprints(AssetDescriptionDocument document)

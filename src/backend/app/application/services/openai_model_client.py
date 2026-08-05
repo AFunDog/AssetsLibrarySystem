@@ -76,6 +76,7 @@ class OpenAIModelClient(ModelClient):
         system_prompt: str,
         multimodal_content: list[dict[str, Any]],
         response_format: dict[str, Any],
+        **extra_kwargs: Any,
     ) -> Any:
         base_url = provider_config.base_url or DEFAULT_OPENAI_BASE_URL
         url = base_url.rstrip("/") + CHAT_COMPLETIONS_PATH
@@ -96,6 +97,9 @@ class OpenAIModelClient(ModelClient):
         }
         if response_format and response_format.get("type"):
             body["response_format"] = response_format
+
+        # 透传额外参数（extra_body 中除 response_format 外的配置项），避免覆盖已显式设置的键
+        body.update(extra_kwargs)
 
         logger.info(
             "OpenAI 多模态生成: url=%s, model=%s, items=%d",
@@ -271,6 +275,7 @@ class OpenAIModelClient(ModelClient):
         # 提取每一帧
         frames: list[dict[str, Any]] = []
         for ts in timestamps:
+            frame_path: str | None = None
             try:
                 with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
                     frame_path = tmp.name
@@ -289,15 +294,20 @@ class OpenAIModelClient(ModelClient):
                         "ffmpeg 提取帧失败: ts=%ss, error=%s",
                         ts, result.stderr[:100],
                     )
-                    Path(frame_path).unlink(missing_ok=True)
                     continue
 
                 item = self._build_image_item(frame_path)
-                Path(frame_path).unlink(missing_ok=True)
                 if item:
                     frames.append(item)
             except Exception as e:
                 logger.warning("提取视频帧异常: ts=%ss, error=%s", ts, e)
+            finally:
+                # 成功/失败路径都清理临时帧文件（杀软/句柄占用时忽略删除失败）
+                if frame_path is not None:
+                    try:
+                        Path(frame_path).unlink(missing_ok=True)
+                    except OSError:
+                        pass
 
         if not frames:
             # 回退到第一帧
@@ -352,15 +362,19 @@ class OpenAIModelClient(ModelClient):
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.returncode != 0:
                 logger.warning("ffmpeg 提取视频帧失败: %s", result.stderr[:200])
-                Path(frame_path).unlink(missing_ok=True)
                 return None
 
-            item = self._build_image_item(frame_path)
-            Path(frame_path).unlink(missing_ok=True)
-            return item
+            return self._build_image_item(frame_path)
         except Exception as e:
             logger.warning("提取视频帧异常: %s", e)
             return None
+        finally:
+            # 成功/失败路径都清理临时帧文件
+            if "frame_path" in locals():
+                try:
+                    Path(frame_path).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     @staticmethod
     def _guess_mime_type(suffix: str) -> str:

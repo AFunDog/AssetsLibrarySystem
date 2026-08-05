@@ -17,5 +17,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AssetsLibrarySystem.Application\AssetsLibrarySystem.Application.csproj" />
+    <ProjectReference Include="..\AssetsLibrarySystem.Console\AssetsLibrarySystem.Console.csproj" />
   </ItemGroup>
 </Project>

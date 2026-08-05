@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -18,6 +19,8 @@ class VideoSceneDetectorTestCase(unittest.TestCase):
     """VideoSceneDetector 单元测试"""
 
     def setUp(self):
+        if shutil.which("ffmpeg") is None:
+            self.skipTest("ffmpeg 不可用，跳过依赖真实视频的检测测试")
         self.detector = VideoSceneDetector(
             adaptive_threshold=3.0,
             min_scene_len=15,
@@ -123,6 +126,74 @@ class VideoSceneDetectorTestCase(unittest.TestCase):
         self.assertEqual(scene.end_frame, 300)
         self.assertEqual(scene.start_sec, 0.0)
         self.assertEqual(scene.end_sec, 10.0)
+
+    def test_split_long_scenes_never_exceeds_max(self):
+        detector = VideoSceneDetector(max_seconds=40.0)
+        scenes = [
+            SceneRange(0, 1000, 0.0, 100.0),   # 100s → 3 段
+            SceneRange(1000, 1400, 100.0, 140.0),  # 40s → 不切
+            SceneRange(1400, 1500, 140.0, 150.0),  # 10s → 不切
+            SceneRange(1500, 2500, 150.0, 250.0),  # 100s → 3 段
+        ]
+        result = detector._split_long_scenes(scenes)
+
+        # 覆盖完整且连续
+        self.assertEqual(result[0].start_sec, 0.0)
+        for prev, cur in zip(result, result[1:]):
+            self.assertAlmostEqual(prev.end_sec, cur.start_sec)
+        self.assertEqual(result[-1].end_sec, 250.0)
+
+        # 每段不超过 max_seconds
+        for scene in result:
+            self.assertLessEqual(scene.end_sec - scene.start_sec, 40.0 + 1e-9)
+
+        # 段数 = ceil(100/40)*2 + 2 个不切段 = 3 + 2 + 3 = 8
+        self.assertEqual(len(result), 8)
+
+        # 首段 start_frame 与原场景一致，末段 end_frame 与原场景一致
+        self.assertEqual(result[0].start_frame, 0)
+        self.assertEqual(result[-1].end_frame, 2500)
+        # 时间区间与原始区间一一对应（不重叠、不漏）
+        self.assertEqual(
+            [(s.start_sec, s.end_sec) for s in result],
+            [(0.0, 100 / 3), (100 / 3, 200 / 3), (200 / 3, 100.0),
+             (100.0, 140.0), (140.0, 150.0),
+             (150.0, 150 + 100 / 3), (150 + 100 / 3, 150 + 200 / 3), (150 + 200 / 3, 250.0)],
+        )
+
+    def test_split_long_scenes_disabled_by_default(self):
+        detector = VideoSceneDetector()
+        scenes = [SceneRange(0, 3000, 0.0, 100.0)]
+        self.assertEqual(detector._split_long_scenes(scenes), scenes)
+
+    def test_detect_applies_max_seconds(self):
+        detector = VideoSceneDetector(
+            adaptive_threshold=3.0,
+            min_scene_len=15,
+            min_seconds=1.0,
+            max_seconds=2.0,
+        )
+        scenes = detector.detect(self.test_video)
+        self.assertGreater(len(scenes), 0)
+        for scene in scenes:
+            self.assertLessEqual(scene.end_sec - scene.start_sec, 2.0 + 1e-6)
+
+    def test_split_long_scenes_applied_to_single_scene_video(self):
+        """未检测到场景边界（整视频单场景）时同样应用 max_seconds 等分。"""
+        # 5 秒测试视频 + max_seconds=2 → 应等分为 3 段（ceil(5/2)=3）
+        detector = VideoSceneDetector(
+            adaptive_threshold=99.0,  # 阈值极高 → 检测不到边界
+            min_scene_len=15,
+            min_seconds=1.0,
+            max_seconds=2.0,
+        )
+        scenes = detector.detect(self.test_video)
+        self.assertGreaterEqual(len(scenes), 3)
+        for scene in scenes:
+            self.assertLessEqual(scene.end_sec - scene.start_sec, 2.0 + 1e-6)
+        # 覆盖完整
+        self.assertAlmostEqual(scenes[0].start_sec, 0.0)
+        self.assertAlmostEqual(scenes[-1].end_sec, 5.0)
 
 
 if __name__ == "__main__":

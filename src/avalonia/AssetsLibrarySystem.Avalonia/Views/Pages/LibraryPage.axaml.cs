@@ -25,6 +25,16 @@ public partial class LibraryPage : UserControl
         AddHandler(AvaloniaInput.DragDrop.DropEvent, Explorer_Drop);
     }
 
+    private void SearchTextBox_KeyDown(object? sender, AvaloniaInput.KeyEventArgs e)
+    {
+        if (e.Key == AvaloniaInput.Key.Enter &&
+            DataContext is LibraryPageViewModel viewModel &&
+            viewModel.SearchPanel.ExecuteSearchCommand.CanExecute(null))
+        {
+            viewModel.SearchPanel.ExecuteSearchCommand.Execute(null);
+        }
+    }
+
     // ===== 保留在 View 层的代码（需要系统对话框交互） =====
 
     private async void AddLibraryFolder_Click(object? sender, RoutedEventArgs e)

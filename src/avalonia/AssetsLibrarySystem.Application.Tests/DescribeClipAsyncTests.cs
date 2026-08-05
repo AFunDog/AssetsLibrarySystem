@@ -97,6 +97,12 @@ public sealed class DescribeClipAsyncTests
         public Task<AssetDescriptionDocument?> TryGetAsync(long assetId, CancellationToken ct = default) =>
             Task.FromResult(Stored);
 
+        public Task<IReadOnlyDictionary<long, AssetDescriptionDocument>> GetDescriptionsAsync(
+            IReadOnlyCollection<long> assetIds, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyDictionary<long, AssetDescriptionDocument>>(
+                assetIds.Where(id => Stored is not null && Stored.AssetId == id)
+                    .ToDictionary(id => id, _ => Stored!));
+
         public Task<AssetDescriptionDocument?> TryGetForAssetAsync(ManagedAssetRecord asset, CancellationToken ct = default) =>
             Task.FromResult(Stored);
 
@@ -111,6 +117,19 @@ public sealed class DescribeClipAsyncTests
 
             return Task.CompletedTask;
         }
+
+        public Task AppendTokenUsageAsync(AssetDescriptionDocument document, CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public Task AppendApiUsageAsync(
+            string operation, string mode, string model, long? assetId, string assetName, string assetType,
+            string? query, int inputTokens, int outputTokens, int totalTokens, double? estimatedCostCny,
+            CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public Task<AssetTokenUsageSummary> GetTokenUsageSummaryAsync(
+            long? assetId = null, long? libraryId = null, int limit = 20, CancellationToken ct = default) =>
+            Task.FromResult(new AssetTokenUsageSummary(0, 0, 0, 0, 0, []));
     }
 
     private static AssetDescriptionService CreateService(

@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using AssetsLibrarySystem.Application.Models;
 using AssetsLibrarySystem.Application.Infrastructure;
 using AssetsLibrarySystem.Application.Services.AssetDescription;
@@ -191,6 +196,14 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             return Task.FromResult(DescriptionByAssetId.Values.FirstOrDefault());
         }
 
+        public Task<IReadOnlyDictionary<long, AssetDescriptionDocument>> GetDescriptionsAsync(
+            IReadOnlyCollection<long> assetIds, CancellationToken ct = default)
+        {
+            // Fake 以 asset_uid 索引，与数据库 id 无对应关系；该测试未使用批量查询，返回空即可
+            return Task.FromResult<IReadOnlyDictionary<long, AssetDescriptionDocument>>(
+                new Dictionary<long, AssetDescriptionDocument>());
+        }
+
         public Task<AssetDescriptionDocument?> TryGetForAssetAsync(ManagedAssetRecord asset, CancellationToken ct = default)
         {
             return Task.FromResult(DescriptionByAssetId.GetValueOrDefault(asset.AssetUid));
@@ -201,10 +214,32 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             return Task.FromResult(DeleteResult);
         }
 
+        public Task DeleteAnglesAsync(
+            long assetId,
+            string embeddingModel,
+            IReadOnlyCollection<string> angleTypes,
+            CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task UpdateDescriptionAsync(long assetId, string newDescription, CancellationToken ct = default)
         {
             throw new NotSupportedException();
         }
+
+        public Task AppendTokenUsageAsync(AssetDescriptionDocument document, CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public Task AppendApiUsageAsync(
+            string operation, string mode, string model, long? assetId, string assetName, string assetType,
+            string? query, int inputTokens, int outputTokens, int totalTokens, double? estimatedCostCny,
+            CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public Task<AssetTokenUsageSummary> GetTokenUsageSummaryAsync(
+            long? assetId = null, long? libraryId = null, int limit = 20, CancellationToken ct = default) =>
+            Task.FromResult(new AssetTokenUsageSummary(0, 0, 0, 0, 0, []));
 
         public Task<bool> NeedsVectorizationAsync(
             string assetId,
@@ -256,6 +291,15 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             return Task.FromResult(DeleteResult);
         }
 
+        public Task DeleteAnglesAsync(
+            long assetId,
+            string embeddingModel,
+            IReadOnlyCollection<string> angleTypes,
+            CancellationToken ct = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task<bool> NeedsVectorizationAsync(
             long assetId,
             string embeddingModel,
@@ -283,7 +327,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
             ResultsByAssetId = resultsByAssetId ?? new Dictionary<string, IReadOnlyList<AssetDescriptionVectorDocument>>();
         }
 
-        public Task<IReadOnlyList<AssetDescriptionVectorDocument>> VectorizeAsync(
+        public Task<AssetTextVectorizationService.VectorizationResult> VectorizeAsync(
             AssetDescriptionDocument document,
             string backendBaseUrl,
             string provider,
@@ -295,7 +339,7 @@ public sealed class AssetSearchIndexRefreshUseCaseTests
         {
             if (ResultsByAssetId.TryGetValue(document.AssetUid, out var documents))
             {
-                return Task.FromResult(documents);
+                return Task.FromResult(new AssetTextVectorizationService.VectorizationResult(documents, TotalTokens: 0));
             }
 
             throw new InvalidOperationException($"missing vector result for {document.AssetUid}");

@@ -95,4 +95,5 @@ public sealed record BackendTokenUsage(
     int? AudioTokens,
     JsonElement? InputTokensDetails,
     JsonElement? OutputTokensDetails,
-    JsonElement? PromptTokensDetails);
+    JsonElement? PromptTokensDetails,
+    double? EstimatedCostCny = null);
